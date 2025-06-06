@@ -2,10 +2,10 @@
 # Multi-stage build to minimize final image size
 
 # Build stage
-FROM openjdk:21-jdk-slim AS builder
+FROM eclipse-temurin:21-jdk-alpine AS builder
 
 # Install Maven
-RUN apt-get update && apt-get install -y maven && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache maven
 
 WORKDIR /app
 
@@ -27,16 +27,13 @@ COPY src/ src/
 RUN ./mvnw clean package -DskipTests -B
 
 # Runtime stage - minimal image
-FROM openjdk:21-jre-slim
+FROM eclipse-temurin:21-jre-alpine
 
 # Install curl for health checks only
-RUN apt-get update && \
-    apt-get install -y curl && \
-    rm -rf /var/lib/apt/lists/* && \
-    apt-get clean
+RUN apk add --no-cache curl
 
 # Create non-root user for security
-RUN groupadd -r telegram && useradd -r -g telegram telegram
+RUN addgroup -S telegram && adduser -S telegram -G telegram
 
 WORKDIR /app
 

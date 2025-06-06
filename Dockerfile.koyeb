@@ -11,20 +11,15 @@ WORKDIR /app
 
 # Copy Maven files for dependency caching
 COPY pom.xml .
-COPY .mvn/ .mvn/
-COPY mvnw .
-
-# Make Maven wrapper executable
-RUN chmod +x mvnw
 
 # Download dependencies (cached layer)
-RUN ./mvnw dependency:go-offline -B
+RUN mvn dependency:go-offline -B
 
 # Copy source code
 COPY src/ src/
 
 # Build the application (skip tests to save time and resources)
-RUN ./mvnw clean package -DskipTests -B
+RUN mvn clean package -DskipTests -B
 
 # Runtime stage - minimal image
 FROM eclipse-temurin:21-jre-alpine

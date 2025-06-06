@@ -9,7 +9,7 @@
 
 **Professional Telegram Bot for managing Telegram Star purchases with advanced security and monitoring**
 
-[Features](#-features) • [Quick Start](#-quick-start) • [API Documentation](#-api-documentation) • [Security](#-security) • [Monitoring](#-monitoring)
+[Features](#-features) • [Quick Start](#-quick-start) • [API Documentation](#-api-documentation) • [Security](#-security) • [Monitoring](#-monitoring) • [Deploy to Koyeb](#-deploy-to-koyeb)
 
 </div>
 
@@ -265,6 +265,66 @@ ENTRYPOINT ["java", "-jar", "/app.jar"]
 - [ ] Set up monitoring
 - [ ] Configure logging
 - [ ] Set up backup strategy
+
+## 🌐 Deploy to Koyeb
+
+### Quick Deploy to Free Cloud ☁️
+
+Deploy your Telegram Star Manager to **Koyeb** completely free! 
+
+[![Deploy to Koyeb](https://www.koyeb.com/static/images/deploy/button.svg)](https://app.koyeb.com/deploy?type=git&repository=github.com/yourusername/telegram-star-manager&branch=main&name=telegram-star-manager)
+
+**Koyeb Free Tier includes:**
+- 🆓 **Forever Free** - No time limits
+- 💾 **512MB RAM** - Perfect for Telegram bots
+- ⚡ **0.1 vCPU** - Sufficient for most workloads  
+- 🌍 **Global Edge Network** - Fast worldwide delivery
+- 🔒 **Free HTTPS** & custom domains
+- 📊 **Built-in monitoring** & logging
+
+### Manual Setup
+
+1. **Register at [koyeb.com](https://www.koyeb.com)** (GitHub login)
+2. **Create new app** → Connect GitHub repository
+3. **Configure environment variables:**
+   ```bash
+   TELEGRAM_BOT_TOKEN=your_bot_token
+   TELEGRAM_BOT_USERNAME=your_bot_username  
+   API_KEY=your_secure_api_key
+   ENVIRONMENT=production
+   ```
+4. **Set Docker file:** `Dockerfile.koyeb`
+5. **Deploy!** 🚀
+
+### Post-Deploy Setup
+
+After deployment, configure Telegram webhook:
+
+```bash
+# Get your Koyeb app URL
+APP_URL="https://your-app-name.koyeb.app"
+
+# Set webhook
+curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" \
+  -d "url=${APP_URL}/webhook"
+
+# Verify webhook
+curl "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getWebhookInfo"
+```
+
+### Monitoring Your Deployment
+
+```bash
+# Health check
+curl https://your-app.koyeb.app/api/ping
+
+# Bot status
+curl https://your-app.koyeb.app/api/health
+
+# View logs in Koyeb Dashboard
+```
+
+📖 **Full deployment guide:** [KOYEB_DEPLOYMENT.md](KOYEB_DEPLOYMENT.md)
 
 ---
 

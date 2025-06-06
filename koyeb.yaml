@@ -1,0 +1,48 @@
+# Koyeb service configuration for Telegram Star Manager
+name: telegram-star-manager
+type: web
+
+# Free tier instance
+instance_type: free
+
+# Port configuration
+ports:
+  - port: 8080
+    protocol: http
+
+# Environment variables
+env_vars:
+  - key: ENVIRONMENT
+    value: production
+  - key: SERVER_PORT
+    value: "8080"
+  - key: JAVA_OPTS
+    value: "-Xmx400m -Xms200m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication"
+  - key: LOGGING_LEVEL
+    value: "WARN"
+
+# Build configuration
+build:
+  type: docker
+  dockerfile: Dockerfile.koyeb
+
+# Health check configuration
+health_check:
+  http:
+    path: /api/ping
+    port: 8080
+    initial_delay: 60
+    period: 30
+    timeout: 10
+
+# Scaling configuration
+scaling:
+  min: 1
+  max: 1
+
+# Region (closest to users)
+regions:
+  - fra  # Frankfurt, good for Europe/Asia
+
+# Auto-deploy on push
+auto_deploy: true

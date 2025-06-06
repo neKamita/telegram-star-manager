@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  telegram-star-manager:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: telegram-star-manager
+    ports:
+      - "8080:8080"
+    environment:
+      # Override these in .env file or environment
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-your_bot_token_here}
+      - TELEGRAM_BOT_USERNAME=${TELEGRAM_BOT_USERNAME:-YourBotUsername}
+      - API_KEY=${API_KEY:-your_api_key_here}
+      - SERVER_PORT=${SERVER_PORT:-8080}
+      - ENVIRONMENT=${ENVIRONMENT:-production}
+      - LOGGING_LEVEL=${LOGGING_LEVEL:-INFO}
+    env_file:
+      - .env
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    volumes:
+      # Optional: Mount logs directory
+      - ./logs:/app/logs
+    networks:
+      - telegram-network
+
+  # Optional: Redis for session storage and caching
+  redis:
+    image: redis:7-alpine
+    container_name: telegram-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    environment:
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+    command: >
+      sh -c "
+        if [ -n '$$REDIS_PASSWORD' ]; then
+          redis-server --requirepass $$REDIS_PASSWORD
+        else
+          redis-server
+        fi
+      "
+    volumes:
+      - redis-data:/data
+    networks:
+      - telegram-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  # Optional: PostgreSQL for persistent data
+  postgres:
+    image: postgres:15-alpine
+    container_name: telegram-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=${DATABASE_NAME:-telegram_star_manager}
+      - POSTGRES_USER=${DATABASE_USERNAME:-telegram_user}
+      - POSTGRES_PASSWORD=${DATABASE_PASSWORD:-telegram_password}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - telegram-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USERNAME:-telegram_user}"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  redis-data:
+    driver: local
+  postgres-data:
+    driver: local
+
+networks:
+  telegram-network:
+    driver: bridge

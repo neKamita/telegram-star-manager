@@ -449,9 +449,14 @@
                 if (card.querySelector('.badge.bg-light')) userTargetedCount++;
             });
             
-            document.getElementById('activeCount').textContent = activeCount;
-            document.getElementById('rolloutCount').textContent = rolloutCount;
-            document.getElementById('userTargetedCount').textContent = userTargetedCount;
+            // Update DOM elements with null checks
+            const activeCountEl = document.getElementById('activeCount');
+            const rolloutCountEl = document.getElementById('rolloutCount');
+            const userTargetedCountEl = document.getElementById('userTargetedCount');
+            
+            if (activeCountEl) activeCountEl.textContent = activeCount;
+            if (rolloutCountEl) rolloutCountEl.textContent = rolloutCount;
+            if (userTargetedCountEl) userTargetedCountEl.textContent = userTargetedCount;
         }
         
         // Override global refresh function

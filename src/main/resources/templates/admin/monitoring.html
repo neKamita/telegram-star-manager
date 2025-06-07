@@ -240,10 +240,14 @@
         }
         
         function updateSystemMetrics() {
-            // Simulate metrics (в реальности получали бы из API)
-            document.getElementById('response-time').textContent = (Math.random() * 100 + 50).toFixed(0) + 'ms';
-            document.getElementById('memory-usage').textContent = (Math.random() * 30 + 40).toFixed(0) + '%';
-            document.getElementById('cache-hits').textContent = (Math.random() * 20 + 75).toFixed(0) + '%';
+            // Simulate metrics (в реальности получали бы из API) - with null checks
+            const responseTimeEl = document.getElementById('response-time');
+            const memoryUsageEl = document.getElementById('memory-usage');
+            const cacheHitsEl = document.getElementById('cache-hits');
+            
+            if (responseTimeEl) responseTimeEl.textContent = (Math.random() * 100 + 50).toFixed(0) + 'ms';
+            if (memoryUsageEl) memoryUsageEl.textContent = (Math.random() * 30 + 40).toFixed(0) + '%';
+            if (cacheHitsEl) cacheHitsEl.textContent = (Math.random() * 20 + 75).toFixed(0) + '%';
             
             // Update uptime
             updateUptime();
@@ -258,16 +262,23 @@
             const hours = Math.floor(diff / (1000 * 60 * 60));
             const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
             
-            document.getElementById('uptime').textContent = `${hours}h ${minutes}m`;
+            const uptimeEl = document.getElementById('uptime');
+            if (uptimeEl) uptimeEl.textContent = `${hours}h ${minutes}m`;
         }
         
         function updateFlagsProgress() {
-            const totalFlags = parseInt(document.getElementById('total-flags').textContent) || 0;
-            const activeFlags = parseInt(document.getElementById('active-flags').textContent) || 0;
+            const totalFlagsEl = document.getElementById('total-flags');
+            const activeFlagsEl = document.getElementById('active-flags');
+            const progressEl = document.getElementById('flags-progress');
+            
+            if (!totalFlagsEl || !activeFlagsEl || !progressEl) return;
+            
+            const totalFlags = parseInt(totalFlagsEl.textContent) || 0;
+            const activeFlags = parseInt(activeFlagsEl.textContent) || 0;
             
             const percentage = totalFlags > 0 ? (activeFlags / totalFlags * 100) : 0;
-            document.getElementById('flags-progress').style.width = percentage + '%';
-            document.getElementById('flags-progress').setAttribute('aria-valuenow', percentage);
+            progressEl.style.width = percentage + '%';
+            progressEl.setAttribute('aria-valuenow', percentage);
         }
         
         function refreshActivity() {

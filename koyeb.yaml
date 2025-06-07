@@ -12,8 +12,10 @@ ports:
 
 # Environment variables
 env_vars:
+  - key: SPRING_PROFILES_ACTIVE
+    value: koyeb
   - key: ENVIRONMENT
-    value: production
+    value: koyeb
   - key: SERVER_PORT
     value: "8080"
   - key: JAVA_OPTS

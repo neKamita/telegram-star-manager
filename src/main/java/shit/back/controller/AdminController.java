@@ -84,6 +84,7 @@ public class AdminController {
     @GetMapping("/feature-flags/new")
     public String newFeatureFlagPage(Model model) {
         model.addAttribute("flag", new FeatureFlag());
+        model.addAttribute("isEdit", false);
         return "admin/feature-flag-form";
     }
     

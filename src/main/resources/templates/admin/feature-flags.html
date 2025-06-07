@@ -259,7 +259,7 @@
     <!-- Page Scripts -->
     <script th:fragment="scripts">
         // Feature flags page specific JavaScript
-        let allFlags = [];
+        var featureFlagsData = [];
         
         document.addEventListener('DOMContentLoaded', function() {
             initializeFlags();
@@ -277,7 +277,7 @@
         
         function initializeFlags() {
             // Store all flags for filtering
-            allFlags = Array.from(document.querySelectorAll('.flag-card')).map(card => ({
+            featureFlagsData = Array.from(document.querySelectorAll('.flag-card')).map(card => ({
                 element: card,
                 name: card.dataset.name.toLowerCase(),
                 status: card.dataset.status,
@@ -303,7 +303,7 @@
             
             let visibleCount = 0;
             
-            allFlags.forEach(flag => {
+            featureFlagsData.forEach(flag => {
                 let show = true;
                 
                 // Search filter

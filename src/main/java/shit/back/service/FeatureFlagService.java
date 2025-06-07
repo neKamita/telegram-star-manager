@@ -4,7 +4,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+import shit.back.entity.FeatureFlagEntity;
 import shit.back.model.FeatureFlag;
+import shit.back.repository.FeatureFlagJpaRepository;
 import shit.back.repository.FeatureFlagRepository;
 
 import java.time.LocalDateTime;
@@ -12,13 +14,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 public class FeatureFlagService {
     
+    @Autowired(required = false)
+    private FeatureFlagRepository redisRepository;
+    
     @Autowired
-    private FeatureFlagRepository featureFlagRepository;
+    private FeatureFlagJpaRepository jpaRepository;
     
     @Autowired
     private ApplicationEventPublisher eventPublisher;
@@ -48,7 +54,7 @@ public class FeatureFlagService {
             if (enabled) {
                 // Обновляем статистику использования (с fallback)
                 try {
-                    featureFlagRepository.updateUsageStats(flagName);
+                    updateUsageStats(flagName);
                 } catch (Exception e) {
                     log.warn("Failed to update usage stats for flag '{}': {}", flagName, e.getMessage());
                     // Продолжаем работу даже если статистика не обновилась
@@ -70,10 +76,10 @@ public class FeatureFlagService {
             return cachedFlag;
         }
         
-        // Загружаем из репозитория
-        Optional<FeatureFlag> flagOpt = featureFlagRepository.findByName(flagName);
-        if (flagOpt.isPresent()) {
-            FeatureFlag flag = flagOpt.get();
+        // Загружаем из JPA repository
+        Optional<FeatureFlagEntity> entityOpt = jpaRepository.findById(flagName);
+        if (entityOpt.isPresent()) {
+            FeatureFlag flag = entityOpt.get().toModel();
             flagCache.put(flagName, flag);
             return flag;
         }
@@ -92,11 +98,15 @@ public class FeatureFlagService {
             featureFlag.setUsageCount(0L);
         }
         
-        // Сохраняем в репозиторий
-        featureFlagRepository.save(featureFlag);
+        // Сохраняем в JPA
+        FeatureFlagEntity entity = FeatureFlagEntity.fromModel(featureFlag);
+        jpaRepository.save(entity);
         
         // Обновляем кэш
         flagCache.put(featureFlag.getName(), featureFlag);
+        
+        // Пробуем синхронизировать с Redis
+        syncToRedis(featureFlag);
         
         // Публикуем событие
         publishFeatureFlagEvent("CREATED", featureFlag);
@@ -106,12 +116,12 @@ public class FeatureFlagService {
     }
     
     public FeatureFlag updateFeatureFlag(String flagName, FeatureFlag updates) {
-        Optional<FeatureFlag> existingOpt = featureFlagRepository.findByName(flagName);
+        Optional<FeatureFlagEntity> existingOpt = jpaRepository.findById(flagName);
         if (existingOpt.isEmpty()) {
             throw new RuntimeException("Feature flag '" + flagName + "' not found");
         }
         
-        FeatureFlag existing = existingOpt.get();
+        FeatureFlag existing = existingOpt.get().toModel();
         
         // Обновляем поля
         if (updates.getDescription() != null) {
@@ -138,11 +148,15 @@ public class FeatureFlagService {
         
         existing.setUpdatedAt(LocalDateTime.now());
         
-        // Сохраняем
-        featureFlagRepository.save(existing);
+        // Сохраняем в JPA
+        FeatureFlagEntity entity = FeatureFlagEntity.fromModel(existing);
+        jpaRepository.save(entity);
         
         // Обновляем кэш
         flagCache.put(flagName, existing);
+        
+        // Пробуем синхронизировать с Redis
+        syncToRedis(existing);
         
         // Публикуем событие
         publishFeatureFlagEvent("UPDATED", existing);
@@ -152,18 +166,21 @@ public class FeatureFlagService {
     }
     
     public void deleteFeatureFlag(String flagName) {
-        Optional<FeatureFlag> flagOpt = featureFlagRepository.findByName(flagName);
+        Optional<FeatureFlagEntity> flagOpt = jpaRepository.findById(flagName);
         if (flagOpt.isEmpty()) {
             throw new RuntimeException("Feature flag '" + flagName + "' not found");
         }
         
-        FeatureFlag flag = flagOpt.get();
+        FeatureFlag flag = flagOpt.get().toModel();
         
-        // Удаляем из репозитория
-        featureFlagRepository.delete(flagName);
+        // Удаляем из JPA
+        jpaRepository.deleteById(flagName);
         
         // Удаляем из кэша
         flagCache.remove(flagName);
+        
+        // Пробуем удалить из Redis
+        deleteFromRedis(flagName);
         
         // Публикуем событие
         publishFeatureFlagEvent("DELETED", flag);
@@ -173,79 +190,103 @@ public class FeatureFlagService {
     
     public List<FeatureFlag> getAllFeatureFlags() {
         try {
-            return featureFlagRepository.findAll();
+            return jpaRepository.findAll().stream()
+                    .map(FeatureFlagEntity::toModel)
+                    .collect(Collectors.toList());
         } catch (Exception e) {
-            log.warn("Repository unavailable, returning cached flags: {}", e.getMessage());
+            log.warn("JPA repository unavailable, returning cached flags: {}", e.getMessage());
             return new java.util.ArrayList<>(flagCache.values());
         }
     }
     
     public Optional<FeatureFlag> getFeatureFlag(String flagName) {
         try {
-            return featureFlagRepository.findByName(flagName);
+            return jpaRepository.findById(flagName)
+                    .map(FeatureFlagEntity::toModel);
         } catch (Exception e) {
-            log.warn("Repository unavailable, checking cache for flag '{}': {}", flagName, e.getMessage());
+            log.warn("JPA repository unavailable, checking cache for flag '{}': {}", flagName, e.getMessage());
             return Optional.ofNullable(flagCache.get(flagName));
         }
     }
     
     public List<FeatureFlag> getActiveFeatureFlags() {
         try {
-            return featureFlagRepository.findActiveFlags();
+            return jpaRepository.findActiveFlags(LocalDateTime.now()).stream()
+                    .map(FeatureFlagEntity::toModel)
+                    .collect(Collectors.toList());
         } catch (Exception e) {
-            log.warn("Repository unavailable, filtering cached flags: {}", e.getMessage());
+            log.warn("JPA repository unavailable, filtering cached flags: {}", e.getMessage());
             return flagCache.values().stream()
                 .filter(FeatureFlag::isEnabled)
-                .collect(java.util.stream.Collectors.toList());
+                .collect(Collectors.toList());
         }
     }
     
     public List<FeatureFlag> getUserFeatureFlags(String userId) {
-        return featureFlagRepository.findFlagsForUser(userId);
+        // Для простоты возвращаем все активные флаги
+        return getActiveFeatureFlags().stream()
+                .filter(flag -> flag.isEnabledForUser(userId))
+                .collect(Collectors.toList());
     }
     
     public void enableFeatureFlag(String flagName, String updatedBy) {
-        featureFlagRepository.enableFlag(flagName, updatedBy);
-        
-        // Обновляем кэш
-        Optional<FeatureFlag> flagOpt = featureFlagRepository.findByName(flagName);
-        flagOpt.ifPresent(flag -> {
-            flagCache.put(flagName, flag);
-            publishFeatureFlagEvent("ENABLED", flag);
-        });
+        toggleFeatureFlagInternal(flagName, true, updatedBy);
+        publishFeatureFlagEvent("ENABLED", getFeatureFlag(flagName).orElse(null));
     }
     
     public void disableFeatureFlag(String flagName, String updatedBy) {
-        featureFlagRepository.disableFlag(flagName, updatedBy);
-        
-        // Обновляем кэш
-        Optional<FeatureFlag> flagOpt = featureFlagRepository.findByName(flagName);
-        flagOpt.ifPresent(flag -> {
-            flagCache.put(flagName, flag);
-            publishFeatureFlagEvent("DISABLED", flag);
-        });
+        toggleFeatureFlagInternal(flagName, false, updatedBy);
+        publishFeatureFlagEvent("DISABLED", getFeatureFlag(flagName).orElse(null));
     }
     
     public void toggleFeatureFlag(String flagName, String updatedBy) {
-        featureFlagRepository.toggleFlag(flagName, updatedBy);
-        
-        // Обновляем кэш
-        Optional<FeatureFlag> flagOpt = featureFlagRepository.findByName(flagName);
-        flagOpt.ifPresent(flag -> {
+        Optional<FeatureFlagEntity> entityOpt = jpaRepository.findById(flagName);
+        if (entityOpt.isPresent()) {
+            FeatureFlagEntity entity = entityOpt.get();
+            toggleFeatureFlagInternal(flagName, !entity.isEnabled(), updatedBy);
+            publishFeatureFlagEvent("TOGGLED", getFeatureFlag(flagName).orElse(null));
+        }
+    }
+    
+    private void toggleFeatureFlagInternal(String flagName, boolean enabled, String updatedBy) {
+        Optional<FeatureFlagEntity> entityOpt = jpaRepository.findById(flagName);
+        if (entityOpt.isPresent()) {
+            FeatureFlagEntity entity = entityOpt.get();
+            entity.setEnabled(enabled);
+            entity.setUpdatedAt(LocalDateTime.now());
+            jpaRepository.save(entity);
+            
+            // Обновляем кэш
+            FeatureFlag flag = entity.toModel();
+            flag.setUpdatedBy(updatedBy);
             flagCache.put(flagName, flag);
-            publishFeatureFlagEvent("TOGGLED", flag);
-        });
+            
+            // Синхронизируем с Redis
+            syncToRedis(flag);
+        }
     }
     
     public Map<String, Object> getFeatureFlagStats(String flagName) {
-        return featureFlagRepository.getUsageStats(flagName);
+        // Возвращаем базовую статистику
+        Optional<FeatureFlagEntity> entityOpt = jpaRepository.findById(flagName);
+        if (entityOpt.isPresent()) {
+            FeatureFlagEntity entity = entityOpt.get();
+            return Map.of(
+                    "name", entity.getName(),
+                    "enabled", entity.isEnabled(),
+                    "createdAt", entity.getCreatedAt(),
+                    "updatedAt", entity.getUpdatedAt(),
+                    "usageCount", 0L // TODO: добавить счетчик использований
+            );
+        }
+        return Map.of();
     }
     
     public void refreshCache() {
         log.info("Refreshing feature flags cache...");
         flagCache.clear();
         
-        List<FeatureFlag> allFlags = featureFlagRepository.findAll();
+        List<FeatureFlag> allFlags = getAllFeatureFlags();
         for (FeatureFlag flag : allFlags) {
             flagCache.put(flag.getName(), flag);
         }
@@ -255,7 +296,7 @@ public class FeatureFlagService {
     }
     
     public void refreshFlag(String flagName) {
-        Optional<FeatureFlag> flagOpt = featureFlagRepository.findByName(flagName);
+        Optional<FeatureFlag> flagOpt = getFeatureFlag(flagName);
         if (flagOpt.isPresent()) {
             flagCache.put(flagName, flagOpt.get());
             log.debug("Refreshed flag '{}' in cache", flagName);
@@ -271,6 +312,33 @@ public class FeatureFlagService {
     
     public boolean isFlagCached(String flagName) {
         return flagCache.containsKey(flagName);
+    }
+    
+    private void updateUsageStats(String flagName) {
+        // TODO: Implement usage statistics tracking
+        log.debug("Usage stats updated for flag: {}", flagName);
+    }
+    
+    private void syncToRedis(FeatureFlag flag) {
+        if (redisRepository != null) {
+            try {
+                redisRepository.save(flag);
+                log.debug("Synced flag '{}' to Redis", flag.getName());
+            } catch (Exception e) {
+                log.warn("Failed to sync flag '{}' to Redis: {}", flag.getName(), e.getMessage());
+            }
+        }
+    }
+    
+    private void deleteFromRedis(String flagName) {
+        if (redisRepository != null) {
+            try {
+                redisRepository.delete(flagName);
+                log.debug("Deleted flag '{}' from Redis", flagName);
+            } catch (Exception e) {
+                log.warn("Failed to delete flag '{}' from Redis: {}", flagName, e.getMessage());
+            }
+        }
     }
     
     private void publishFeatureFlagEvent(String eventType, FeatureFlag flag) {

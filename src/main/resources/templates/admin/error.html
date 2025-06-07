@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="ru" xmlns:th="http://www.thymeleaf.org">
-<head th:replace="admin/layout :: head">
+<head th:replace="~{admin/layout :: head}">
     <title>Error - Admin Panel</title>
 </head>
 <body>
-    <div th:replace="admin/layout :: body">
+    <div th:replace="~{admin/layout :: body}">
         <div th:fragment="content">
             <div class="text-center py-5">
                 <i class="fas fa-exclamation-triangle fa-4x text-warning mb-4"></i>

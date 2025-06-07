@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="ru" xmlns:th="http://www.thymeleaf.org">
-<head th:replace="admin/layout :: head">
+<head th:replace="~{admin/layout :: head}">
     <title>Dashboard - Admin Panel</title>
 </head>
 <body>
-    <div th:replace="admin/layout :: body">
+    <div th:replace="~{admin/layout :: body}">
         <div th:fragment="content">
             <!-- Statistics Cards -->
             <div class="row mb-4">

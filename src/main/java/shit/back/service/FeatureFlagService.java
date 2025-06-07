@@ -46,8 +46,13 @@ public class FeatureFlagService {
             }
             
             if (enabled) {
-                // Обновляем статистику использования
-                featureFlagRepository.updateUsageStats(flagName);
+                // Обновляем статистику использования (с fallback)
+                try {
+                    featureFlagRepository.updateUsageStats(flagName);
+                } catch (Exception e) {
+                    log.warn("Failed to update usage stats for flag '{}': {}", flagName, e.getMessage());
+                    // Продолжаем работу даже если статистика не обновилась
+                }
             }
             
             log.debug("Feature flag '{}' check for user '{}': {}", flagName, userId, enabled);
@@ -167,15 +172,32 @@ public class FeatureFlagService {
     }
     
     public List<FeatureFlag> getAllFeatureFlags() {
-        return featureFlagRepository.findAll();
+        try {
+            return featureFlagRepository.findAll();
+        } catch (Exception e) {
+            log.warn("Repository unavailable, returning cached flags: {}", e.getMessage());
+            return new java.util.ArrayList<>(flagCache.values());
+        }
     }
     
     public Optional<FeatureFlag> getFeatureFlag(String flagName) {
-        return featureFlagRepository.findByName(flagName);
+        try {
+            return featureFlagRepository.findByName(flagName);
+        } catch (Exception e) {
+            log.warn("Repository unavailable, checking cache for flag '{}': {}", flagName, e.getMessage());
+            return Optional.ofNullable(flagCache.get(flagName));
+        }
     }
     
     public List<FeatureFlag> getActiveFeatureFlags() {
-        return featureFlagRepository.findActiveFlags();
+        try {
+            return featureFlagRepository.findActiveFlags();
+        } catch (Exception e) {
+            log.warn("Repository unavailable, filtering cached flags: {}", e.getMessage());
+            return flagCache.values().stream()
+                .filter(FeatureFlag::isEnabled)
+                .collect(java.util.stream.Collectors.toList());
+        }
     }
     
     public List<FeatureFlag> getUserFeatureFlags(String userId) {

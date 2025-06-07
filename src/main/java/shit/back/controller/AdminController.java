@@ -27,8 +27,21 @@ public class AdminController {
     @GetMapping
     public String adminDashboard(Model model) {
         try {
-            List<FeatureFlag> flags = featureFlagService.getAllFeatureFlags();
-            List<FeatureFlag> activeFlags = featureFlagService.getActiveFeatureFlags();
+            List<FeatureFlag> flags = null;
+            List<FeatureFlag> activeFlags = null;
+            int cacheSize = 0;
+            
+            try {
+                flags = featureFlagService.getAllFeatureFlags();
+                activeFlags = featureFlagService.getActiveFeatureFlags();
+                cacheSize = featureFlagService.getCacheSize();
+            } catch (Exception e) {
+                log.warn("Redis connection issue, using fallback data: {}", e.getMessage());
+                // Fallback: создаем пустые списки
+                flags = new java.util.ArrayList<>();
+                activeFlags = new java.util.ArrayList<>();
+                cacheSize = 0;
+            }
             
             model.addAttribute("title", "Dashboard");
             model.addAttribute("subtitle", "Feature Flags Overview");
@@ -36,12 +49,12 @@ public class AdminController {
             model.addAttribute("activeFlags", activeFlags);
             model.addAttribute("totalFlags", flags.size());
             model.addAttribute("activeFlagsCount", activeFlags.size());
-            model.addAttribute("cacheSize", featureFlagService.getCacheSize());
+            model.addAttribute("cacheSize", cacheSize);
             
             return "admin/dashboard";
         } catch (Exception e) {
             log.error("Error loading admin dashboard: {}", e.getMessage());
-            model.addAttribute("error", "Ошибка загрузки панели администратора");
+            model.addAttribute("error", "Ошибка загрузки панели администратора. Redis недоступен.");
             return "admin/error";
         }
     }
@@ -49,14 +62,22 @@ public class AdminController {
     @GetMapping("/feature-flags")
     public String featureFlagsPage(Model model) {
         try {
-            List<FeatureFlag> flags = featureFlagService.getAllFeatureFlags();
+            List<FeatureFlag> flags = null;
+            
+            try {
+                flags = featureFlagService.getAllFeatureFlags();
+            } catch (Exception e) {
+                log.warn("Redis connection issue, using empty flags list: {}", e.getMessage());
+                flags = new java.util.ArrayList<>();
+            }
+            
             model.addAttribute("title", "Feature Flags");
             model.addAttribute("subtitle", "Manage all feature flags");
             model.addAttribute("flags", flags);
             return "admin/feature-flags";
         } catch (Exception e) {
             log.error("Error loading feature flags page: {}", e.getMessage());
-            model.addAttribute("error", "Ошибка загрузки флагов функций");
+            model.addAttribute("error", "Ошибка загрузки флагов функций. Redis недоступен.");
             return "admin/error";
         }
     }

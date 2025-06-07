@@ -212,13 +212,13 @@
         
         <ul class="sidebar-nav">
             <li>
-                <a href="/admin" class="nav-link" th:classappend="${#strings.equals(#httpServletRequest.requestURI, '/admin')} ? 'active' : ''">
+                <a href="/admin" class="nav-link" th:classappend="${#httpServletRequest != null and #strings.equals(#httpServletRequest.requestURI, '/admin')} ? 'active' : ''">
                     <i class="fas fa-tachometer-alt"></i>
                     Dashboard
                 </a>
             </li>
             <li>
-                <a href="/admin/feature-flags" class="nav-link" th:classappend="${#strings.contains(#httpServletRequest.requestURI, '/feature-flags')} ? 'active' : ''">
+                <a href="/admin/feature-flags" class="nav-link" th:classappend="${#httpServletRequest != null and #strings.contains(#httpServletRequest.requestURI, '/feature-flags')} ? 'active' : ''">
                     <i class="fas fa-toggle-on"></i>
                     Feature Flags
                 </a>

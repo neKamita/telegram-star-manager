@@ -25,6 +25,9 @@ public class HealthController {
     @Autowired
     private SecurityProperties securityProperties;
     
+    @Autowired
+    private shit.back.service.FeatureFlagService featureFlagService;
+    
     @Value("${spring.application.name:TelegramStarManager}")
     private String applicationName;
     
@@ -60,6 +63,19 @@ public class HealthController {
         securityHealth.put("cors", securityProperties.getCors().isEnabled());
         
         health.put("security", securityHealth);
+        
+        // Feature Flags Status
+        Map<String, Object> featureFlagsHealth = new HashMap<>();
+        try {
+            featureFlagsHealth.put("totalFlags", featureFlagService.getAllFeatureFlags().size());
+            featureFlagsHealth.put("activeFlags", featureFlagService.getActiveFeatureFlags().size());
+            featureFlagsHealth.put("cacheSize", featureFlagService.getCacheSize());
+            featureFlagsHealth.put("status", "operational");
+        } catch (Exception e) {
+            featureFlagsHealth.put("status", "error");
+            featureFlagsHealth.put("error", e.getMessage());
+        }
+        health.put("featureFlags", featureFlagsHealth);
         
         // Overall application health
         boolean isHealthy = true; // App is healthy even if bot fails

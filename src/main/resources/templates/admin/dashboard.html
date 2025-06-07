@@ -1,0 +1,396 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="admin/layout :: head">
+    <title>Dashboard - Admin Panel</title>
+</head>
+<body>
+    <div th:replace="admin/layout :: body">
+        <div th:fragment="content">
+            <!-- Statistics Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3 mb-3">
+                    <div class="stats-card">
+                        <div class="stats-icon text-primary">
+                            <i class="fas fa-flag"></i>
+                        </div>
+                        <h3 class="h4 mb-1" th:text="${totalFlags ?: 0}">0</h3>
+                        <p class="text-muted mb-0">Total Flags</p>
+                    </div>
+                </div>
+                
+                <div class="col-md-3 mb-3">
+                    <div class="stats-card">
+                        <div class="stats-icon text-success">
+                            <i class="fas fa-toggle-on"></i>
+                        </div>
+                        <h3 class="h4 mb-1" th:text="${activeFlagsCount ?: 0}">0</h3>
+                        <p class="text-muted mb-0">Active Flags</p>
+                    </div>
+                </div>
+                
+                <div class="col-md-3 mb-3">
+                    <div class="stats-card">
+                        <div class="stats-icon text-info">
+                            <i class="fas fa-memory"></i>
+                        </div>
+                        <h3 class="h4 mb-1" th:text="${cacheSize ?: 0}">0</h3>
+                        <p class="text-muted mb-0">Cache Size</p>
+                    </div>
+                </div>
+                
+                <div class="col-md-3 mb-3">
+                    <div class="stats-card">
+                        <div class="stats-icon text-warning">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <h3 class="h4 mb-1" id="userCount">-</h3>
+                        <p class="text-muted mb-0">Active Users</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Charts Row -->
+            <div class="row mb-4">
+                <div class="col-lg-8 mb-4">
+                    <div class="chart-container">
+                        <h5 class="mb-3">
+                            <i class="fas fa-chart-line text-primary me-2"></i>
+                            Feature Flags Usage
+                        </h5>
+                        <canvas id="flagsUsageChart" width="400" height="200"></canvas>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4 mb-4">
+                    <div class="chart-container">
+                        <h5 class="mb-3">
+                            <i class="fas fa-chart-pie text-success me-2"></i>
+                            Flags Status
+                        </h5>
+                        <canvas id="flagsStatusChart" width="300" height="300"></canvas>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Recent Activity -->
+            <div class="row">
+                <div class="col-lg-8 mb-4">
+                    <div class="table-responsive">
+                        <div class="p-3 border-bottom">
+                            <h5 class="mb-0">
+                                <i class="fas fa-history text-primary me-2"></i>
+                                Recent Feature Flags
+                            </h5>
+                        </div>
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Flag Name</th>
+                                    <th>Status</th>
+                                    <th>Rollout %</th>
+                                    <th>Updated</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr th:each="flag : ${flags}" th:if="${flagStat.count <= 5}">
+                                    <td>
+                                        <div class="d-flex align-items-center">
+                                            <i class="fas fa-flag me-2 text-muted"></i>
+                                            <div>
+                                                <div class="fw-bold" th:text="${flag.name}">FLAG_NAME</div>
+                                                <small class="text-muted" th:text="${flag.description}">Description</small>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span th:class="${flag.enabled} ? 'status-badge status-active' : 'status-badge status-inactive'"
+                                              th:text="${flag.enabled} ? 'Active' : 'Inactive'">
+                                            Status
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span th:text="${flag.rolloutPercentage != null ? flag.rolloutPercentage + '%' : '100%'}">100%</span>
+                                    </td>
+                                    <td>
+                                        <small th:text="${#temporals.format(flag.updatedAt ?: flag.createdAt, 'dd.MM.yyyy HH:mm')}">
+                                            01.01.2024 12:00
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary me-1" 
+                                                th:onclick="'toggleFlag(\'' + ${flag.name} + '\')'">
+                                            <i class="fas fa-toggle-on"></i>
+                                        </button>
+                                        <a th:href="@{/admin/feature-flags/{name}/edit(name=${flag.name})}" 
+                                           class="btn btn-sm btn-outline-secondary">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                
+                                <!-- Empty state -->
+                                <tr th:if="${#lists.isEmpty(flags)}">
+                                    <td colspan="5" class="text-center py-4">
+                                        <i class="fas fa-flag fa-2x text-muted mb-3"></i>
+                                        <p class="text-muted mb-3">No feature flags found</p>
+                                        <a href="/admin/feature-flags/new" class="btn btn-primary">
+                                            <i class="fas fa-plus me-2"></i>
+                                            Create First Flag
+                                        </a>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                        
+                        <div class="p-3 border-top bg-light" th:if="${flags != null and #lists.size(flags) > 5}">
+                            <a href="/admin/feature-flags" class="btn btn-sm btn-outline-primary">
+                                View All Flags
+                                <i class="fas fa-arrow-right ms-1"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4 mb-4">
+                    <!-- Quick Actions -->
+                    <div class="feature-flag-card">
+                        <h5 class="mb-3">
+                            <i class="fas fa-bolt text-warning me-2"></i>
+                            Quick Actions
+                        </h5>
+                        
+                        <div class="d-grid gap-2">
+                            <a href="/admin/feature-flags/new" class="btn btn-primary">
+                                <i class="fas fa-plus me-2"></i>
+                                Create New Flag
+                            </a>
+                            
+                            <button class="btn btn-outline-secondary" onclick="refreshCache()">
+                                <i class="fas fa-sync-alt me-2"></i>
+                                Refresh Cache
+                            </button>
+                            
+                            <a href="/api/health" target="_blank" class="btn btn-outline-info">
+                                <i class="fas fa-heartbeat me-2"></i>
+                                Health Check
+                            </a>
+                            
+                            <button class="btn btn-outline-warning" onclick="exportConfig()">
+                                <i class="fas fa-download me-2"></i>
+                                Export Config
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- System Status -->
+                    <div class="feature-flag-card mt-4">
+                        <h5 class="mb-3">
+                            <i class="fas fa-server text-info me-2"></i>
+                            System Status
+                        </h5>
+                        
+                        <div class="row text-center">
+                            <div class="col-6 mb-3">
+                                <div class="status-indicator bg-success rounded-circle mx-auto mb-2" 
+                                     style="width: 20px; height: 20px;"></div>
+                                <small class="text-muted d-block">API</small>
+                            </div>
+                            <div class="col-6 mb-3">
+                                <div class="status-indicator bg-success rounded-circle mx-auto mb-2" 
+                                     style="width: 20px; height: 20px;"></div>
+                                <small class="text-muted d-block">Redis</small>
+                            </div>
+                            <div class="col-6">
+                                <div class="status-indicator bg-success rounded-circle mx-auto mb-2" 
+                                     style="width: 20px; height: 20px;"></div>
+                                <small class="text-muted d-block">Bot</small>
+                            </div>
+                            <div class="col-6">
+                                <div class="status-indicator bg-success rounded-circle mx-auto mb-2" 
+                                     style="width: 20px; height: 20px;"></div>
+                                <small class="text-muted d-block">Cache</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Loading Spinner -->
+            <div class="loading-spinner">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading dashboard data...</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Page Scripts -->
+    <script th:fragment="scripts">
+        // Dashboard specific JavaScript
+        let flagsUsageChart, flagsStatusChart;
+        
+        // Override global refresh function
+        function refreshData() {
+            showLoading();
+            
+            fetch('/admin/api/dashboard-data')
+                .then(response => response.json())
+                .then(data => {
+                    updateStats(data);
+                    updateCharts(data);
+                    hideLoading();
+                    showToast('Dashboard data refreshed', 'success');
+                })
+                .catch(error => {
+                    console.error('Error refreshing data:', error);
+                    hideLoading();
+                    showToast('Error refreshing data', 'danger');
+                });
+        }
+        
+        function updateStats(data) {
+            // Update statistics cards
+            document.querySelector('.stats-card h3').textContent = data.totalFlags || 0;
+            document.querySelectorAll('.stats-card h3')[1].textContent = data.activeFlags || 0;
+            document.querySelectorAll('.stats-card h3')[2].textContent = data.cacheSize || 0;
+            document.getElementById('userCount').textContent = Math.floor(Math.random() * 100) + 1; // Mock data
+        }
+        
+        function updateCharts(data) {
+            // Update usage chart
+            if (flagsUsageChart) {
+                flagsUsageChart.data.datasets[0].data = generateUsageData();
+                flagsUsageChart.update();
+            }
+            
+            // Update status chart
+            if (flagsStatusChart) {
+                flagsStatusChart.data.datasets[0].data = [data.activeFlags, data.totalFlags - data.activeFlags];
+                flagsStatusChart.update();
+            }
+        }
+        
+        function initCharts() {
+            // Flags Usage Chart
+            const usageCtx = document.getElementById('flagsUsageChart').getContext('2d');
+            flagsUsageChart = new Chart(usageCtx, {
+                type: 'line',
+                data: {
+                    labels: ['6h ago', '5h ago', '4h ago', '3h ago', '2h ago', '1h ago', 'Now'],
+                    datasets: [{
+                        label: 'Flag Checks',
+                        data: generateUsageData(),
+                        borderColor: '#6366f1',
+                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.05)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Flags Status Chart
+            const statusCtx = document.getElementById('flagsStatusChart').getContext('2d');
+            flagsStatusChart = new Chart(statusCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Active', 'Inactive'],
+                    datasets: [{
+                        data: [/* th:text="${activeFlagsCount}" */ 0, /* th:text="${totalFlags - activeFlagsCount}" */ 0],
+                        backgroundColor: ['#10b981', '#ef4444'],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
+                }
+            });
+        }
+        
+        function generateUsageData() {
+            return Array.from({length: 7}, () => Math.floor(Math.random() * 100) + 20);
+        }
+        
+        function toggleFlag(flagName) {
+            fetch(`/admin/feature-flags/${flagName}/toggle`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.text())
+            .then(result => {
+                if (result === 'enabled' || result === 'disabled') {
+                    showToast(`Flag ${flagName} ${result}`, 'success');
+                    setTimeout(refreshData, 1000);
+                } else {
+                    showToast(`Error toggling flag ${flagName}`, 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error toggling flag:', error);
+                showToast(`Error toggling flag ${flagName}`, 'danger');
+            });
+        }
+        
+        function refreshCache() {
+            fetch('/admin/refresh-cache', {
+                method: 'POST'
+            })
+            .then(response => {
+                if (response.ok) {
+                    showToast('Cache refreshed successfully', 'success');
+                    setTimeout(refreshData, 1000);
+                } else {
+                    showToast('Error refreshing cache', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error refreshing cache:', error);
+                showToast('Error refreshing cache', 'danger');
+            });
+        }
+        
+        function exportConfig() {
+            // Mock export function
+            showToast('Config export feature coming soon', 'info');
+        }
+        
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initCharts();
+            
+            // Initial data load
+            refreshData();
+        });
+    </script>
+</body>
+</html>

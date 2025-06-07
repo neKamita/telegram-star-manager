@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="admin/layout :: head">
+    <title>Feature Flag Form - Admin Panel</title>
+</head>
+<body>
+    <div th:replace="admin/layout :: body">
+        <div th:fragment="content">
+            <!-- Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h4 class="mb-1" th:text="${isEdit ? 'Edit Feature Flag' : 'Create New Feature Flag'}">
+                        Create New Feature Flag
+                    </h4>
+                    <p class="text-muted mb-0">
+                        Configure your feature flag settings and targeting options
+                    </p>
+                </div>
+                <div>
+                    <a href="/admin/feature-flags" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>
+                        Back to Flags
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Form -->
+            <form id="flagForm" th:action="${isEdit ? '/admin/feature-flags/' + flag.name : '/admin/feature-flags'}" 
+                  method="post" novalidate>
+                <div class="row">
+                    <!-- Main Settings -->
+                    <div class="col-lg-8">
+                        <div class="feature-flag-card mb-4">
+                            <h5 class="mb-4">
+                                <i class="fas fa-cog text-primary me-2"></i>
+                                Basic Settings
+                            </h5>
+                            
+                            <div class="row">
+                                <div class="col-md-8 mb-3">
+                                    <label for="name" class="form-label">
+                                        Flag Name <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" class="form-control" id="name" name="name" 
+                                           th:value="${flag?.name}" required
+                                           th:readonly="${isEdit}"
+                                           placeholder="e.g., NEW_CHECKOUT_FLOW">
+                                    <div class="form-text">
+                                        Use UPPER_CASE with underscores. This cannot be changed after creation.
+                                    </div>
+                                    <div class="invalid-feedback">
+                                        Flag name is required and must be unique.
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-4 mb-3">
+                                    <label for="environment" class="form-label">Environment</label>
+                                    <select class="form-select" id="environment" name="environment">
+                                        <option value="development" th:selected="${flag?.environment == 'development'}">
+                                            Development
+                                        </option>
+                                        <option value="staging" th:selected="${flag?.environment == 'staging'}">
+                                            Staging
+                                        </option>
+                                        <option value="production" th:selected="${flag?.environment == 'production'}">
+                                            Production
+                                        </option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="description" class="form-label">Description</label>
+                                <textarea class="form-control" id="description" name="description" rows="3"
+                                          th:text="${flag?.description}"
+                                          placeholder="Describe what this feature flag controls..."></textarea>
+                                <div class="form-text">
+                                    Provide a clear description of what this flag enables or disables.
+                                </div>
+                            </div>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="createdBy" class="form-label">Created By</label>
+                                    <input type="text" class="form-control" id="createdBy" name="createdBy"
+                                           th:value="${flag?.createdBy ?: 'Admin'}"
+                                           placeholder="Admin">
+                                </div>
+                                
+                                <div class="col-md-6 mb-3">
+                                    <label for="version" class="form-label">Version</label>
+                                    <input type="text" class="form-control" id="version" name="version"
+                                           th:value="${flag?.version ?: '1.0'}"
+                                           placeholder="1.0">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Targeting Settings -->
+                        <div class="feature-flag-card mb-4">
+                            <h5 class="mb-4">
+                                <i class="fas fa-bullseye text-success me-2"></i>
+                                Targeting & Rollout
+                            </h5>
+                            
+                            <!-- Rollout Percentage -->
+                            <div class="mb-4">
+                                <label for="rolloutPercentage" class="form-label">
+                                    Rollout Percentage: <span id="rolloutValue" class="text-primary">100%</span>
+                                </label>
+                                <input type="range" class="form-range" id="rolloutPercentage" name="rolloutPercentage"
+                                       min="0" max="100" step="5" th:value="${flag?.rolloutPercentage ?: 100}"
+                                       oninput="updateRolloutValue()">
+                                <div class="d-flex justify-content-between text-muted small">
+                                    <span>0%</span>
+                                    <span>25%</span>
+                                    <span>50%</span>
+                                    <span>75%</span>
+                                    <span>100%</span>
+                                </div>
+                                <div class="form-text">
+                                    Control what percentage of users will see this feature.
+                                </div>
+                            </div>
+                            
+                            <!-- User Targeting -->
+                            <div class="mb-4">
+                                <label for="enabledForUsers" class="form-label">
+                                    Enabled for Specific Users
+                                </label>
+                                <textarea class="form-control" id="enabledForUsers" name="enabledForUsers" rows="3"
+                                          placeholder="Enter user IDs separated by commas or new lines&#10;e.g., 123456789, 987654321"
+                                          th:text="${flag?.enabledForUsers != null ? #strings.listJoin(flag.enabledForUsers, ', ') : ''}"></textarea>
+                                <div class="form-text">
+                                    Enter Telegram user IDs. These users will always have access regardless of rollout percentage.
+                                </div>
+                            </div>
+                            
+                            <!-- Group Targeting -->
+                            <div class="mb-4">
+                                <label for="enabledForGroups" class="form-label">
+                                    Enabled for User Groups
+                                </label>
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="betaUsers" name="groups" value="beta">
+                                            <label class="form-check-label" for="betaUsers">
+                                                Beta Users
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="premiumUsers" name="groups" value="premium">
+                                            <label class="form-check-label" for="premiumUsers">
+                                                Premium Users
+                                            </label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="adminUsers" name="groups" value="admin">
+                                            <label class="form-check-label" for="adminUsers">
+                                                Admin Users
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Time-based Settings -->
+                        <div class="feature-flag-card mb-4">
+                            <h5 class="mb-4">
+                                <i class="fas fa-clock text-warning me-2"></i>
+                                Time-based Controls
+                            </h5>
+                            
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="enabledFrom" class="form-label">
+                                        Enable From
+                                    </label>
+                                    <input type="datetime-local" class="form-control" id="enabledFrom" name="enabledFrom"
+                                           th:value="${flag?.enabledFrom != null ? #temporals.format(flag.enabledFrom, 'yyyy-MM-dd''T''HH:mm') : ''}">
+                                    <div class="form-text">
+                                        Feature will be enabled starting from this date/time.
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6 mb-3">
+                                    <label for="enabledUntil" class="form-label">
+                                        Enable Until
+                                    </label>
+                                    <input type="datetime-local" class="form-control" id="enabledUntil" name="enabledUntil"
+                                           th:value="${flag?.enabledUntil != null ? #temporals.format(flag.enabledUntil, 'yyyy-MM-dd''T''HH:mm') : ''}">
+                                    <div class="form-text">
+                                        Feature will be disabled after this date/time.
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="alert alert-info" role="alert">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <strong>Time-based controls:</strong> Leave empty for no time restrictions. 
+                                Times are in your local timezone.
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Sidebar -->
+                    <div class="col-lg-4">
+                        <!-- Status Controls -->
+                        <div class="feature-flag-card mb-4">
+                            <h5 class="mb-3">
+                                <i class="fas fa-toggle-on text-info me-2"></i>
+                                Status
+                            </h5>
+                            
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="enabled" name="enabled"
+                                       th:checked="${flag?.enabled ?: false}">
+                                <label class="form-check-label" for="enabled">
+                                    <strong>Enable Feature Flag</strong>
+                                </label>
+                            </div>
+                            
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="experimental" name="experimental"
+                                       th:checked="${flag?.experimental ?: false}">
+                                <label class="form-check-label" for="experimental">
+                                    Mark as Experimental
+                                </label>
+                            </div>
+                            
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" id="userSpecific" name="userSpecific"
+                                       th:checked="${flag?.userSpecific ?: false}">
+                                <label class="form-check-label" for="userSpecific">
+                                    User-specific Feature
+                                </label>
+                            </div>
+                            
+                            <div class="form-text">
+                                Control the basic behavior and classification of this flag.
+                            </div>
+                        </div>
+                        
+                        <!-- Preview -->
+                        <div class="feature-flag-card mb-4">
+                            <h5 class="mb-3">
+                                <i class="fas fa-eye text-secondary me-2"></i>
+                                Preview
+                            </h5>
+                            
+                            <div id="flagPreview">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span class="fw-bold" id="previewName">FLAG_NAME</span>
+                                    <span class="badge bg-secondary" id="previewStatus">Disabled</span>
+                                </div>
+                                <p class="text-muted small mb-2" id="previewDescription">
+                                    No description provided
+                                </p>
+                                <div class="progress mb-2" style="height: 6px;">
+                                    <div class="progress-bar" id="previewProgress" style="width: 100%"></div>
+                                </div>
+                                <small class="text-muted">
+                                    <span id="previewRollout">100%</span> rollout in 
+                                    <span id="previewEnvironment">production</span>
+                                </small>
+                            </div>
+                        </div>
+                        
+                        <!-- Help -->
+                        <div class="feature-flag-card">
+                            <h5 class="mb-3">
+                                <i class="fas fa-question-circle text-info me-2"></i>
+                                Need Help?
+                            </h5>
+                            
+                            <div class="accordion accordion-flush">
+                                <div class="accordion-item">
+                                    <h6 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" 
+                                                data-bs-toggle="collapse" data-bs-target="#help1">
+                                            Rollout Strategies
+                                        </button>
+                                    </h6>
+                                    <div id="help1" class="accordion-collapse collapse">
+                                        <div class="accordion-body small">
+                                            Start with 5-10% rollout for new features. Monitor metrics before increasing.
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="accordion-item">
+                                    <h6 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" 
+                                                data-bs-toggle="collapse" data-bs-target="#help2">
+                                            User Targeting
+                                        </button>
+                                    </h6>
+                                    <div id="help2" class="accordion-collapse collapse">
+                                        <div class="accordion-body small">
+                                            Use specific user IDs for beta testing or VIP access.
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="accordion-item">
+                                    <h6 class="accordion-header">
+                                        <button class="accordion-button collapsed" type="button" 
+                                                data-bs-toggle="collapse" data-bs-target="#help3">
+                                            Time Controls
+                                        </button>
+                                    </h6>
+                                    <div id="help3" class="accordion-collapse collapse">
+                                        <div class="accordion-body small">
+                                            Perfect for limited-time promotions or scheduled feature releases.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Form Actions -->
+                <div class="d-flex justify-content-between align-items-center mt-4 pt-4 border-top">
+                    <div>
+                        <button type="button" class="btn btn-outline-danger" th:if="${isEdit}" 
+                                onclick="deleteFlag()" id="deleteBtn">
+                            <i class="fas fa-trash me-2"></i>
+                            Delete Flag
+                        </button>
+                    </div>
+                    <div>
+                        <a href="/admin/feature-flags" class="btn btn-secondary me-2">
+                            Cancel
+                        </a>
+                        <button type="button" class="btn btn-outline-primary me-2" onclick="validateAndPreview()">
+                            <i class="fas fa-eye me-2"></i>
+                            Preview
+                        </button>
+                        <button type="submit" class="btn btn-primary" id="submitBtn">
+                            <i class="fas fa-save me-2"></i>
+                            <span th:text="${isEdit ? 'Update Flag' : 'Create Flag'}">Create Flag</span>
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Page Scripts -->
+    <script th:fragment="scripts">
+        // Form validation and interactions
+        document.addEventListener('DOMContentLoaded', function() {
+            updateRolloutValue();
+            updatePreview();
+            
+            // Real-time preview updates
+            ['name', 'description', 'enabled', 'rolloutPercentage', 'environment'].forEach(id => {
+                document.getElementById(id)?.addEventListener('input', updatePreview);
+                document.getElementById(id)?.addEventListener('change', updatePreview);
+            });
+            
+            // Form validation
+            document.getElementById('flagForm').addEventListener('submit', handleSubmit);
+        });
+        
+        function updateRolloutValue() {
+            const slider = document.getElementById('rolloutPercentage');
+            const display = document.getElementById('rolloutValue');
+            display.textContent = slider.value + '%';
+        }
+        
+        function updatePreview() {
+            const name = document.getElementById('name').value || 'FLAG_NAME';
+            const description = document.getElementById('description').value || 'No description provided';
+            const enabled = document.getElementById('enabled').checked;
+            const rollout = document.getElementById('rolloutPercentage').value;
+            const environment = document.getElementById('environment').value;
+            
+            document.getElementById('previewName').textContent = name;
+            document.getElementById('previewDescription').textContent = description;
+            document.getElementById('previewStatus').textContent = enabled ? 'Enabled' : 'Disabled';
+            document.getElementById('previewStatus').className = `badge ${enabled ? 'bg-success' : 'bg-secondary'}`;
+            document.getElementById('previewProgress').style.width = rollout + '%';
+            document.getElementById('previewRollout').textContent = rollout + '%';
+            document.getElementById('previewEnvironment').textContent = environment;
+        }
+        
+        function validateAndPreview() {
+            if (validateForm()) {
+                showToast('Form validation passed! Preview updated.', 'success');
+            }
+        }
+        
+        function validateForm() {
+            const form = document.getElementById('flagForm');
+            const name = document.getElementById('name').value.trim();
+            
+            // Reset validation
+            form.classList.remove('was-validated');
+            
+            let isValid = true;
+            
+            // Validate flag name
+            if (!name) {
+                isValid = false;
+                document.getElementById('name').setCustomValidity('Flag name is required');
+            } else if (!/^[A-Z][A-Z0-9_]*$/.test(name)) {
+                isValid = false;
+                document.getElementById('name').setCustomValidity('Flag name must be UPPER_CASE with underscores');
+            } else {
+                document.getElementById('name').setCustomValidity('');
+            }
+            
+            // Validate time range
+            const enabledFrom = document.getElementById('enabledFrom').value;
+            const enabledUntil = document.getElementById('enabledUntil').value;
+            
+            if (enabledFrom && enabledUntil && new Date(enabledFrom) >= new Date(enabledUntil)) {
+                isValid = false;
+                document.getElementById('enabledUntil').setCustomValidity('End date must be after start date');
+                showToast('End date must be after start date', 'danger');
+            } else {
+                document.getElementById('enabledUntil').setCustomValidity('');
+            }
+            
+            form.classList.add('was-validated');
+            return isValid;
+        }
+        
+        function handleSubmit(event) {
+            event.preventDefault();
+            
+            if (!validateForm()) {
+                showToast('Please fix validation errors before submitting', 'danger');
+                return;
+            }
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const originalText = submitBtn.innerHTML;
+            
+            // Show loading state
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Saving...';
+            
+            // Process enabled users
+            const enabledUsersText = document.getElementById('enabledForUsers').value;
+            const enabledUsers = enabledUsersText
+                .split(/[,\n]/)
+                .map(id => id.trim())
+                .filter(id => id.length > 0);
+            
+            // Create form data
+            const formData = new FormData(event.target);
+            
+            // Add processed user list
+            formData.delete('enabledForUsers');
+            enabledUsers.forEach(userId => {
+                formData.append('enabledForUsers', userId);
+            });
+            
+            // Submit form
+            fetch(event.target.action, {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (response.ok) {
+                    showToast('Feature flag saved successfully!', 'success');
+                    setTimeout(() => {
+                        window.location.href = '/admin/feature-flags';
+                    }, 1500);
+                } else {
+                    throw new Error('Failed to save feature flag');
+                }
+            })
+            .catch(error => {
+                console.error('Error saving flag:', error);
+                showToast('Error saving feature flag. Please try again.', 'danger');
+                
+                // Restore button state
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            });
+        }
+        
+        function deleteFlag() {
+            const flagName = document.getElementById('name').value;
+            
+            if (confirm(`Are you sure you want to delete flag "${flagName}"? This action cannot be undone.`)) {
+                fetch(`/admin/feature-flags/${flagName}/delete`, {
+                    method: 'POST'
+                })
+                .then(response => {
+                    if (response.ok) {
+                        showToast('Feature flag deleted successfully!', 'success');
+                        setTimeout(() => {
+                            window.location.href = '/admin/feature-flags';
+                        }, 1500);
+                    } else {
+                        throw new Error('Failed to delete feature flag');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error deleting flag:', error);
+                    showToast('Error deleting feature flag. Please try again.', 'danger');
+                });
+            }
+        }
+        
+        // Override global refresh function
+        function refreshData() {
+            // No auto-refresh on form page
+        }
+    </script>
+</body>
+</html>

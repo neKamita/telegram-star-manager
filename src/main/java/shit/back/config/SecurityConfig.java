@@ -59,6 +59,9 @@ public class SecurityConfig {
                 // Telegram webhook (если будет использоваться)
                 .requestMatchers("/telegram/webhook").permitAll()
                 
+                // Feature flags endpoints - требуют аутентификации
+                .requestMatchers("/api/feature-flags/**").authenticated()
+                
                 // API эндпоинты требуют аутентификации
                 .requestMatchers("/api/**").authenticated()
                 

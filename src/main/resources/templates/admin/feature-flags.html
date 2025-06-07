@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="admin/layout :: head">
+    <title>Feature Flags - Admin Panel</title>
+</head>
+<body>
+    <div th:replace="admin/layout :: body">
+        <div th:fragment="content">
+            <!-- Header with actions -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h4 class="mb-1">Feature Flags Management</h4>
+                    <p class="text-muted mb-0">Manage all feature flags and their configurations</p>
+                </div>
+                <div>
+                    <a href="/admin/feature-flags/new" class="btn btn-primary">
+                        <i class="fas fa-plus me-2"></i>
+                        New Flag
+                    </a>
+                </div>
+            </div>
+            
+            <!-- Filter and Search -->
+            <div class="feature-flag-card mb-4">
+                <div class="row align-items-center">
+                    <div class="col-md-6">
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="fas fa-search"></i>
+                            </span>
+                            <input type="text" class="form-control" id="searchFlags" 
+                                   placeholder="Search flags by name or description...">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="statusFilter">
+                            <option value="">All Status</option>
+                            <option value="active">Active Only</option>
+                            <option value="inactive">Inactive Only</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <select class="form-select" id="environmentFilter">
+                            <option value="">All Environments</option>
+                            <option value="development">Development</option>
+                            <option value="staging">Staging</option>
+                            <option value="production">Production</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Bulk Actions -->
+            <div class="feature-flag-card mb-4" id="bulkActions" style="display: none;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <i class="fas fa-check-square text-primary me-2"></i>
+                        <span id="selectedCount">0</span> flags selected
+                    </div>
+                    <div>
+                        <button class="btn btn-sm btn-success me-2" onclick="bulkEnable()">
+                            <i class="fas fa-toggle-on me-1"></i>
+                            Enable All
+                        </button>
+                        <button class="btn btn-sm btn-warning me-2" onclick="bulkDisable()">
+                            <i class="fas fa-toggle-off me-1"></i>
+                            Disable All
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="clearSelection()">
+                            Clear Selection
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Feature Flags List -->
+            <div class="row" id="flagsContainer">
+                <!-- Flag cards will be inserted here -->
+                <div th:each="flag : ${flags}" class="col-lg-6 col-xl-4 mb-4 flag-card" 
+                     th:attr="data-name=${flag.name}, data-status=${flag.enabled ? 'active' : 'inactive'}, data-environment=${flag.environment}">
+                    <div class="feature-flag-card h-100">
+                        <!-- Card Header -->
+                        <div class="d-flex justify-content-between align-items-start mb-3">
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-center mb-2">
+                                    <input type="checkbox" class="form-check-input me-2 flag-checkbox" 
+                                           th:value="${flag.name}" onchange="updateBulkActions()">
+                                    <h6 class="mb-0 fw-bold" th:text="${flag.name}">FLAG_NAME</h6>
+                                </div>
+                                <p class="text-muted small mb-0" th:text="${flag.description ?: 'No description'}">
+                                    Feature description
+                                </p>
+                            </div>
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" 
+                                        data-bs-toggle="dropdown">
+                                    <i class="fas fa-ellipsis-v"></i>
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li>
+                                        <a class="dropdown-item" th:href="@{/admin/feature-flags/{name}/edit(name=${flag.name})}">
+                                            <i class="fas fa-edit me-2"></i>Edit
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="#" th:onclick="'duplicateFlag(\'' + ${flag.name} + '\')'">
+                                            <i class="fas fa-copy me-2"></i>Duplicate
+                                        </a>
+                                    </li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li>
+                                        <a class="dropdown-item text-danger" href="#" 
+                                           th:onclick="'deleteFlag(\'' + ${flag.name} + '\')'">
+                                            <i class="fas fa-trash me-2"></i>Delete
+                                        </a>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                        
+                        <!-- Status Toggle -->
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <span class="small text-muted">Status:</span>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" 
+                                       th:id="'toggle-' + ${flag.name}"
+                                       th:checked="${flag.enabled}"
+                                       th:onchange="'toggleFlag(\'' + ${flag.name} + '\')'">
+                                <label class="form-check-label" th:for="'toggle-' + ${flag.name}">
+                                    <span th:class="${flag.enabled} ? 'text-success' : 'text-danger'"
+                                          th:text="${flag.enabled} ? 'Enabled' : 'Disabled'">
+                                        Status
+                                    </span>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- Rollout Percentage -->
+                        <div class="mb-3" th:if="${flag.rolloutPercentage != null}">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="small text-muted">Rollout:</span>
+                                <span class="badge bg-info" th:text="${flag.rolloutPercentage + '%'}">50%</span>
+                            </div>
+                            <div class="progress" style="height: 6px;">
+                                <div class="progress-bar" role="progressbar" 
+                                     th:style="'width: ' + ${flag.rolloutPercentage} + '%'"
+                                     th:attr="aria-valuenow=${flag.rolloutPercentage}">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- User Groups -->
+                        <div class="mb-3" th:if="${flag.enabledForUsers != null and !#sets.isEmpty(flag.enabledForUsers)}">
+                            <span class="small text-muted">Enabled for users:</span>
+                            <div class="mt-1">
+                                <th:block th:each="userId : ${flag.enabledForUsers}">
+                                    <span class="badge bg-light text-dark me-1" th:text="${userId}">User</span>
+                                </th:block>
+                            </div>
+                        </div>
+                        
+                        <!-- Time Restrictions -->
+                        <div class="mb-3" th:if="${flag.enabledFrom != null or flag.enabledUntil != null}">
+                            <span class="small text-muted">Time restrictions:</span>
+                            <div class="mt-1">
+                                <small class="text-info" th:if="${flag.enabledFrom != null}">
+                                    <i class="fas fa-play me-1"></i>
+                                    From: <span th:text="${#temporals.format(flag.enabledFrom, 'dd.MM.yyyy HH:mm')}"></span>
+                                </small>
+                                <br th:if="${flag.enabledFrom != null and flag.enabledUntil != null}">
+                                <small class="text-warning" th:if="${flag.enabledUntil != null}">
+                                    <i class="fas fa-stop me-1"></i>
+                                    Until: <span th:text="${#temporals.format(flag.enabledUntil, 'dd.MM.yyyy HH:mm')}"></span>
+                                </small>
+                            </div>
+                        </div>
+                        
+                        <!-- Footer -->
+                        <div class="border-top pt-3 mt-auto">
+                            <div class="row align-items-center">
+                                <div class="col">
+                                    <small class="text-muted">
+                                        <i class="fas fa-server me-1"></i>
+                                        <span th:text="${flag.environment ?: 'development'}">Environment</span>
+                                    </small>
+                                </div>
+                                <div class="col-auto">
+                                    <small class="text-muted" th:if="${flag.updatedAt != null}">
+                                        Updated: <span th:text="${#temporals.format(flag.updatedAt, 'dd.MM HH:mm')}"></span>
+                                    </small>
+                                    <small class="text-muted" th:if="${flag.updatedAt == null}">
+                                        Created: <span th:text="${#temporals.format(flag.createdAt, 'dd.MM HH:mm')}"></span>
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Empty State -->
+                <div class="col-12" th:if="${#lists.isEmpty(flags)}" id="emptyState">
+                    <div class="text-center py-5">
+                        <i class="fas fa-flag fa-4x text-muted mb-4"></i>
+                        <h4 class="text-muted mb-3">No Feature Flags Found</h4>
+                        <p class="text-muted mb-4">Get started by creating your first feature flag.</p>
+                        <a href="/admin/feature-flags/new" class="btn btn-primary btn-lg">
+                            <i class="fas fa-plus me-2"></i>
+                            Create Your First Flag
+                        </a>
+                    </div>
+                </div>
+                
+                <!-- No Results State -->
+                <div class="col-12" style="display: none;" id="noResults">
+                    <div class="text-center py-5">
+                        <i class="fas fa-search fa-4x text-muted mb-4"></i>
+                        <h4 class="text-muted mb-3">No Flags Match Your Search</h4>
+                        <p class="text-muted mb-4">Try adjusting your search terms or filters.</p>
+                        <button class="btn btn-outline-primary" onclick="clearFilters()">
+                            <i class="fas fa-times me-2"></i>
+                            Clear Filters
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Statistics Footer -->
+            <div class="feature-flag-card mt-4" th:if="${flags != null and !#lists.isEmpty(flags)}">
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <h5 class="text-primary mb-1" th:text="${#lists.size(flags)}">0</h5>
+                        <small class="text-muted">Total Flags</small>
+                    </div>
+                    <div class="col-md-3">
+                        <h5 class="text-success mb-1" id="activeCount">0</h5>
+                        <small class="text-muted">Active</small>
+                    </div>
+                    <div class="col-md-3">
+                        <h5 class="text-warning mb-1" id="rolloutCount">0</h5>
+                        <small class="text-muted">With Rollout</small>
+                    </div>
+                    <div class="col-md-3">
+                        <h5 class="text-info mb-1" id="userTargetedCount">0</h5>
+                        <small class="text-muted">User Targeted</small>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Loading Spinner -->
+            <div class="loading-spinner">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading feature flags...</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Page Scripts -->
+    <script th:fragment="scripts">
+        // Feature flags page specific JavaScript
+        let allFlags = [];
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeFlags();
+            updateStatistics();
+            
+            // Search functionality
+            document.getElementById('searchFlags').addEventListener('input', filterFlags);
+            document.getElementById('statusFilter').addEventListener('change', filterFlags);
+            document.getElementById('environmentFilter').addEventListener('change', filterFlags);
+        });
+        
+        function initializeFlags() {
+            // Store all flags for filtering
+            allFlags = Array.from(document.querySelectorAll('.flag-card')).map(card => ({
+                element: card,
+                name: card.dataset.name.toLowerCase(),
+                status: card.dataset.status,
+                environment: card.dataset.environment,
+                description: card.querySelector('p').textContent.toLowerCase()
+            }));
+        }
+        
+        function filterFlags() {
+            const searchTerm = document.getElementById('searchFlags').value.toLowerCase();
+            const statusFilter = document.getElementById('statusFilter').value;
+            const environmentFilter = document.getElementById('environmentFilter').value;
+            
+            let visibleCount = 0;
+            
+            allFlags.forEach(flag => {
+                let show = true;
+                
+                // Search filter
+                if (searchTerm && !flag.name.includes(searchTerm) && !flag.description.includes(searchTerm)) {
+                    show = false;
+                }
+                
+                // Status filter
+                if (statusFilter && flag.status !== statusFilter) {
+                    show = false;
+                }
+                
+                // Environment filter
+                if (environmentFilter && flag.environment !== environmentFilter) {
+                    show = false;
+                }
+                
+                flag.element.style.display = show ? 'block' : 'none';
+                if (show) visibleCount++;
+            });
+            
+            // Show/hide empty states
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('noResults').style.display = visibleCount === 0 ? 'block' : 'none';
+        }
+        
+        function clearFilters() {
+            document.getElementById('searchFlags').value = '';
+            document.getElementById('statusFilter').value = '';
+            document.getElementById('environmentFilter').value = '';
+            filterFlags();
+        }
+        
+        function toggleFlag(flagName) {
+            fetch(`/admin/feature-flags/${flagName}/toggle`, {
+                method: 'POST'
+            })
+            .then(response => response.text())
+            .then(result => {
+                if (result === 'enabled' || result === 'disabled') {
+                    showToast(`Flag ${flagName} ${result}`, 'success');
+                    updateFlagStatus(flagName, result === 'enabled');
+                    updateStatistics();
+                } else {
+                    showToast(`Error toggling flag ${flagName}`, 'danger');
+                    // Revert toggle
+                    const toggle = document.getElementById(`toggle-${flagName}`);
+                    toggle.checked = !toggle.checked;
+                }
+            })
+            .catch(error => {
+                console.error('Error toggling flag:', error);
+                showToast(`Error toggling flag ${flagName}`, 'danger');
+                // Revert toggle
+                const toggle = document.getElementById(`toggle-${flagName}`);
+                toggle.checked = !toggle.checked;
+            });
+        }
+        
+        function updateFlagStatus(flagName, enabled) {
+            const card = document.querySelector(`[data-name="${flagName}"]`);
+            const label = card.querySelector('.form-check-label span');
+            
+            card.dataset.status = enabled ? 'active' : 'inactive';
+            label.textContent = enabled ? 'Enabled' : 'Disabled';
+            label.className = enabled ? 'text-success' : 'text-danger';
+        }
+        
+        function updateBulkActions() {
+            const checkboxes = document.querySelectorAll('.flag-checkbox:checked');
+            const bulkActions = document.getElementById('bulkActions');
+            const selectedCount = document.getElementById('selectedCount');
+            
+            selectedCount.textContent = checkboxes.length;
+            bulkActions.style.display = checkboxes.length > 0 ? 'block' : 'none';
+        }
+        
+        function clearSelection() {
+            document.querySelectorAll('.flag-checkbox').forEach(cb => cb.checked = false);
+            updateBulkActions();
+        }
+        
+        function bulkEnable() {
+            const selectedFlags = Array.from(document.querySelectorAll('.flag-checkbox:checked'))
+                .map(cb => cb.value);
+            
+            bulkOperation(selectedFlags, 'enable');
+        }
+        
+        function bulkDisable() {
+            const selectedFlags = Array.from(document.querySelectorAll('.flag-checkbox:checked'))
+                .map(cb => cb.value);
+            
+            bulkOperation(selectedFlags, 'disable');
+        }
+        
+        function bulkOperation(flags, operation) {
+            showLoading();
+            
+            Promise.all(flags.map(flagName => 
+                fetch(`/admin/feature-flags/${flagName}/${operation}`, { method: 'POST' })
+            ))
+            .then(responses => {
+                hideLoading();
+                const successCount = responses.filter(r => r.ok).length;
+                
+                if (successCount === flags.length) {
+                    showToast(`All ${flags.length} flags ${operation}d successfully`, 'success');
+                } else {
+                    showToast(`${successCount}/${flags.length} flags ${operation}d`, 'warning');
+                }
+                
+                // Refresh page to update UI
+                setTimeout(() => window.location.reload(), 1000);
+            })
+            .catch(error => {
+                hideLoading();
+                showToast(`Error performing bulk ${operation}`, 'danger');
+            });
+        }
+        
+        function duplicateFlag(flagName) {
+            // Redirect to new flag page with prefilled data
+            window.location.href = `/admin/feature-flags/new?duplicate=${flagName}`;
+        }
+        
+        function deleteFlag(flagName) {
+            if (confirm(`Are you sure you want to delete flag "${flagName}"? This action cannot be undone.`)) {
+                fetch(`/admin/feature-flags/${flagName}/delete`, {
+                    method: 'POST'
+                })
+                .then(response => {
+                    if (response.ok) {
+                        showToast(`Flag ${flagName} deleted successfully`, 'success');
+                        // Remove card from DOM
+                        document.querySelector(`[data-name="${flagName}"]`).remove();
+                        updateStatistics();
+                    } else {
+                        showToast(`Error deleting flag ${flagName}`, 'danger');
+                    }
+                })
+                .catch(error => {
+                    showToast(`Error deleting flag ${flagName}`, 'danger');
+                });
+            }
+        }
+        
+        function updateStatistics() {
+            const cards = document.querySelectorAll('.flag-card');
+            let activeCount = 0;
+            let rolloutCount = 0;
+            let userTargetedCount = 0;
+            
+            cards.forEach(card => {
+                if (card.dataset.status === 'active') activeCount++;
+                if (card.querySelector('.progress')) rolloutCount++;
+                if (card.querySelector('.badge.bg-light')) userTargetedCount++;
+            });
+            
+            document.getElementById('activeCount').textContent = activeCount;
+            document.getElementById('rolloutCount').textContent = rolloutCount;
+            document.getElementById('userTargetedCount').textContent = userTargetedCount;
+        }
+        
+        // Override global refresh function
+        function refreshData() {
+            window.location.reload();
+        }
+    </script>
+</body>
+</html>

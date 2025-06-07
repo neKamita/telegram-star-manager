@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.User;
+import shit.back.annotation.FeatureFlag;
 import shit.back.model.UserSession;
 import shit.back.model.Order;
 import shit.back.service.PriceService;
@@ -51,6 +52,8 @@ public class MessageHandler {
             case "/prices" -> handlePricesCommand(chatId);
             case "/status" -> handleStatusCommand(chatId, session);
             case "/cancel" -> handleCancelCommand(chatId, session);
+            case "/beta" -> handleBetaCommand(chatId, session);
+            case "/premium" -> handlePremiumCommand(chatId, session);
             default -> MessageUtils.createMessage(chatId, 
                 "❓ Неизвестная команда. Используйте /help для просмотра доступных команд.");
         };
@@ -104,6 +107,111 @@ public class MessageHandler {
         userSessionService.clearUserSession(session.getUserId());
         return MessageUtils.createMessage(chatId, 
             "❌ Текущая операция отменена.\n\n🏠 Возвращайтесь в главное меню: /start");
+    }
+    
+    /**
+     * Обработка бета-функций (пример использования флага функций)
+     */
+    @FeatureFlag(value = "BETA_FEATURES", 
+                 description = "Доступ к бета-функциям", 
+                 fallback = "handleBetaCommandFallback",
+                 experimental = true)
+    private SendMessage handleBetaCommand(Long chatId, UserSession session) {
+        String betaText = """
+            🧪 <b>Бета-функции</b>
+            
+            ✨ Вы получили доступ к новым экспериментальным функциям!
+            
+            🔸 Улучшенная аналитика заказов
+            🔸 Персонализированные рекомендации
+            🔸 Быстрые платежи
+            🔸 Расширенная статистика
+            
+            ⚠️ <i>Эти функции находятся в тестировании</i>
+            """;
+        
+        return MessageUtils.createMessage(chatId, betaText);
+    }
+    
+    private SendMessage handleBetaCommandFallback(Long chatId, UserSession session) {
+        return MessageUtils.createMessage(chatId, 
+            "🔒 Бета-функции временно недоступны.\n\n" +
+            "💡 Следите за обновлениями в нашем канале!");
+    }
+    
+    /**
+     * Обработка премиум-функций (пример с процентным rollout)
+     */
+    @FeatureFlag(value = "PREMIUM_FEATURES", 
+                 description = "Премиум функции для VIP пользователей",
+                 fallback = "handlePremiumCommandFallback")
+    private SendMessage handlePremiumCommand(Long chatId, UserSession session) {
+        String premiumText = """
+            💎 <b>Премиум функции</b>
+            
+            🌟 Добро пожаловать в VIP зону!
+            
+            ⚡ Мгновенная обработка заказов
+            💰 Эксклюзивные скидки до 30%
+            🎁 Бонусные звезды за каждую покупку
+            📞 Приоритетная поддержка 24/7
+            🏆 Доступ к лимитированным пакетам
+            
+            ✨ <i>Ваш статус: VIP пользователь</i>
+            """;
+        
+        return MessageUtils.createMessage(chatId, premiumText);
+    }
+    
+    private SendMessage handlePremiumCommandFallback(Long chatId, UserSession session) {
+        return MessageUtils.createMessage(chatId, 
+            "💎 Премиум функции доступны только для VIP пользователей.\n\n" +
+            "🚀 Хотите получить доступ? Свяжитесь с поддержкой!");
+    }
+    
+    /**
+     * Улучшенная обработка статуса с флагом функций
+     */
+    @FeatureFlag(value = "ENHANCED_STATUS", 
+                 description = "Расширенная информация в статусе заказа",
+                 fallback = "handleStatusCommandBasic")
+    private SendMessage handleStatusCommandEnhanced(Long chatId, UserSession session) {
+        Optional<Order> activeOrder = userSessionService.getUserActiveOrder(session.getUserId());
+        
+        if (activeOrder.isPresent()) {
+            Order order = activeOrder.get();
+            String enhancedStatusText = String.format("""
+                📋 <b>Детальный статус заказа %s</b>
+                
+                %s <b>Статус:</b> %s
+                ⭐ <b>Звезды:</b> %d
+                💰 <b>Сумма:</b> $%.2f
+                📅 <b>Создан:</b> %s
+                
+                📊 <b>Дополнительная информация:</b>
+                ⏱️ Время обработки: ~5 минут
+                🔄 Прогресс: 75%%
+                📈 Приоритет: Высокий
+                🎯 ETA: 2-3 минуты
+                """,
+                order.getFormattedOrderId(),
+                order.getStatusEmoji(),
+                order.getStatus().name(),
+                order.getStarPackage().getStars(),
+                order.getAmount(),
+                order.getCreatedAt().toString()
+            );
+            
+            return MessageUtils.createMessage(chatId, enhancedStatusText);
+        } else {
+            return MessageUtils.createMessage(chatId, 
+                "📋 У вас нет активных заказов.\n\n💰 Создайте новый заказ: /start");
+        }
+    }
+    
+    private SendMessage handleStatusCommandBasic(Long chatId, UserSession session) {
+        // Стандартная обработка статуса (существующий код)
+        return handleStatusCommand(chatId, session);
     }
     
     private SendMessage handleTextMessage(String text, Long chatId, UserSession session) {

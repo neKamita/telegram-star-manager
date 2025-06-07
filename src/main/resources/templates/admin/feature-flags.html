@@ -103,14 +103,14 @@
                                         </a>
                                     </li>
                                     <li>
-                                        <a class="dropdown-item" href="#" th:onclick="'duplicateFlag(\'' + ${flag.name} + '\')'">
+                                        <a class="dropdown-item duplicate-flag-btn" href="#" th:attr="data-flag-name=${flag.name}">
                                             <i class="fas fa-copy me-2"></i>Duplicate
                                         </a>
                                     </li>
                                     <li><hr class="dropdown-divider"></li>
                                     <li>
-                                        <a class="dropdown-item text-danger" href="#" 
-                                           th:onclick="'deleteFlag(\'' + ${flag.name} + '\')'">
+                                        <a class="dropdown-item text-danger delete-flag-btn" href="#" 
+                                           th:attr="data-flag-name=${flag.name}">
                                             <i class="fas fa-trash me-2"></i>Delete
                                         </a>
                                     </li>
@@ -122,10 +122,10 @@
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <span class="small text-muted">Status:</span>
                             <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" role="switch" 
+                                <input class="form-check-input toggle-flag-switch" type="checkbox" role="switch" 
                                        th:id="'toggle-' + ${flag.name}"
                                        th:checked="${flag.enabled}"
-                                       th:onchange="'toggleFlag(\'' + ${flag.name} + '\')'">
+                                       th:attr="data-flag-name=${flag.name}">
                                 <label class="form-check-label" th:for="'toggle-' + ${flag.name}">
                                     <span th:class="${flag.enabled} ? 'text-success' : 'text-danger'"
                                           th:text="${flag.enabled} ? 'Enabled' : 'Disabled'">
@@ -273,6 +273,31 @@
             if (searchFlagsEl) searchFlagsEl.addEventListener('input', filterFlags);
             if (statusFilterEl) statusFilterEl.addEventListener('change', filterFlags);
             if (environmentFilterEl) environmentFilterEl.addEventListener('change', filterFlags);
+            
+            // Add event listeners for data-attribute buttons
+            document.addEventListener('click', function(e) {
+                // Handle duplicate flag buttons
+                if (e.target.closest('.duplicate-flag-btn')) {
+                    e.preventDefault();
+                    const flagName = e.target.closest('.duplicate-flag-btn').getAttribute('data-flag-name');
+                    if (flagName) duplicateFlag(flagName);
+                }
+                
+                // Handle delete flag buttons
+                if (e.target.closest('.delete-flag-btn')) {
+                    e.preventDefault();
+                    const flagName = e.target.closest('.delete-flag-btn').getAttribute('data-flag-name');
+                    if (flagName) deleteFlag(flagName);
+                }
+            });
+            
+            // Add event listeners for toggle switches
+            document.addEventListener('change', function(e) {
+                if (e.target.classList.contains('toggle-flag-switch')) {
+                    const flagName = e.target.getAttribute('data-flag-name');
+                    if (flagName) toggleFlag(flagName);
+                }
+            });
         });
         
         function initializeFlags() {

@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.meta.TelegramBotsApi;
@@ -18,6 +19,7 @@ import jakarta.annotation.PostConstruct;
 
 @Slf4j
 @Service
+@Profile("!production")
 public class TelegramBotService extends TelegramLongPollingBot {
     
     @Value("${telegram.bot.token:YOUR_BOT_TOKEN}")

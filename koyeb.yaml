@@ -13,15 +13,21 @@ ports:
 # Environment variables
 env_vars:
   - key: SPRING_PROFILES_ACTIVE
-    value: koyeb
+    value: production
   - key: ENVIRONMENT
-    value: koyeb
+    value: production
   - key: SERVER_PORT
     value: "8080"
   - key: JAVA_OPTS
     value: "-Xmx400m -Xms200m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication"
   - key: LOGGING_LEVEL
     value: "WARN"
+  - key: TELEGRAM_BOT_TOKEN
+    value: 7578674808:AAGMGC4GnVFuObFCm79W64VbV7SgapG18s8
+  - key: TELEGRAM_BOT_USERNAME
+    value: MirzaShop_bot
+  - key: WEBHOOK_URL
+    value: https://brave-selina-g45-16b60ff3.koyeb.app
 
 # Build configuration
 build:

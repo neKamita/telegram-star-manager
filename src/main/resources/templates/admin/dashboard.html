@@ -285,14 +285,16 @@
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Global admin functions
-        let refreshInterval;
-        let flagsUsageChart, flagsStatusChart;
+        // Dashboard specific variables
+        let dashboardFlagsUsageChart, dashboardFlagsStatusChart;
         
-        // Mobile sidebar toggle
-        document.getElementById('sidebarToggle')?.addEventListener('click', function() {
-            document.querySelector('.sidebar').classList.toggle('show');
-        });
+        // Mobile sidebar toggle (only if not already set)
+        if (!window.AdminGlobals.sidebarToggleSet) {
+            document.getElementById('sidebarToggle')?.addEventListener('click', function() {
+                document.querySelector('.sidebar').classList.toggle('show');
+            });
+            window.AdminGlobals.sidebarToggleSet = true;
+        }
         
         // Override global refresh function
         function refreshData() {
@@ -326,15 +328,15 @@
         
         function updateCharts(data) {
             // Update usage chart
-            if (flagsUsageChart) {
-                flagsUsageChart.data.datasets[0].data = generateUsageData();
-                flagsUsageChart.update();
+            if (dashboardFlagsUsageChart) {
+                dashboardFlagsUsageChart.data.datasets[0].data = generateUsageData();
+                dashboardFlagsUsageChart.update();
             }
             
             // Update status chart
-            if (flagsStatusChart) {
-                flagsStatusChart.data.datasets[0].data = [data.activeFlags, data.totalFlags - data.activeFlags];
-                flagsStatusChart.update();
+            if (dashboardFlagsStatusChart) {
+                dashboardFlagsStatusChart.data.datasets[0].data = [data.activeFlags, data.totalFlags - data.activeFlags];
+                dashboardFlagsStatusChart.update();
             }
         }
         
@@ -349,7 +351,7 @@
             }
             
             // Flags Usage Chart
-            flagsUsageChart = new Chart(usageCtx.getContext('2d'), {
+            dashboardFlagsUsageChart = new Chart(usageCtx.getContext('2d'), {
                 type: 'line',
                 data: {
                     labels: ['6h ago', '5h ago', '4h ago', '3h ago', '2h ago', '1h ago', 'Now'],

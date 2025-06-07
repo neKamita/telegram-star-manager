@@ -228,8 +228,8 @@
     <!-- Page Scripts -->
     <script th:fragment="scripts">
         // Monitoring specific JavaScript
-        let activityInterval;
-        let startTime = new Date();
+        let monitoringActivityInterval;
+        let monitoringStartTime = new Date();
         
         // Override global refresh function
         function refreshData() {
@@ -254,7 +254,7 @@
         
         function updateUptime() {
             const now = new Date();
-            const diff = now - startTime;
+            const diff = now - monitoringStartTime;
             const hours = Math.floor(diff / (1000 * 60 * 60));
             const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
             
@@ -398,7 +398,7 @@
             refreshActivity();
             
             // Start activity auto-refresh
-            activityInterval = setInterval(refreshActivity, 30000);
+            monitoringActivityInterval = setInterval(refreshActivity, 30000);
             
             // Start metrics auto-refresh  
             setInterval(updateSystemMetrics, 10000);
@@ -406,8 +406,8 @@
         
         // Cleanup on page unload
         window.addEventListener('beforeunload', function() {
-            if (activityInterval) {
-                clearInterval(activityInterval);
+            if (monitoringActivityInterval) {
+                clearInterval(monitoringActivityInterval);
             }
         });
     </script>

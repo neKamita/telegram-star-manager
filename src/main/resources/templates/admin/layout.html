@@ -274,7 +274,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Global admin functions
-        let refreshInterval;
+        window.AdminGlobals = window.AdminGlobals || {};
         
         // Mobile sidebar toggle
         document.getElementById('sidebarToggle')?.addEventListener('click', function() {
@@ -283,12 +283,15 @@
         
         // Auto refresh data
         function startAutoRefresh(intervalMs = 30000) {
-            refreshInterval = setInterval(refreshData, intervalMs);
+            if (window.AdminGlobals.refreshInterval) {
+                clearInterval(window.AdminGlobals.refreshInterval);
+            }
+            window.AdminGlobals.refreshInterval = setInterval(refreshData, intervalMs);
         }
         
         function stopAutoRefresh() {
-            if (refreshInterval) {
-                clearInterval(refreshInterval);
+            if (window.AdminGlobals.refreshInterval) {
+                clearInterval(window.AdminGlobals.refreshInterval);
             }
         }
         

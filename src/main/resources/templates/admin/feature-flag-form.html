@@ -373,23 +373,53 @@
         function updateRolloutValue() {
             const slider = document.getElementById('rolloutPercentage');
             const display = document.getElementById('rolloutValue');
+            
+            // Add null checks
+            if (!slider || !display) {
+                console.warn('Rollout slider or display element not found');
+                return;
+            }
+            
             display.textContent = slider.value + '%';
         }
         
         function updatePreview() {
-            const name = document.getElementById('name').value || 'FLAG_NAME';
-            const description = document.getElementById('description').value || 'No description provided';
-            const enabled = document.getElementById('enabled').checked;
-            const rollout = document.getElementById('rolloutPercentage').value;
-            const environment = document.getElementById('environment').value;
+            // Get elements with null checks
+            const nameEl = document.getElementById('name');
+            const descriptionEl = document.getElementById('description');
+            const enabledEl = document.getElementById('enabled');
+            const rolloutEl = document.getElementById('rolloutPercentage');
+            const environmentEl = document.getElementById('environment');
             
-            document.getElementById('previewName').textContent = name;
-            document.getElementById('previewDescription').textContent = description;
-            document.getElementById('previewStatus').textContent = enabled ? 'Enabled' : 'Disabled';
-            document.getElementById('previewStatus').className = `badge ${enabled ? 'bg-success' : 'bg-secondary'}`;
-            document.getElementById('previewProgress').style.width = rollout + '%';
-            document.getElementById('previewRollout').textContent = rollout + '%';
-            document.getElementById('previewEnvironment').textContent = environment;
+            // Preview elements
+            const previewNameEl = document.getElementById('previewName');
+            const previewDescEl = document.getElementById('previewDescription');
+            const previewStatusEl = document.getElementById('previewStatus');
+            const previewProgressEl = document.getElementById('previewProgress');
+            const previewRolloutEl = document.getElementById('previewRollout');
+            const previewEnvEl = document.getElementById('previewEnvironment');
+            
+            // Check if elements exist
+            if (!nameEl || !previewNameEl) {
+                console.warn('Preview elements not found');
+                return;
+            }
+            
+            const name = nameEl.value || 'FLAG_NAME';
+            const description = descriptionEl?.value || 'No description provided';
+            const enabled = enabledEl?.checked || false;
+            const rollout = rolloutEl?.value || '100';
+            const environment = environmentEl?.value || 'production';
+            
+            if (previewNameEl) previewNameEl.textContent = name;
+            if (previewDescEl) previewDescEl.textContent = description;
+            if (previewStatusEl) {
+                previewStatusEl.textContent = enabled ? 'Enabled' : 'Disabled';
+                previewStatusEl.className = `badge ${enabled ? 'bg-success' : 'bg-secondary'}`;
+            }
+            if (previewProgressEl) previewProgressEl.style.width = rollout + '%';
+            if (previewRolloutEl) previewRolloutEl.textContent = rollout + '%';
+            if (previewEnvEl) previewEnvEl.textContent = environment;
         }
         
         function validateAndPreview() {

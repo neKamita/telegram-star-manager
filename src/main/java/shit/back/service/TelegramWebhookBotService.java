@@ -25,19 +25,24 @@ public class TelegramWebhookBotService extends TelegramWebhookBot {
     
     private static final Logger logger = LoggerFactory.getLogger(TelegramWebhookBotService.class);
     
+    public TelegramWebhookBotService() {
+        logger.info("🎯 TelegramWebhookBotService CONSTRUCTOR вызван!");
+        logger.info("📋 Active Profile: {}", System.getProperty("spring.profiles.active"));
+    }
+    
     @Value("${telegram.bot.token}")
     private String botToken;
     
     @Value("${telegram.bot.username}")
     private String botUsername;
     
-    @Value("${telegram.bot.webhook-url:}")
+    @Value("${telegram.bot.webhook-url}")
     private String webhookUrl;
     
-    @Autowired
+    @Autowired(required = false)
     private MessageHandler messageHandler;
     
-    @Autowired
+    @Autowired(required = false)
     private CallbackHandler callbackHandler;
     
     private boolean webhookSet = false;
@@ -47,26 +52,51 @@ public class TelegramWebhookBotService extends TelegramWebhookBot {
     
     @PostConstruct
     public void init() {
-        logger.info("Инициализация TelegramWebhookBotService для production");
-        logger.info("Bot Token: {}", botToken != null ? "SET" : "NOT_SET");
-        logger.info("Bot Username: {}", botUsername);
-        logger.info("Webhook URL: {}", webhookUrl);
-        
-        if (botToken == null || botToken.trim().isEmpty()) {
+        try {
+            logger.info("🚀 НАЧАЛО инициализации TelegramWebhookBotService для production");
+            logger.info("📋 Bot Token: {}", botToken != null && !botToken.trim().isEmpty() ? "SET (" + botToken.length() + " chars)" : "NOT_SET");
+            logger.info("👤 Bot Username: {}", botUsername);
+            logger.info("🌐 Webhook URL: {}", webhookUrl);
+            logger.info("🔗 MessageHandler: {}", messageHandler != null ? "AVAILABLE" : "NULL");
+            logger.info("🔗 CallbackHandler: {}", callbackHandler != null ? "AVAILABLE" : "NULL");
+            
+            if (botToken == null || botToken.trim().isEmpty()) {
+                botStatus = "ERROR";
+                errorMessage = "Bot token не настроен";
+                logger.error("❌ Bot token не настроен!");
+                return;
+            }
+            
+            if (webhookUrl == null || webhookUrl.trim().isEmpty()) {
+                botStatus = "ERROR";
+                errorMessage = "Webhook URL не настроен";
+                logger.error("❌ Webhook URL не настроен! Значение: '{}'", webhookUrl);
+                return;
+            }
+            
+            if (messageHandler == null) {
+                botStatus = "ERROR";
+                errorMessage = "MessageHandler не инициализирован";
+                logger.error("❌ MessageHandler не инициализирован!");
+                return;
+            }
+            
+            if (callbackHandler == null) {
+                botStatus = "ERROR";
+                errorMessage = "CallbackHandler не инициализирован";
+                logger.error("❌ CallbackHandler не инициализирован!");
+                return;
+            }
+            
+            logger.info("✅ Все зависимости проверены, запускаем setupWebhook()");
+            setupWebhook();
+            logger.info("🏁 КОНЕЦ инициализации TelegramWebhookBotService");
+            
+        } catch (Exception e) {
             botStatus = "ERROR";
-            errorMessage = "Bot token не настроен";
-            logger.error("Bot token не настроен!");
-            return;
+            errorMessage = "Ошибка при инициализации: " + e.getMessage();
+            logger.error("💥 КРИТИЧЕСКАЯ ОШИБКА при инициализации TelegramWebhookBotService", e);
         }
-        
-        if (webhookUrl == null || webhookUrl.trim().isEmpty()) {
-            botStatus = "ERROR";
-            errorMessage = "Webhook URL не настроен";
-            logger.error("Webhook URL не настроен!");
-            return;
-        }
-        
-        setupWebhook();
     }
     
     private void setupWebhook() {

@@ -9,6 +9,7 @@ import org.telegram.telegrambots.meta.TelegramBotsApi;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.updatesreceivers.DefaultBotSession;
 import shit.back.service.TelegramBotService;
+import shit.back.service.TelegramWebhookBotService;
 
 import jakarta.annotation.PostConstruct;
 
@@ -18,6 +19,9 @@ public class TelegramBotConfig {
     
     @Autowired(required = false)
     private TelegramBotService telegramBotService;
+    
+    @Autowired(required = false)
+    private TelegramWebhookBotService telegramWebhookBotService;
     
     @Bean
     @Profile("!production")
@@ -52,8 +56,11 @@ public class TelegramBotConfig {
         // Register long polling bot for development
         if (telegramBotService != null) {
             log.info("🤖 Development mode: Using TelegramBotService (Long Polling)");
-        } else {
-            log.info("🤖 Production mode: Using Webhook Bot Service");
+        }
+        
+        // Webhook bot registers itself in production
+        if (telegramWebhookBotService != null) {
+            log.info("🤖 Production mode: Using TelegramWebhookBotService (Webhook)");
         }
     }
 }

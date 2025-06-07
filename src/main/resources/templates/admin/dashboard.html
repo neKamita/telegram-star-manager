@@ -288,11 +288,18 @@
         // Dashboard specific variables
         let dashboardFlagsUsageChart, dashboardFlagsStatusChart;
         
+        // Initialize AdminGlobals if not exists
+        window.AdminGlobals = window.AdminGlobals || {};
+        
         // Mobile sidebar toggle (only if not already set)
         if (!window.AdminGlobals.sidebarToggleSet) {
-            document.getElementById('sidebarToggle')?.addEventListener('click', function() {
-                document.querySelector('.sidebar').classList.toggle('show');
-            });
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            if (sidebarToggle) {
+                sidebarToggle.addEventListener('click', function() {
+                    const sidebar = document.querySelector('.sidebar');
+                    if (sidebar) sidebar.classList.toggle('show');
+                });
+            }
             window.AdminGlobals.sidebarToggleSet = true;
         }
         

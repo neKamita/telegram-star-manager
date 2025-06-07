@@ -284,6 +284,12 @@
         function refreshActivity() {
             const activityContainer = document.getElementById('activity-logs');
             
+            // Add null check for activity container
+            if (!activityContainer) {
+                console.warn('Activity container not found');
+                return;
+            }
+            
             // Генерируем mock активности
             const activities = generateMockActivities();
             
@@ -367,6 +373,12 @@
         
         function clearLogs() {
             const activityContainer = document.getElementById('activity-logs');
+            
+            if (!activityContainer) {
+                console.warn('Activity container not found');
+                return;
+            }
+            
             activityContainer.innerHTML = `
                 <div class="text-center text-muted py-4">
                     <i class="fas fa-trash fa-2x mb-3"></i>

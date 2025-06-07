@@ -265,10 +265,14 @@
             initializeFlags();
             updateStatistics();
             
-            // Search functionality
-            document.getElementById('searchFlags').addEventListener('input', filterFlags);
-            document.getElementById('statusFilter').addEventListener('change', filterFlags);
-            document.getElementById('environmentFilter').addEventListener('change', filterFlags);
+            // Search functionality - with null checks
+            const searchFlagsEl = document.getElementById('searchFlags');
+            const statusFilterEl = document.getElementById('statusFilter');
+            const environmentFilterEl = document.getElementById('environmentFilter');
+            
+            if (searchFlagsEl) searchFlagsEl.addEventListener('input', filterFlags);
+            if (statusFilterEl) statusFilterEl.addEventListener('change', filterFlags);
+            if (environmentFilterEl) environmentFilterEl.addEventListener('change', filterFlags);
         });
         
         function initializeFlags() {
@@ -283,9 +287,19 @@
         }
         
         function filterFlags() {
-            const searchTerm = document.getElementById('searchFlags').value.toLowerCase();
-            const statusFilter = document.getElementById('statusFilter').value;
-            const environmentFilter = document.getElementById('environmentFilter').value;
+            const searchFlagsEl = document.getElementById('searchFlags');
+            const statusFilterEl = document.getElementById('statusFilter');
+            const environmentFilterEl = document.getElementById('environmentFilter');
+            
+            // Add null checks
+            if (!searchFlagsEl || !statusFilterEl || !environmentFilterEl) {
+                console.warn('Filter elements not found');
+                return;
+            }
+            
+            const searchTerm = searchFlagsEl.value.toLowerCase();
+            const statusFilter = statusFilterEl.value;
+            const environmentFilter = environmentFilterEl.value;
             
             let visibleCount = 0;
             
@@ -311,15 +325,24 @@
                 if (show) visibleCount++;
             });
             
-            // Show/hide empty states
-            document.getElementById('emptyState').style.display = 'none';
-            document.getElementById('noResults').style.display = visibleCount === 0 ? 'block' : 'none';
+            // Show/hide empty states with null checks
+            const emptyStateEl = document.getElementById('emptyState');
+            const noResultsEl = document.getElementById('noResults');
+            
+            if (emptyStateEl) emptyStateEl.style.display = 'none';
+            if (noResultsEl) noResultsEl.style.display = visibleCount === 0 ? 'block' : 'none';
         }
         
         function clearFilters() {
-            document.getElementById('searchFlags').value = '';
-            document.getElementById('statusFilter').value = '';
-            document.getElementById('environmentFilter').value = '';
+            const searchFlagsEl = document.getElementById('searchFlags');
+            const statusFilterEl = document.getElementById('statusFilter');
+            const environmentFilterEl = document.getElementById('environmentFilter');
+            
+            // Add null checks
+            if (searchFlagsEl) searchFlagsEl.value = '';
+            if (statusFilterEl) statusFilterEl.value = '';
+            if (environmentFilterEl) environmentFilterEl.value = '';
+            
             filterFlags();
         }
         

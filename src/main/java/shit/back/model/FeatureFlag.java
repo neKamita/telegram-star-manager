@@ -34,6 +34,8 @@ public class FeatureFlag {
     private String version; // Версия приложения
     private boolean requiresRestart; // Требует ли перезапуск
     private String fallbackMethod; // Метод fallback
+    private boolean experimental; // Экспериментальная функция
+    private boolean userSpecific; // Функция зависит от пользователя
     
     // Статистика
     private Long usageCount;

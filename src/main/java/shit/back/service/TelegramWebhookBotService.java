@@ -31,7 +31,7 @@ public class TelegramWebhookBotService extends TelegramWebhookBot {
     @Value("${telegram.bot.username}")
     private String botUsername;
     
-    @Value("${webhook.url:}")
+    @Value("${telegram.bot.webhook-url:}")
     private String webhookUrl;
     
     @Autowired

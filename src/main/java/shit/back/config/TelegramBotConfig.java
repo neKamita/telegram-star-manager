@@ -53,14 +53,25 @@ public class TelegramBotConfig {
     
     @PostConstruct
     public void registerBots() {
+        log.info("🔄 TelegramBotConfig.registerBots() вызван");
+        log.info("📋 Доступные профили: {}", System.getProperty("spring.profiles.active"));
+        
         // Register long polling bot for development
         if (telegramBotService != null) {
             log.info("🤖 Development mode: Using TelegramBotService (Long Polling)");
+        } else {
+            log.info("❌ TelegramBotService не найден (нормально для production)");
         }
         
         // Webhook bot registers itself in production
         if (telegramWebhookBotService != null) {
             log.info("🤖 Production mode: Using TelegramWebhookBotService (Webhook)");
+            log.info("✅ TelegramWebhookBotService инициализирован успешно");
+        } else {
+            log.error("❌ TelegramWebhookBotService НЕ НАЙДЕН! Проверьте профиль и конфигурацию");
+            log.error("🔍 Текущий профиль: {}", System.getProperty("spring.profiles.active"));
         }
+        
+        log.info("🏁 TelegramBotConfig.registerBots() завершен");
     }
 }

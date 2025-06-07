@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import shit.back.model.FeatureFlag;
 import shit.back.service.ConfigurationRefreshService;
 import shit.back.service.FeatureFlagService;
+import shit.back.utils.FallbackUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -27,34 +28,20 @@ public class AdminController {
     @GetMapping
     public String adminDashboard(Model model) {
         try {
-            List<FeatureFlag> flags = null;
-            List<FeatureFlag> activeFlags = null;
-            int cacheSize = 0;
-            
-            try {
-                flags = featureFlagService.getAllFeatureFlags();
-                activeFlags = featureFlagService.getActiveFeatureFlags();
-                cacheSize = featureFlagService.getCacheSize();
-            } catch (Exception e) {
-                log.warn("Redis connection issue, using fallback data: {}", e.getMessage());
-                // Fallback: создаем пустые списки
-                flags = new java.util.ArrayList<>();
-                activeFlags = new java.util.ArrayList<>();
-                cacheSize = 0;
-            }
+            FallbackUtils.AdminData data = new FallbackUtils.AdminData(featureFlagService);
             
             model.addAttribute("title", "Dashboard");
             model.addAttribute("subtitle", "Feature Flags Overview");
-            model.addAttribute("flags", flags);
-            model.addAttribute("activeFlags", activeFlags);
-            model.addAttribute("totalFlags", flags.size());
-            model.addAttribute("activeFlagsCount", activeFlags.size());
-            model.addAttribute("cacheSize", cacheSize);
+            model.addAttribute("flags", data.allFlags);
+            model.addAttribute("activeFlags", data.activeFlags);
+            model.addAttribute("totalFlags", data.totalFlags);
+            model.addAttribute("activeFlagsCount", data.activeFlagsCount);
+            model.addAttribute("cacheSize", data.cacheSize);
             
             return "admin/dashboard";
         } catch (Exception e) {
             log.error("Error loading admin dashboard: {}", e.getMessage());
-            model.addAttribute("error", "Ошибка загрузки панели администратора. Redis недоступен.");
+            model.addAttribute("error", "Ошибка загрузки панели администратора.");
             return "admin/error";
         }
     }
@@ -62,14 +49,7 @@ public class AdminController {
     @GetMapping("/feature-flags")
     public String featureFlagsPage(Model model) {
         try {
-            List<FeatureFlag> flags = null;
-            
-            try {
-                flags = featureFlagService.getAllFeatureFlags();
-            } catch (Exception e) {
-                log.warn("Redis connection issue, using empty flags list: {}", e.getMessage());
-                flags = new java.util.ArrayList<>();
-            }
+            List<FeatureFlag> flags = FallbackUtils.getAllFlagsWithFallback(featureFlagService);
             
             model.addAttribute("title", "Feature Flags");
             model.addAttribute("subtitle", "Manage all feature flags");
@@ -77,7 +57,26 @@ public class AdminController {
             return "admin/feature-flags";
         } catch (Exception e) {
             log.error("Error loading feature flags page: {}", e.getMessage());
-            model.addAttribute("error", "Ошибка загрузки флагов функций. Redis недоступен.");
+            model.addAttribute("error", "Ошибка загрузки флагов функций.");
+            return "admin/error";
+        }
+    }
+    
+    @GetMapping("/monitoring")
+    public String monitoringPage(Model model) {
+        try {
+            FallbackUtils.AdminData data = new FallbackUtils.AdminData(featureFlagService);
+            
+            model.addAttribute("title", "Monitoring");
+            model.addAttribute("subtitle", "System Health & Performance Monitoring");
+            model.addAttribute("totalFlags", data.totalFlags);
+            model.addAttribute("activeFlags", data.activeFlagsCount);
+            model.addAttribute("cacheSize", data.cacheSize);
+            
+            return "admin/monitoring";
+        } catch (Exception e) {
+            log.error("Error loading monitoring page: {}", e.getMessage());
+            model.addAttribute("error", "Ошибка загрузки страницы мониторинга.");
             return "admin/error";
         }
     }
@@ -178,26 +177,15 @@ public class AdminController {
     @GetMapping(value = "/api/dashboard-data", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
     public DashboardData getDashboardData() {
-        try {
-            List<FeatureFlag> allFlags = featureFlagService.getAllFeatureFlags();
-            List<FeatureFlag> activeFlags = featureFlagService.getActiveFeatureFlags();
-            
-            return DashboardData.builder()
-                    .totalFlags(allFlags.size())
-                    .activeFlags(activeFlags.size())
-                    .cacheSize(featureFlagService.getCacheSize())
-                    .lastUpdated(LocalDateTime.now())
-                    .flags(allFlags)
-                    .build();
-        } catch (Exception e) {
-            log.error("Error getting dashboard data: {}", e.getMessage());
-            return DashboardData.builder()
-                    .totalFlags(0)
-                    .activeFlags(0)
-                    .cacheSize(0)
-                    .lastUpdated(LocalDateTime.now())
-                    .build();
-        }
+        FallbackUtils.AdminData data = new FallbackUtils.AdminData(featureFlagService);
+        
+        return DashboardData.builder()
+                .totalFlags(data.totalFlags)
+                .activeFlags(data.activeFlagsCount)
+                .cacheSize(data.cacheSize)
+                .lastUpdated(LocalDateTime.now())
+                .flags(data.allFlags)
+                .build();
     }
     
     @lombok.Data

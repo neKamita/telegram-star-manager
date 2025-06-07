@@ -224,27 +224,9 @@
                 </a>
             </li>
             <li>
-                <a href="/admin/monitoring" class="nav-link">
+                <a href="/admin/monitoring" class="nav-link" th:classappend="${#httpServletRequest != null and #strings.contains(#httpServletRequest.requestURI, '/monitoring')} ? 'active' : ''">
                     <i class="fas fa-chart-line"></i>
                     Monitoring
-                </a>
-            </li>
-            <li>
-                <a href="/admin/settings" class="nav-link">
-                    <i class="fas fa-cog"></i>
-                    Settings
-                </a>
-            </li>
-            <li class="mt-4">
-                <a href="/api/health" class="nav-link" target="_blank">
-                    <i class="fas fa-heartbeat"></i>
-                    Health Check
-                </a>
-            </li>
-            <li>
-                <a href="/" class="nav-link">
-                    <i class="fas fa-home"></i>
-                    Back to App
                 </a>
             </li>
         </ul>

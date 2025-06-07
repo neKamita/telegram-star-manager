@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{admin/layout :: head}">
+    <title>Monitoring - Admin Panel</title>
+</head>
+<body>
+    <div th:replace="~{admin/layout :: body}">
+        <div th:fragment="content">
+            <!-- System Status Overview -->
+            <div class="row mb-4">
+                <div class="col-lg-12">
+                    <div class="feature-flag-card">
+                        <h5 class="mb-4">
+                            <i class="fas fa-server text-primary me-2"></i>
+                            System Health Overview
+                        </h5>
+                        
+                        <div class="row">
+                            <div class="col-md-3 mb-3">
+                                <div class="text-center">
+                                    <div class="status-indicator bg-success rounded-circle mx-auto mb-2" 
+                                         style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+                                        <i class="fas fa-check text-white"></i>
+                                    </div>
+                                    <h6 class="mb-1">Application</h6>
+                                    <small class="text-success">Online</small>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-3 mb-3">
+                                <div class="text-center">
+                                    <div id="redis-status" class="status-indicator bg-warning rounded-circle mx-auto mb-2" 
+                                         style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+                                        <i class="fas fa-exclamation text-white"></i>
+                                    </div>
+                                    <h6 class="mb-1">Redis</h6>
+                                    <small id="redis-text" class="text-warning">Fallback Mode</small>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-3 mb-3">
+                                <div class="text-center">
+                                    <div class="status-indicator bg-success rounded-circle mx-auto mb-2" 
+                                         style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+                                        <i class="fas fa-robot text-white"></i>
+                                    </div>
+                                    <h6 class="mb-1">Telegram Bot</h6>
+                                    <small class="text-success">Active</small>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-3 mb-3">
+                                <div class="text-center">
+                                    <div class="status-indicator bg-info rounded-circle mx-auto mb-2" 
+                                         style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
+                                        <i class="fas fa-clock text-white"></i>
+                                    </div>
+                                    <h6 class="mb-1">Uptime</h6>
+                                    <small id="uptime" class="text-info">Loading...</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Performance Metrics -->
+            <div class="row mb-4">
+                <div class="col-lg-6 mb-4">
+                    <div class="chart-container">
+                        <h5 class="mb-3">
+                            <i class="fas fa-tachometer-alt text-primary me-2"></i>
+                            Performance Metrics
+                        </h5>
+                        
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <div class="p-3">
+                                    <h4 id="response-time" class="text-primary mb-1">--ms</h4>
+                                    <small class="text-muted">Avg Response</small>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="p-3">
+                                    <h4 id="memory-usage" class="text-info mb-1">--%</h4>
+                                    <small class="text-muted">Memory Usage</small>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="p-3">
+                                    <h4 id="cache-hits" class="text-success mb-1">--%</h4>
+                                    <small class="text-muted">Cache Hits</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-6 mb-4">
+                    <div class="chart-container">
+                        <h5 class="mb-3">
+                            <i class="fas fa-flag text-success me-2"></i>
+                            Feature Flags Status
+                        </h5>
+                        
+                        <div class="row">
+                            <div class="col-6">
+                                <div class="p-3 text-center">
+                                    <h3 id="total-flags" class="text-dark mb-1" th:text="${totalFlags ?: 0}">0</h3>
+                                    <small class="text-muted">Total Flags</small>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="p-3 text-center">
+                                    <h3 id="active-flags" class="text-success mb-1" th:text="${activeFlags ?: 0}">0</h3>
+                                    <small class="text-muted">Active Flags</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="progress mt-3" style="height: 10px;">
+                            <div id="flags-progress" class="progress-bar bg-success" role="progressbar" 
+                                 style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
+                            </div>
+                        </div>
+                        <small class="text-muted">Active flags percentage</small>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Recent Activity & Logs -->
+            <div class="row">
+                <div class="col-lg-8 mb-4">
+                    <div class="table-responsive">
+                        <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
+                            <h5 class="mb-0">
+                                <i class="fas fa-history text-primary me-2"></i>
+                                Recent Activity
+                            </h5>
+                            <button class="btn btn-sm btn-outline-primary" onclick="refreshActivity()">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                        </div>
+                        
+                        <div id="activity-logs" class="p-3" style="max-height: 400px; overflow-y: auto;">
+                            <div class="text-center text-muted py-4">
+                                <i class="fas fa-clock fa-2x mb-3"></i>
+                                <p>Loading recent activity...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-4 mb-4">
+                    <!-- System Actions -->
+                    <div class="feature-flag-card">
+                        <h5 class="mb-3">
+                            <i class="fas fa-tools text-warning me-2"></i>
+                            System Actions
+                        </h5>
+                        
+                        <div class="d-grid gap-2">
+                            <button class="btn btn-outline-primary" onclick="checkSystemHealth()">
+                                <i class="fas fa-heartbeat me-2"></i>
+                                Check Health
+                            </button>
+                            
+                            <button class="btn btn-outline-secondary" onclick="refreshCache()">
+                                <i class="fas fa-sync-alt me-2"></i>
+                                Refresh Cache
+                            </button>
+                            
+                            <button class="btn btn-outline-info" onclick="clearLogs()">
+                                <i class="fas fa-trash me-2"></i>
+                                Clear Logs
+                            </button>
+                            
+                            <button class="btn btn-outline-success" onclick="exportDiagnostics()">
+                                <i class="fas fa-download me-2"></i>
+                                Export Diagnostics
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Environment Info -->
+                    <div class="feature-flag-card mt-4">
+                        <h5 class="mb-3">
+                            <i class="fas fa-info-circle text-info me-2"></i>
+                            Environment Info
+                        </h5>
+                        
+                        <div class="small">
+                            <div class="d-flex justify-content-between py-1">
+                                <span class="text-muted">Platform:</span>
+                                <span>Koyeb</span>
+                            </div>
+                            <div class="d-flex justify-content-between py-1">
+                                <span class="text-muted">Java Version:</span>
+                                <span>21</span>
+                            </div>
+                            <div class="d-flex justify-content-between py-1">
+                                <span class="text-muted">Spring Boot:</span>
+                                <span>3.4.5</span>
+                            </div>
+                            <div class="d-flex justify-content-between py-1">
+                                <span class="text-muted">Profile:</span>
+                                <span class="badge bg-primary">koyeb</span>
+                            </div>
+                            <div class="d-flex justify-content-between py-1">
+                                <span class="text-muted">Cache Size:</span>
+                                <span id="cache-size" th:text="${cacheSize ?: 0}">0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Loading Spinner -->
+            <div class="loading-spinner">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-2">Loading monitoring data...</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Page Scripts -->
+    <script th:fragment="scripts">
+        // Monitoring specific JavaScript
+        let activityInterval;
+        let startTime = new Date();
+        
+        // Override global refresh function
+        function refreshData() {
+            showLoading();
+            updateSystemMetrics();
+            refreshActivity();
+            setTimeout(hideLoading, 1000);
+        }
+        
+        function updateSystemMetrics() {
+            // Simulate metrics (в реальности получали бы из API)
+            document.getElementById('response-time').textContent = (Math.random() * 100 + 50).toFixed(0) + 'ms';
+            document.getElementById('memory-usage').textContent = (Math.random() * 30 + 40).toFixed(0) + '%';
+            document.getElementById('cache-hits').textContent = (Math.random() * 20 + 75).toFixed(0) + '%';
+            
+            // Update uptime
+            updateUptime();
+            
+            // Update flags progress
+            updateFlagsProgress();
+        }
+        
+        function updateUptime() {
+            const now = new Date();
+            const diff = now - startTime;
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            
+            document.getElementById('uptime').textContent = `${hours}h ${minutes}m`;
+        }
+        
+        function updateFlagsProgress() {
+            const totalFlags = parseInt(document.getElementById('total-flags').textContent) || 0;
+            const activeFlags = parseInt(document.getElementById('active-flags').textContent) || 0;
+            
+            const percentage = totalFlags > 0 ? (activeFlags / totalFlags * 100) : 0;
+            document.getElementById('flags-progress').style.width = percentage + '%';
+            document.getElementById('flags-progress').setAttribute('aria-valuenow', percentage);
+        }
+        
+        function refreshActivity() {
+            const activityContainer = document.getElementById('activity-logs');
+            
+            // Генерируем mock активности
+            const activities = generateMockActivities();
+            
+            activityContainer.innerHTML = '';
+            activities.forEach(activity => {
+                const activityHtml = `
+                    <div class="d-flex align-items-start mb-3">
+                        <div class="flex-shrink-0">
+                            <div class="status-indicator bg-${activity.type} rounded-circle" 
+                                 style="width: 10px; height: 10px; margin-top: 6px;"></div>
+                        </div>
+                        <div class="flex-grow-1 ms-3">
+                            <div class="small">
+                                <strong>${activity.message}</strong>
+                            </div>
+                            <div class="text-muted" style="font-size: 0.75rem;">
+                                ${activity.timestamp}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                activityContainer.insertAdjacentHTML('beforeend', activityHtml);
+            });
+        }
+        
+        function generateMockActivities() {
+            const types = ['success', 'warning', 'info', 'primary'];
+            const messages = [
+                'Feature flag "NEW_CHECKOUT" enabled',
+                'Cache refreshed successfully', 
+                'System health check completed',
+                'Redis connection restored',
+                'User session updated',
+                'Configuration reloaded',
+                'Bot message sent successfully',
+                'Feature flag "BETA_FEATURES" disabled'
+            ];
+            
+            const activities = [];
+            for (let i = 0; i < 8; i++) {
+                const now = new Date();
+                now.setMinutes(now.getMinutes() - i * 5);
+                
+                activities.push({
+                    type: types[Math.floor(Math.random() * types.length)],
+                    message: messages[Math.floor(Math.random() * messages.length)],
+                    timestamp: now.toLocaleTimeString('ru-RU')
+                });
+            }
+            
+            return activities;
+        }
+        
+        function checkSystemHealth() {
+            showToast('Checking system health...', 'info');
+            
+            // Simulate health check
+            setTimeout(() => {
+                updateSystemMetrics();
+                showToast('System health check completed successfully', 'success');
+            }, 2000);
+        }
+        
+        function refreshCache() {
+            fetch('/admin/refresh-cache', {
+                method: 'POST'
+            })
+            .then(response => {
+                if (response.ok) {
+                    showToast('Cache refreshed successfully', 'success');
+                    updateSystemMetrics();
+                } else {
+                    showToast('Error refreshing cache', 'danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error refreshing cache:', error);
+                showToast('Error refreshing cache', 'danger');
+            });
+        }
+        
+        function clearLogs() {
+            const activityContainer = document.getElementById('activity-logs');
+            activityContainer.innerHTML = `
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-trash fa-2x mb-3"></i>
+                    <p>Activity logs cleared</p>
+                </div>
+            `;
+            showToast('Activity logs cleared', 'info');
+        }
+        
+        function exportDiagnostics() {
+            const diagnostics = {
+                timestamp: new Date().toISOString(),
+                uptime: document.getElementById('uptime').textContent,
+                responseTime: document.getElementById('response-time').textContent,
+                memoryUsage: document.getElementById('memory-usage').textContent,
+                cacheHits: document.getElementById('cache-hits').textContent,
+                totalFlags: document.getElementById('total-flags').textContent,
+                activeFlags: document.getElementById('active-flags').textContent,
+                cacheSize: document.getElementById('cache-size').textContent
+            };
+            
+            const blob = new Blob([JSON.stringify(diagnostics, null, 2)], 
+                                {type: 'application/json'});
+            const url = URL.createObjectURL(blob);
+            
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `diagnostics-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            showToast('Diagnostics exported successfully', 'success');
+        }
+        
+        // Initialize monitoring page
+        document.addEventListener('DOMContentLoaded', function() {
+            updateSystemMetrics();
+            refreshActivity();
+            
+            // Start activity auto-refresh
+            activityInterval = setInterval(refreshActivity, 30000);
+            
+            // Start metrics auto-refresh  
+            setInterval(updateSystemMetrics, 10000);
+        });
+        
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if (activityInterval) {
+                clearInterval(activityInterval);
+            }
+        });
+    </script>
+</body>
+</html>

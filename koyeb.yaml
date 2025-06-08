@@ -13,7 +13,7 @@ ports:
 # Environment variables
 env_vars:
   - key: SPRING_PROFILES_ACTIVE
-    value: production
+    value: production,postgresql
   - key: ENVIRONMENT
     value: production
   - key: SERVER_PORT
@@ -22,12 +22,19 @@ env_vars:
     value: "-Xmx400m -Xms200m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication"
   - key: LOGGING_LEVEL
     value: "WARN"
-  - key: TELEGRAM_BOT_TOKEN
-    value: 7578674808:AAGMGC4GnVFuObFCm79W64VbV7SgapG18s8
+  # Telegram Bot Configuration - Set tokens in Koyeb Dashboard as secrets
   - key: TELEGRAM_BOT_USERNAME
     value: MirzaShop_bot
   - key: WEBHOOK_URL
     value: https://brave-selina-g45-16b60ff3.koyeb.app
+  # PostgreSQL Database Configuration - Set in Koyeb Dashboard
+  # These should be configured as secrets in Koyeb environment variables
+  - key: DB_POOL_SIZE
+    value: "5"
+  - key: DB_POOL_MIN_IDLE
+    value: "1"
+  - key: JPA_SHOW_SQL
+    value: "false"
 
 # Build configuration
 build:

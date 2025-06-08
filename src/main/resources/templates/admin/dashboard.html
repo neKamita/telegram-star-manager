@@ -1,10 +1,11 @@
 <!DOCTYPE html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: body}">
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{admin/layout :: head}">
     <title>Dashboard - Admin Panel</title>
 </head>
 <body>
-    <div th:fragment="content">
+    <div th:replace="~{admin/layout :: body}">
+        <div th:fragment="content">
         
         <!-- Statistics Cards -->
         <div class="row mb-4">
@@ -233,10 +234,11 @@
                 </div>
             </div>
         </div>
+        </div>
     </div>
-
-    <th:block th:fragment="scripts">
-    <script>
+    
+    <!-- Page Scripts -->
+    <script th:fragment="scripts">
         // Dashboard Variables
         let refreshInterval;
         let isRefreshing = false;
@@ -540,6 +542,5 @@
             }
         });
     </script>
-    </th:block>
 </body>
 </html>

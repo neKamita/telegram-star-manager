@@ -211,15 +211,16 @@
         /* Enhanced styles for Recent Activity */
         .activity-title {
             font-weight: 600;
-            color: var(--dark-color);
+            color: #374151; /* Более контрастный темно-серый */
         }
         
         .activity-row {
             transition: all 0.3s ease;
+            background: white; /* Белый фон для строк */
         }
         
         .activity-row:hover {
-            background-color: rgba(99, 102, 241, 0.02);
+            background-color: rgba(99, 102, 241, 0.05);
             transform: translateX(2px);
         }
         
@@ -227,21 +228,25 @@
             border-radius: 8px;
             overflow: hidden;
             border: 1px solid var(--border-color);
+            background: white;
         }
         
         .table thead th {
-            background: linear-gradient(135deg, #f8fafc, #e2e8f0);
+            background: linear-gradient(135deg, #f8fafc, #f1f5f9); /* Более светлый градиент */
             border: none;
             font-weight: 600;
-            color: var(--dark-color);
+            color: #1e293b; /* Темный контрастный цвет */
             padding: 1rem 0.75rem;
             font-size: 0.875rem;
+            text-shadow: none;
         }
         
         .table tbody td {
             padding: 1rem 0.75rem;
             border-color: var(--border-color);
             vertical-align: middle;
+            background: white;
+            color: #374151; /* Контрастный цвет текста */
         }
         
         .table-hover tbody tr:hover {
@@ -264,6 +269,39 @@
         
         .status-indicator:hover {
             transform: scale(1.1);
+        }
+        
+        /* Additional contrast improvements */
+        .text-muted {
+            color: #6b7280 !important; /* Более контрастный серый */
+        }
+        
+        .small, small {
+            color: #6b7280 !important; /* Контрастный цвет для мелкого текста */
+        }
+        
+        .fw-bold {
+            color: #111827 !important; /* Очень темный для жирного текста */
+        }
+        
+        .badge {
+            font-weight: 600;
+            letter-spacing: 0.025em;
+        }
+        
+        .badge.bg-success {
+            background-color: #16a34a !important;
+            color: white !important;
+        }
+        
+        .badge.bg-primary {
+            background-color: #2563eb !important;
+            color: white !important;
+        }
+        
+        .badge.bg-secondary {
+            background-color: #6b7280 !important;
+            color: white !important;
         }
     </style>
 </head>

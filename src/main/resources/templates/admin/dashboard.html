@@ -338,38 +338,36 @@
 
         // Update Status Indicators
         function updateStatusIndicators(healthData) {
+            console.log('Health data received:', healthData);
+            
+            // Adapt to AdminDashboardService.SystemHealth structure
             const indicators = {
-                'apiStatus': healthData.components?.api?.status || 'DOWN',
-                'redisStatus': healthData.components?.redis?.status || 'DOWN',
-                'botStatus': healthData.components?.telegram?.status || 'DOWN',
-                'cacheStatus': healthData.components?.cache?.status || 'DOWN'
+                'apiStatus': true, // API is working if we got response
+                'redisStatus': healthData.redisHealthy !== false,
+                'botStatus': healthData.botHealthy !== false,
+                'cacheStatus': healthData.cacheHealthy !== false
             };
 
             Object.keys(indicators).forEach(indicatorId => {
                 const indicator = document.getElementById(indicatorId);
                 if (indicator) {
-                    const status = indicators[indicatorId];
-                    indicator.className = `status-indicator rounded-circle mx-auto mb-2 ${getStatusClass(status)}`;
+                    const isHealthy = indicators[indicatorId];
+                    indicator.className = `status-indicator rounded-circle mx-auto mb-2 ${isHealthy ? 'bg-success' : 'bg-danger'}`;
                 }
             });
 
-            // Update health score
+            // Update health score directly from data
             updateHealthScore(healthData);
         }
 
         // Get Status Class
-        function getStatusClass(status) {
-            switch (status.toUpperCase()) {
-                case 'UP': return 'bg-success';
-                case 'DOWN': return 'bg-danger';
-                case 'WARNING': return 'bg-warning';
-                default: return 'bg-secondary';
-            }
+        function getStatusClass(isHealthy) {
+            return isHealthy ? 'bg-success' : 'bg-danger';
         }
 
         // Update Health Score
         function updateHealthScore(healthData) {
-            const healthScore = calculateHealthScore(healthData);
+            const healthScore = healthData.healthScore || 0;
             const healthScoreBar = document.getElementById('healthScoreBar');
             const healthScoreText = document.getElementById('healthScoreText');
 
@@ -380,13 +378,9 @@
             }
         }
 
-        // Calculate Health Score
+        // Calculate Health Score - not needed, comes from backend
         function calculateHealthScore(healthData) {
-            if (!healthData.components) return 0;
-            
-            const components = Object.values(healthData.components);
-            const upComponents = components.filter(c => c.status === 'UP').length;
-            return Math.round((upComponents / components.length) * 100);
+            return healthData.healthScore || 0;
         }
 
         // Get Health Score Class

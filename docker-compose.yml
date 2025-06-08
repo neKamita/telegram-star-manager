@@ -68,7 +68,7 @@ services:
     environment:
       - POSTGRES_DB=${DATABASE_NAME:-telegram_star_manager}
       - POSTGRES_USER=${DATABASE_USERNAME:-telegram_user}
-      - POSTGRES_PASSWORD=${DATABASE_PASSWORD:-telegram_password}
+      - POSTGRES_PASSWORD=${DATABASE_PASSWORD}
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro

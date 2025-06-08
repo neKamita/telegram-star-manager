@@ -1,6 +1,6 @@
 security:
   api:
-    key: ${API_SECRET_KEY:default-key-change-me}
+    key: ${API_SECRET_KEY}
     enabled: true
     header-name: "X-API-KEY"
   

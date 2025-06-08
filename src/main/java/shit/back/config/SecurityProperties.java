@@ -20,7 +20,7 @@ public class SecurityProperties {
     
     @Data
     public static class Api {
-        private String key = "default-key-change-me";
+        private String key = System.getenv("API_SECRET_KEY");
         private boolean enabled = true;
         private String headerName = "X-API-KEY";
     }

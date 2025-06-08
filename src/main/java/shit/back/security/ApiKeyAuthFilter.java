@@ -103,7 +103,7 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
     private boolean isPublicEndpoint(String requestUri) {
         return requestUri.equals("/api/bot/health") ||
                requestUri.startsWith("/actuator/") ||
-               requestUri.startsWith("/telegram/webhook") ||
+               requestUri.startsWith("/webhook/") ||  // Исправлен путь для webhook
                requestUri.equals("/") ||
                requestUri.startsWith("/static/") ||
                requestUri.startsWith("/css/") ||

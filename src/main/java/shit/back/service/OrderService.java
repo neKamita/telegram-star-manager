@@ -140,7 +140,9 @@ public class OrderService {
      */
     @Transactional(readOnly = true)
     public List<OrderEntity> getTodaysOrders() {
-        return orderRepository.getTodaysOrders();
+        LocalDateTime startOfDay = LocalDateTime.now().withHour(0).withMinute(0).withSecond(0).withNano(0);
+        LocalDateTime endOfDay = startOfDay.plusDays(1);
+        return orderRepository.getTodaysOrders(startOfDay, endOfDay);
     }
     
     // Statistics methods

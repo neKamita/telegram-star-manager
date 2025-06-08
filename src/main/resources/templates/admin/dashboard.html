@@ -103,33 +103,10 @@
             </div>
         </div>
         
-        <!-- Charts Row -->
-        <div class="row mb-4">
-            <div class="col-lg-8 mb-4">
-                <div class="chart-container">
-                    <h5 class="mb-3">
-                        <i class="fas fa-chart-line text-primary me-2"></i>
-                        Feature Flags Usage
-                    </h5>
-                    <canvas id="flagsUsageChart" width="400" height="200"></canvas>
-                </div>
-            </div>
-            
-            <div class="col-lg-4 mb-4">
-                <div class="chart-container">
-                    <h5 class="mb-3">
-                        <i class="fas fa-chart-pie text-success me-2"></i>
-                        Flags Status
-                    </h5>
-                    <canvas id="flagsStatusChart" width="300" height="300"></canvas>
-                </div>
-            </div>
-        </div>
-        
         <!-- Recent Activity -->
         <div class="row">
             <div class="col-lg-8 mb-4">
-                <div class="table-responsive">
+                <div class="recent-flags-table">
                     <div class="p-3 border-bottom">
                         <h5 class="mb-0">
                             <i class="fas fa-history text-primary me-2"></i>
@@ -147,12 +124,12 @@
                             </tr>
                         </thead>
                         <tbody>
-                            <tr th:each="flag : ${flags}" th:if="${flagStat.count <= 5}">
+                            <tr th:each="flag : ${flags}" th:if="${flagStat.count <= 5}" class="flag-row">
                                 <td>
                                     <div class="d-flex align-items-center">
                                         <i class="fas fa-flag me-2 text-muted"></i>
                                         <div>
-                                            <div class="fw-bold" th:text="${flag.name}">FLAG_NAME</div>
+                                            <div class="flag-name" th:text="${flag.name}">FLAG_NAME</div>
                                             <small class="text-muted" th:text="${flag.description}">Description</small>
                                         </div>
                                     </div>
@@ -279,449 +256,277 @@
                 </div>
             </div>
         </div>
-        
-        <!-- Loading Spinner -->
-        <div class="loading-spinner">
-            <div class="spinner-border text-primary" role="status">
-                <span class="visually-hidden">Loading...</span>
-            </div>
-            <p class="mt-2">Loading dashboard data...</p>
-        </div>
     </main>
-    
-    <!-- Toast Container -->
-    <div class="toast-container"></div>
-    
+
+    <!-- Toast notifications container -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+        <div id="successToast" class="toast" role="alert">
+            <div class="d-flex">
+                <div class="toast-body">
+                    <i class="fas fa-check-circle text-success me-2"></i>
+                    <span id="successMessage">Action completed successfully!</span>
+                </div>
+                <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+        
+        <div id="errorToast" class="toast" role="alert">
+            <div class="d-flex">
+                <div class="toast-body">
+                    <i class="fas fa-exclamation-circle text-danger me-2"></i>
+                    <span id="errorMessage">An error occurred!</span>
+                </div>
+                <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button>
+            </div>
+        </div>
+    </div>
+
     <!-- Scripts -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script th:replace="~{admin/layout :: scripts}"></script>
     <script>
-        // Dashboard specific variables
-        let dashboardFlagsUsageChart, dashboardFlagsStatusChart;
-        
-        // Initialize AdminGlobals if not exists
-        window.AdminGlobals = window.AdminGlobals || {};
-        
-        // Mobile sidebar toggle (only if not already set)
-        if (!window.AdminGlobals.sidebarToggleSet) {
+        // Dashboard Variables
+        let refreshInterval;
+        let isRefreshing = false;
+
+        // DOM Ready
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeDashboard();
+            updateSystemStatus();
+            startAutoRefresh();
+            setupEventListeners();
+        });
+
+        // Initialize Dashboard
+        function initializeDashboard() {
+            console.log('Dashboard initialized');
+            loadDashboardData();
+        }
+
+        // Setup Event Listeners
+        function setupEventListeners() {
+            // Toggle Flag Buttons
+            document.querySelectorAll('.toggle-flag-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const flagName = this.getAttribute('data-flag-name');
+                    toggleFlag(flagName);
+                });
+            });
+
+            // Sidebar Toggle for Mobile
             const sidebarToggle = document.getElementById('sidebarToggle');
             if (sidebarToggle) {
                 sidebarToggle.addEventListener('click', function() {
-                    const sidebar = document.querySelector('.sidebar');
-                    if (sidebar) sidebar.classList.toggle('show');
+                    document.querySelector('.sidebar').classList.toggle('show');
                 });
             }
-            window.AdminGlobals.sidebarToggleSet = true;
         }
-        
-        // Override global refresh function
-        function refreshData() {
-            showLoading();
+
+        // Load Dashboard Data
+        function loadDashboardData() {
+            if (isRefreshing) return;
             
+            isRefreshing = true;
+            const refreshBtn = document.querySelector('[onclick="refreshData()"]');
+            if (refreshBtn) {
+                refreshBtn.disabled = true;
+                refreshBtn.innerHTML = '<i class="fas fa-spin fa-sync-alt"></i> Refreshing...';
+            }
+
             fetch('/admin/api/dashboard-data')
                 .then(response => response.json())
                 .then(data => {
-                    updateStats(data);
-                    updateCharts(data);
-                    updateSystemStatus();
-                    hideLoading();
-                    showToast('Dashboard data refreshed', 'success');
+                    updateDashboardData(data);
+                    showSuccess('Dashboard data refreshed');
                 })
                 .catch(error => {
-                    console.error('Error refreshing data:', error);
-                    hideLoading();
-                    showToast('Error refreshing data', 'danger');
+                    console.error('Error loading dashboard data:', error);
+                    showError('Failed to refresh dashboard data');
+                })
+                .finally(() => {
+                    isRefreshing = false;
+                    if (refreshBtn) {
+                        refreshBtn.disabled = false;
+                        refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i> Refresh';
+                    }
                 });
         }
-        
+
+        // Update Dashboard Data
+        function updateDashboardData(data) {
+            // Update user count if available
+            const userCountElement = document.getElementById('userCount');
+            if (userCountElement && data.activeUsersCount !== undefined) {
+                userCountElement.textContent = data.activeUsersCount;
+            }
+        }
+
+        // Update System Status
         function updateSystemStatus() {
             fetch('/admin/api/system-health')
                 .then(response => response.json())
-                .then(healthData => {
-                    // Update status indicators
-                    updateStatusIndicator('apiStatus', true); // API is working if we get response
-                    updateStatusIndicator('redisStatus', healthData.redisHealthy !== false);
-                    updateStatusIndicator('botStatus', healthData.botHealthy !== false);
-                    updateStatusIndicator('cacheStatus', healthData.cacheHealthy !== false);
-                    
-                    // Update health score
-                    const healthScore = healthData.healthScore || 0;
-                    const healthScoreBar = document.getElementById('healthScoreBar');
-                    const healthScoreText = document.getElementById('healthScoreText');
-                    
-                    if (healthScoreBar) {
-                        healthScoreBar.style.width = healthScore + '%';
-                        // Change color based on health score
-                        healthScoreBar.className = 'progress-bar ' + 
-                            (healthScore >= 80 ? 'bg-success' : 
-                             healthScore >= 60 ? 'bg-warning' : 'bg-danger');
-                    }
-                    
-                    if (healthScoreText) {
-                        healthScoreText.textContent = healthScore + '%';
-                    }
+                .then(data => {
+                    updateStatusIndicators(data);
                 })
                 .catch(error => {
-                    console.warn('Could not fetch system health:', error);
+                    console.error('Error fetching system status:', error);
                     // Set all indicators to warning state
-                    updateStatusIndicator('apiStatus', false);
-                    updateStatusIndicator('redisStatus', false);
-                    updateStatusIndicator('botStatus', false);
-                    updateStatusIndicator('cacheStatus', false);
-                    
-                    const healthScoreText = document.getElementById('healthScoreText');
-                    if (healthScoreText) {
-                        healthScoreText.textContent = 'Error';
-                    }
+                    setAllIndicatorsToWarning();
                 });
         }
-        
-        function updateStatusIndicator(elementId, isHealthy) {
-            const indicator = document.getElementById(elementId);
-            if (indicator) {
-                indicator.className = indicator.className.replace(/bg-\w+/, '');
-                indicator.classList.add(isHealthy ? 'bg-success' : 'bg-danger');
-            }
-        }
-        
-        function updateStats(data) {
-            // Only update stats if data exists and is valid, otherwise keep current values
-            const statsCards = document.querySelectorAll('.stats-card h3');
-            
-            // Update Total Flags only if we have valid data
-            if (statsCards[0] && data && typeof data.totalFlags === 'number') {
-                statsCards[0].textContent = data.totalFlags;
-            }
-            
-            // Update Active Flags only if we have valid data
-            if (statsCards[1] && data && typeof data.activeFlags === 'number') {
-                statsCards[1].textContent = data.activeFlags;
-            }
-            
-            // Update Cache Size only if we have valid data
-            if (statsCards[2] && data && typeof data.cacheSize === 'number') {
-                statsCards[2].textContent = data.cacheSize;
-            }
-            
-            // Update user count from API independently
-            updateUserCount(data);
-        }
-        
-        function updateUserCount(data) {
-            const userCountEl = document.getElementById('userCount');
-            if (!userCountEl) return;
-            
-            // Try multiple data sources in priority order
-            let userCount = null;
-            
-            // 1. Direct dashboard overview fields (highest priority)
-            if (data && data.overview) {
-                if (typeof data.overview.activeUsersCount === 'number') {
-                    userCount = data.overview.activeUsersCount;
-                } else if (typeof data.overview.onlineUsersCount === 'number') {
-                    userCount = data.overview.onlineUsersCount;
-                } else if (data.overview.userStatistics && typeof data.overview.userStatistics.activeUsersCount === 'number') {
-                    userCount = data.overview.userStatistics.activeUsersCount;
-                }
-            }
-            
-            // 2. Dashboard data direct fields
-            if (userCount === null && data) {
-                if (typeof data.activeUsersCount === 'number') {
-                    userCount = data.activeUsersCount;
-                } else if (typeof data.onlineUsersCount === 'number') {
-                    userCount = data.onlineUsersCount;
-                }
-            }
-            
-            // Update if we found a valid count
-            if (userCount !== null) {
-                userCountEl.textContent = userCount;
-                console.log('Updated user count to:', userCount);
-                return;
-            }
-            
-            // 3. Fallback to system health API for user count
-            fetch('/admin/api/system-health')
-                .then(response => response.json())
-                .then(healthData => {
-                    if (healthData && typeof healthData.activeUsersCount === 'number') {
-                        userCountEl.textContent = healthData.activeUsersCount;
-                        console.log('Updated user count from health API:', healthData.activeUsersCount);
-                    } else if (healthData && typeof healthData.onlineUsersCount === 'number') {
-                        userCountEl.textContent = healthData.onlineUsersCount;
-                        console.log('Updated user count from health API (online):', healthData.onlineUsersCount);
-                    } else {
-                        console.warn('No valid user count found in health data:', healthData);
-                    }
-                })
-                .catch(error => {
-                    console.warn('Could not fetch user count:', error);
-                    // Don't change the current value on error
-                });
-        }
-        
-        function updateCharts(data) {
-            // Update usage chart with real analytics data
-            if (dashboardFlagsUsageChart) {
-                // Fetch real analytics data for last 7 time periods
-                fetch('/admin/api/analytics/7')
-                    .then(response => response.json())
-                    .then(analyticsData => {
-                        if (analyticsData && analyticsData.dailyActiveUsers) {
-                            // Use real daily active users data
-                            const realData = analyticsData.dailyActiveUsers.map(day => day.activeUsers || 0);
-                            dashboardFlagsUsageChart.data.datasets[0].data = realData;
-                        } else {
-                            // Fallback to generated data if no real data available
-                            dashboardFlagsUsageChart.data.datasets[0].data = generateUsageData();
-                        }
-                        dashboardFlagsUsageChart.update();
-                    })
-                    .catch(error => {
-                        console.warn('Could not fetch analytics data:', error);
-                        dashboardFlagsUsageChart.data.datasets[0].data = generateUsageData();
-                        dashboardFlagsUsageChart.update();
-                    });
-            }
-            
-            // Update status chart
-            if (dashboardFlagsStatusChart) {
-                dashboardFlagsStatusChart.data.datasets[0].data = [data.activeFlags, data.totalFlags - data.activeFlags];
-                dashboardFlagsStatusChart.update();
-            }
-        }
-        
-        function initCharts() {
-            // Check if chart elements exist
-            const usageCtx = document.getElementById('flagsUsageChart');
-            const statusCtx = document.getElementById('flagsStatusChart');
-            
-            if (!usageCtx || !statusCtx) {
-                console.warn('Chart elements not found');
-                return;
-            }
-            
-            // Flags Usage Chart
-            dashboardFlagsUsageChart = new Chart(usageCtx.getContext('2d'), {
-                type: 'line',
-                data: {
-                    labels: ['6h ago', '5h ago', '4h ago', '3h ago', '2h ago', '1h ago', 'Now'],
-                    datasets: [{
-                        label: 'Flag Checks',
-                        data: generateUsageData(),
-                        borderColor: '#6366f1',
-                        backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                        borderWidth: 2,
-                        fill: true,
-                        tension: 0.4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            grid: {
-                                color: 'rgba(0, 0, 0, 0.05)'
-                            }
-                        },
-                        x: {
-                            grid: {
-                                display: false
-                            }
-                        }
-                    }
+
+        // Update Status Indicators
+        function updateStatusIndicators(healthData) {
+            const indicators = {
+                'apiStatus': healthData.components?.api?.status || 'DOWN',
+                'redisStatus': healthData.components?.redis?.status || 'DOWN',
+                'botStatus': healthData.components?.telegram?.status || 'DOWN',
+                'cacheStatus': healthData.components?.cache?.status || 'DOWN'
+            };
+
+            Object.keys(indicators).forEach(indicatorId => {
+                const indicator = document.getElementById(indicatorId);
+                if (indicator) {
+                    const status = indicators[indicatorId];
+                    indicator.className = `status-indicator rounded-circle mx-auto mb-2 ${getStatusClass(status)}`;
                 }
             });
+
+            // Update health score
+            updateHealthScore(healthData);
+        }
+
+        // Get Status Class
+        function getStatusClass(status) {
+            switch (status.toUpperCase()) {
+                case 'UP': return 'bg-success';
+                case 'DOWN': return 'bg-danger';
+                case 'WARNING': return 'bg-warning';
+                default: return 'bg-secondary';
+            }
+        }
+
+        // Update Health Score
+        function updateHealthScore(healthData) {
+            const healthScore = calculateHealthScore(healthData);
+            const healthScoreBar = document.getElementById('healthScoreBar');
+            const healthScoreText = document.getElementById('healthScoreText');
+
+            if (healthScoreBar && healthScoreText) {
+                healthScoreBar.style.width = healthScore + '%';
+                healthScoreBar.className = `progress-bar ${getHealthScoreClass(healthScore)}`;
+                healthScoreText.textContent = healthScore + '%';
+            }
+        }
+
+        // Calculate Health Score
+        function calculateHealthScore(healthData) {
+            if (!healthData.components) return 0;
             
-            // Flags Status Chart
-            const activeFlagsElement = document.querySelector('[th\\:text*="activeFlagsCount"]');
-            const totalFlagsElement = document.querySelector('[th\\:text*="totalFlags"]');
-            const activeFlags = activeFlagsElement ? parseInt(activeFlagsElement.textContent) || 0 : 0;
-            const totalFlags = totalFlagsElement ? parseInt(totalFlagsElement.textContent) || 0 : 0;
-            
-            dashboardFlagsStatusChart = new Chart(statusCtx.getContext('2d'), {
-                type: 'doughnut',
-                data: {
-                    labels: ['Active', 'Inactive'],
-                    datasets: [{
-                        data: [activeFlags, totalFlags - activeFlags],
-                        backgroundColor: ['#10b981', '#ef4444'],
-                        borderWidth: 0
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: {
-                            position: 'bottom'
-                        }
-                    }
+            const components = Object.values(healthData.components);
+            const upComponents = components.filter(c => c.status === 'UP').length;
+            return Math.round((upComponents / components.length) * 100);
+        }
+
+        // Get Health Score Class
+        function getHealthScoreClass(score) {
+            if (score >= 80) return 'bg-success';
+            if (score >= 60) return 'bg-warning';
+            return 'bg-danger';
+        }
+
+        // Set All Indicators to Warning
+        function setAllIndicatorsToWarning() {
+            ['apiStatus', 'redisStatus', 'botStatus', 'cacheStatus'].forEach(id => {
+                const indicator = document.getElementById(id);
+                if (indicator) {
+                    indicator.className = 'status-indicator bg-warning rounded-circle mx-auto mb-2';
                 }
             });
         }
-        
-        function generateUsageData() {
-            return Array.from({length: 7}, () => Math.floor(Math.random() * 100) + 20);
-        }
-        
+
+        // Toggle Flag
         function toggleFlag(flagName) {
-            // Use improved CSRF handling from layout
-            if (!window.AdminGlobals || !window.AdminGlobals.csrf) {
-                console.error('CSRF protection not available - retrying in 1 second...');
-                setTimeout(() => toggleFlag(flagName), 1000);
-                return;
-            }
-            
-            window.AdminGlobals.securedFetch(`/admin/feature-flags/${flagName}/toggle`, {
-                method: 'POST'
+            if (!flagName) return;
+
+            fetch(`/admin/api/feature-flags/${flagName}/toggle`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
             })
             .then(response => {
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                return response.text();
-            })
-            .then(result => {
-                if (result === 'enabled' || result === 'disabled') {
-                    showToast(`Flag ${flagName} ${result}`, 'success');
-                    
-                    // Immediately update the UI for the toggled flag
-                    updateFlagStatusInUI(flagName, result);
-                    
-                    // Also refresh data after a short delay to get updated counts
-                    setTimeout(refreshData, 500);
+                if (response.ok) {
+                    showSuccess(`Flag "${flagName}" toggled successfully`);
+                    // Refresh page after delay to show updated status
+                    setTimeout(() => window.location.reload(), 1000);
                 } else {
-                    console.error('Unexpected response:', result);
-                    showToast(`Error toggling flag ${flagName}: ${result}`, 'danger');
+                    throw new Error('Failed to toggle flag');
                 }
             })
             .catch(error => {
                 console.error('Error toggling flag:', error);
-                showToast(`Error toggling flag ${flagName}: ${error.message}`, 'danger');
+                showError(`Failed to toggle flag "${flagName}"`);
             });
         }
-        
-        function updateFlagStatusInUI(flagName, status) {
-            // Find the flag row and update its status badge
-            const flagRows = document.querySelectorAll('tbody tr');
-            flagRows.forEach(row => {
-                const toggleBtn = row.querySelector(`[data-flag-name="${flagName}"]`);
-                if (toggleBtn) {
-                    const statusBadge = row.querySelector('.status-badge');
-                    if (statusBadge) {
-                        if (status === 'enabled') {
-                            statusBadge.className = 'status-badge status-active';
-                            statusBadge.textContent = 'Active';
-                        } else {
-                            statusBadge.className = 'status-badge status-inactive';
-                            statusBadge.textContent = 'Inactive';
-                        }
-                    }
-                }
-            });
+
+        // Refresh Functions
+        function refreshData() {
+            loadDashboardData();
+            updateSystemStatus();
         }
-        
+
         function refreshCache() {
-            fetch('/admin/refresh-cache', {
-                method: 'POST'
-            })
-            .then(response => {
-                if (response.ok) {
-                    showToast('Cache refreshed successfully', 'success');
-                    setTimeout(refreshData, 1000);
-                } else {
-                    showToast('Error refreshing cache', 'danger');
-                }
-            })
-            .catch(error => {
-                console.error('Error refreshing cache:', error);
-                showToast('Error refreshing cache', 'danger');
-            });
+            fetch('/admin/api/refresh-cache', { method: 'POST' })
+                .then(response => {
+                    if (response.ok) {
+                        showSuccess('Cache refreshed successfully');
+                        loadDashboardData();
+                    } else {
+                        throw new Error('Failed to refresh cache');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error refreshing cache:', error);
+                    showError('Failed to refresh cache');
+                });
         }
-        
+
         function exportConfig() {
-            showToast('Config export feature coming soon', 'info');
+            window.open('/admin/api/export-config', '_blank');
         }
-        
-        // Toast notification
-        function showToast(message, type = 'info') {
-            const toastContainer = document.querySelector('.toast-container');
-            if (!toastContainer) return;
-            
-            const toastId = 'toast-' + Date.now();
-            
-            const toastHtml = `
-                <div class="toast" id="${toastId}" role="alert">
-                    <div class="toast-header">
-                        <i class="fas fa-${getToastIcon(type)} text-${type} me-2"></i>
-                        <strong class="me-auto">Admin Panel</strong>
-                        <small class="text-muted">just now</small>
-                        <button type="button" class="btn-close" data-bs-dismiss="toast" title="Close"></button>
-                    </div>
-                    <div class="toast-body">
-                        ${message}
-                    </div>
-                </div>
-            `;
-            
-            toastContainer.insertAdjacentHTML('beforeend', toastHtml);
-            
-            const toast = new bootstrap.Toast(document.getElementById(toastId));
-            toast.show();
-            
-            // Remove toast element after it's hidden
-            document.getElementById(toastId).addEventListener('hidden.bs.toast', function() {
-                this.remove();
-            });
+
+        // Auto Refresh
+        function startAutoRefresh() {
+            refreshInterval = setInterval(() => {
+                updateSystemStatus();
+            }, 30000); // Refresh every 30 seconds
         }
-        
-        function getToastIcon(type) {
-            switch(type) {
-                case 'success': return 'check-circle';
-                case 'warning': return 'exclamation-triangle';
-                case 'danger': return 'exclamation-circle';
-                default: return 'info-circle';
+
+        // Utility Functions
+        function showSuccess(message) {
+            const successToast = document.getElementById('successToast');
+            const successMessage = document.getElementById('successMessage');
+            if (successToast && successMessage) {
+                successMessage.textContent = message;
+                const toast = new bootstrap.Toast(successToast);
+                toast.show();
             }
         }
-        
-        // Loading state
-        function showLoading() {
-            document.querySelectorAll('.loading-spinner').forEach(el => {
-                el.style.display = 'block';
-            });
-        }
-        
-        function hideLoading() {
-            document.querySelectorAll('.loading-spinner').forEach(el => {
-                el.style.display = 'none';
-            });
-        }
-        
-        // Event delegation for toggle flag buttons
-        document.addEventListener('click', function(e) {
-            if (e.target.closest('.toggle-flag-btn')) {
-                e.preventDefault();
-                const button = e.target.closest('.toggle-flag-btn');
-                const flagName = button.dataset.flagName;
-                if (flagName) {
-                    toggleFlag(flagName);
-                }
+
+        function showError(message) {
+            const errorToast = document.getElementById('errorToast');
+            const errorMessage = document.getElementById('errorMessage');
+            if (errorToast && errorMessage) {
+                errorMessage.textContent = message;
+                const toast = new bootstrap.Toast(errorToast);
+                toast.show();
             }
-        });
-        
-        // Initialize dashboard
-        document.addEventListener('DOMContentLoaded', function() {
-            try {
-                initCharts();
-                updateSystemStatus(); // Only update system status, don't refresh all data immediately
-            } catch (error) {
-                console.error('Dashboard initialization error:', error);
+        }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
             }
         });
     </script>

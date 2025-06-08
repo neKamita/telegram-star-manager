@@ -60,6 +60,7 @@ public class AdminController {
             AdminDashboardService.DashboardOverview overview = adminDashboardService.getDashboardOverview();
             AdminDashboardService.PerformanceMetrics performance = adminDashboardService.getPerformanceMetrics();
             AdminDashboardService.RecentActivity recentActivity = adminDashboardService.getRecentActivity();
+            AdminDashboardService.CombinedRecentActivity combinedActivity = adminDashboardService.getCombinedRecentActivity();
             AdminDashboardService.SystemHealth systemHealth = adminDashboardService.getSystemHealth();
             
             // Feature flags data (legacy)
@@ -70,6 +71,7 @@ public class AdminController {
             model.addAttribute("overview", overview);
             model.addAttribute("performance", performance);
             model.addAttribute("recentActivity", recentActivity);
+            model.addAttribute("combinedActivity", combinedActivity);
             model.addAttribute("systemHealth", systemHealth);
             
             // Legacy feature flags data

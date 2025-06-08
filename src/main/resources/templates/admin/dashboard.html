@@ -107,78 +107,107 @@
         <div class="row">
             <div class="col-lg-8 mb-4">
                 <div class="recent-flags-table">
-                    <div class="p-3 border-bottom">
+                    <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">
                             <i class="fas fa-history text-primary me-2"></i>
-                            Recent Feature Flags
+                            Recent Activity
                         </h5>
+                        <div class="btn-group btn-group-sm" role="group">
+                            <input type="radio" class="btn-check" name="activityFilter" id="filterAll" checked>
+                            <label class="btn btn-outline-primary" for="filterAll">All</label>
+                            
+                            <input type="radio" class="btn-check" name="activityFilter" id="filterOrders">
+                            <label class="btn btn-outline-success" for="filterOrders">
+                                <i class="fas fa-shopping-cart me-1"></i>
+                                Orders (<span id="orderCount" th:text="${combinedActivity?.orderCount ?: 0}">0</span>)
+                            </label>
+                            
+                            <input type="radio" class="btn-check" name="activityFilter" id="filterFlags">
+                            <label class="btn btn-outline-info" for="filterFlags">
+                                <i class="fas fa-flag me-1"></i>
+                                Flags (<span id="flagCount" th:text="${combinedActivity?.flagCount ?: 0}">0</span>)
+                            </label>
+                        </div>
                     </div>
                     <table class="table table-hover mb-0">
                         <thead class="table-light">
                             <tr>
-                                <th>Flag Name</th>
+                                <th>Type</th>
+                                <th>Description</th>
                                 <th>Status</th>
-                                <th>Rollout %</th>
-                                <th>Updated</th>
+                                <th>Time</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
-                        <tbody>
-                            <tr th:each="flag : ${flags}" th:if="${flagStat.count <= 5}" class="flag-row">
+                        <tbody id="activityTableBody">
+                            <tr th:each="activity : ${combinedActivity?.activities}" 
+                                class="activity-row" 
+                                th:data-type="${activity.type}">
                                 <td>
                                     <div class="d-flex align-items-center">
-                                        <i class="fas fa-flag me-2 text-muted"></i>
-                                        <div>
-                                            <div class="flag-name" th:text="${flag.name}">FLAG_NAME</div>
-                                            <small class="text-muted" style="color: white !important" th:text="${flag.description}">Description</small>
-                                        </div>
+                                        <i th:class="${activity.icon} + ' me-2 ' + (${activity.type == 'ORDER'} ? 'text-success' : 'text-primary')"></i>
+                                        <span class="fw-bold" th:text="${activity.type == 'ORDER' ? 'Purchase' : 'Flag'}">Type</span>
                                     </div>
                                 </td>
                                 <td>
-                                    <span th:class="${flag.enabled} ? 'status-badge status-active' : 'status-badge status-inactive'"
-                                          th:text="${flag.enabled} ? 'Active' : 'Inactive'">
-                                        Status
-                                    </span>
+                                    <div>
+                                        <div class="activity-title" th:text="${activity.title}">Title</div>
+                                        <small class="text-muted" th:text="${activity.description}">Description</small>
+                                    </div>
                                 </td>
                                 <td>
-                                    <span th:text="${flag.rolloutPercentage != null ? flag.rolloutPercentage + '%' : '100%'}">100%</span>
+                                    <span th:class="${activity.badgeClass}" th:text="${activity.badgeText}">Status</span>
                                 </td>
                                 <td>
-                                    <small th:text="${#temporals.format(flag.updatedAt ?: flag.createdAt, 'dd.MM.yyyy HH:mm')}">
+                                    <small class="text-muted" th:text="${#temporals.format(activity.timestamp, 'dd.MM.yyyy HH:mm')}">
                                         01.01.2024 12:00
                                     </small>
                                 </td>
                                 <td>
-                                    <button class="btn btn-sm btn-outline-primary me-1 toggle-flag-btn" 
-                                            th:data-flag-name="${flag.name}" title="Toggle flag">
-                                        <i class="fas fa-toggle-on"></i>
-                                    </button>
-                                    <a th:href="@{/admin/feature-flags/{name}/edit(name=${flag.name})}" 
-                                       class="btn btn-sm btn-outline-secondary" title="Edit flag">
-                                        <i class="fas fa-edit"></i>
+                                    <a th:href="${activity.actionUrl}" 
+                                       class="btn btn-sm btn-outline-secondary" 
+                                       th:title="${activity.type == 'ORDER' ? 'View Order' : 'Edit Flag'}">
+                                        <i th:class="${activity.type == 'ORDER' ? 'fas fa-eye' : 'fas fa-edit'}"></i>
                                     </a>
                                 </td>
                             </tr>
                             
                             <!-- Empty state -->
-                            <tr th:if="${#lists.isEmpty(flags)}">
+                            <tr th:if="${combinedActivity == null or #lists.isEmpty(combinedActivity.activities)}" id="emptyState">
                                 <td colspan="5" class="text-center py-4">
-                                    <i class="fas fa-flag fa-2x text-muted mb-3"></i>
-                                    <p class="text-muted mb-3">No feature flags found</p>
-                                    <a href="/admin/feature-flags/new" class="btn btn-primary">
-                                        <i class="fas fa-plus me-2"></i>
-                                        Create First Flag
-                                    </a>
+                                    <i class="fas fa-history fa-2x text-muted mb-3"></i>
+                                    <p class="text-muted mb-3">No recent activity found</p>
+                                    <div>
+                                        <a href="/admin/feature-flags/new" class="btn btn-primary me-2">
+                                            <i class="fas fa-plus me-2"></i>
+                                            Create Flag
+                                        </a>
+                                        <a href="/admin/orders" class="btn btn-success">
+                                            <i class="fas fa-shopping-cart me-2"></i>
+                                            View Orders
+                                        </a>
+                                    </div>
                                 </td>
                             </tr>
                         </tbody>
                     </table>
                     
-                    <div class="p-3 border-top bg-light" th:if="${flags != null and #lists.size(flags) > 5}">
-                        <a href="/admin/feature-flags" class="btn btn-sm btn-outline-primary">
-                            View All Flags
-                            <i class="fas fa-arrow-right ms-1"></i>
-                        </a>
+                    <div class="p-3 border-top bg-light" th:if="${combinedActivity != null and combinedActivity.totalActivities > 0}">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <small class="text-muted">
+                                Showing <span th:text="${combinedActivity.totalActivities}">0</span> recent activities
+                            </small>
+                            <div>
+                                <a href="/admin/orders" class="btn btn-sm btn-outline-success me-2">
+                                    View All Orders
+                                    <i class="fas fa-arrow-right ms-1"></i>
+                                </a>
+                                <a href="/admin/feature-flags" class="btn btn-sm btn-outline-primary">
+                                    View All Flags
+                                    <i class="fas fa-arrow-right ms-1"></i>
+                                </a>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -309,6 +338,13 @@
                 button.addEventListener('click', function() {
                     const flagName = this.getAttribute('data-flag-name');
                     toggleFlag(flagName);
+                });
+            });
+
+            // Activity Filter Buttons
+            document.querySelectorAll('input[name="activityFilter"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    filterActivities(this.id);
                 });
             });
 
@@ -500,6 +536,62 @@
             refreshInterval = setInterval(() => {
                 updateSystemStatus();
             }, 30000); // Refresh every 30 seconds
+        }
+
+        // Filter Activities Function
+        function filterActivities(filterId) {
+            const activityRows = document.querySelectorAll('.activity-row');
+            const emptyState = document.getElementById('emptyState');
+            let visibleCount = 0;
+
+            activityRows.forEach(row => {
+                const activityType = row.getAttribute('data-type');
+                let shouldShow = false;
+
+                switch (filterId) {
+                    case 'filterAll':
+                        shouldShow = true;
+                        break;
+                    case 'filterOrders':
+                        shouldShow = activityType === 'ORDER';
+                        break;
+                    case 'filterFlags':
+                        shouldShow = activityType === 'FEATURE_FLAG';
+                        break;
+                }
+
+                if (shouldShow) {
+                    row.style.display = '';
+                    visibleCount++;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            // Show/hide empty state based on visible rows
+            if (emptyState) {
+                if (visibleCount === 0 && activityRows.length > 0) {
+                    emptyState.style.display = '';
+                    // Update empty state message based on filter
+                    const emptyMessage = emptyState.querySelector('p');
+                    if (emptyMessage) {
+                        switch (filterId) {
+                            case 'filterOrders':
+                                emptyMessage.textContent = 'No recent orders found';
+                                break;
+                            case 'filterFlags':
+                                emptyMessage.textContent = 'No recent feature flag updates found';
+                                break;
+                            default:
+                                emptyMessage.textContent = 'No recent activity found';
+                        }
+                    }
+                } else {
+                    emptyState.style.display = 'none';
+                }
+            }
+
+            console.log(`Filter applied: ${filterId}, Visible rows: ${visibleCount}`);
         }
 
         // Utility Functions

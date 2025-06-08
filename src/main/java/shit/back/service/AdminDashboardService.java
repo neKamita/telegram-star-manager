@@ -10,10 +10,15 @@ import org.springframework.transaction.annotation.Transactional;
 import shit.back.entity.OrderEntity;
 import shit.back.entity.StarPackageEntity;
 import shit.back.entity.UserSessionEntity;
+import shit.back.entity.FeatureFlagEntity;
+import shit.back.repository.FeatureFlagJpaRepository;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.ArrayList;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Service that aggregates data for the admin dashboard
@@ -31,6 +36,9 @@ public class AdminDashboardService {
     
     @Autowired
     private UserSessionEnhancedService userSessionService;
+    
+    @Autowired
+    private FeatureFlagJpaRepository jpaRepository;
     
     /**
      * Get comprehensive dashboard overview
@@ -87,6 +95,108 @@ public class AdminDashboardService {
                 .totalOnlineUsers(onlineUsers.size())
                 .totalTodaysOrders(todaysOrders.size())
                 .build();
+    }
+
+    /**
+     * Get combined recent activity (orders + feature flags)
+     */
+    public CombinedRecentActivity getCombinedRecentActivity() {
+        log.info("Getting combined recent activity");
+        
+        // Получаем последние заказы
+        List<OrderEntity> recentOrders = orderService.getRecentOrders(30); // Last 30 days
+        
+        // Получаем недавние флаги (создание/обновление из FeatureFlagService)
+        List<FeatureFlagEntity> recentFlags = getRecentFeatureFlags(30);
+        
+        // Создаем объединенный список активностей
+        List<ActivityItem> allActivities = new ArrayList<>();
+        
+        // Добавляем заказы
+        for (OrderEntity order : recentOrders) {
+            ActivityItem item = ActivityItem.builder()
+                    .type("ORDER")
+                    .title("Purchase: " + order.getStarCount() + " Stars")
+                    .description("User " + order.getUserId() + " bought " + order.getStarCount() + " stars for $" + order.getFinalAmount())
+                    .timestamp(order.getCreatedAt() != null ? order.getCreatedAt() : LocalDateTime.now())
+                    .icon("fas fa-shopping-cart")
+                    .badgeClass("badge bg-success")
+                    .badgeText(order.getStatus() != null ? order.getStatus().toString() : "COMPLETED")
+                    .actionUrl("/admin/orders/" + order.getOrderId())
+                    .metadata(Map.of(
+                            "userId", order.getUserId().toString(),
+                            "amount", order.getStarCount().toString(),
+                            "price", order.getFinalAmount().toString(),
+                            "orderId", order.getOrderId().toString()
+                    ))
+                    .build();
+            allActivities.add(item);
+        }
+        
+        // Добавляем флаги
+        for (FeatureFlagEntity flag : recentFlags) {
+            ActivityItem item = ActivityItem.builder()
+                    .type("FEATURE_FLAG")
+                    .title("Feature Flag: " + flag.getName())
+                    .description(flag.getDescription() != null ? flag.getDescription() : "Feature flag updated")
+                    .timestamp(flag.getUpdatedAt() != null ? flag.getUpdatedAt() : flag.getCreatedAt())
+                    .icon("fas fa-flag")
+                    .badgeClass(flag.isEnabled() ? "badge bg-primary" : "badge bg-secondary")
+                    .badgeText(flag.isEnabled() ? "ACTIVE" : "INACTIVE")
+                    .actionUrl("/admin/feature-flags/" + flag.getName() + "/edit")
+                    .metadata(Map.of(
+                            "flagName", flag.getName(),
+                            "enabled", String.valueOf(flag.isEnabled()),
+                            "rollout", flag.getRolloutPercentage() != null ? flag.getRolloutPercentage().toString() : "100"
+                    ))
+                    .build();
+            allActivities.add(item);
+        }
+        
+        // Сортируем по времени (новые сначала) и ограничиваем до 20
+        List<ActivityItem> sortedActivities = allActivities.stream()
+                .sorted((a, b) -> b.getTimestamp().compareTo(a.getTimestamp()))
+                .limit(20)
+                .collect(Collectors.toList());
+        
+        // Подсчитываем статистику
+        long orderCount = sortedActivities.stream().filter(a -> "ORDER".equals(a.getType())).count();
+        long flagCount = sortedActivities.stream().filter(a -> "FEATURE_FLAG".equals(a.getType())).count();
+        
+        return CombinedRecentActivity.builder()
+                .activities(sortedActivities)
+                .totalActivities(sortedActivities.size())
+                .orderCount((int) orderCount)
+                .flagCount((int) flagCount)
+                .lastUpdated(LocalDateTime.now())
+                .build();
+    }
+    
+    /**
+     * Get recent feature flags (created or updated recently)
+     */
+    private List<FeatureFlagEntity> getRecentFeatureFlags(int days) {
+        try {
+            // Используем JPA repository для получения флагов
+            LocalDateTime since = LocalDateTime.now().minusDays(days);
+            
+            // Получаем все флаги и фильтруем по дате
+            return jpaRepository.findAll().stream()
+                    .filter(flag -> {
+                        LocalDateTime relevantDate = flag.getUpdatedAt() != null ? 
+                                flag.getUpdatedAt() : flag.getCreatedAt();
+                        return relevantDate != null && relevantDate.isAfter(since);
+                    })
+                    .sorted((a, b) -> {
+                        LocalDateTime dateA = a.getUpdatedAt() != null ? a.getUpdatedAt() : a.getCreatedAt();
+                        LocalDateTime dateB = b.getUpdatedAt() != null ? b.getUpdatedAt() : b.getCreatedAt();
+                        return dateB.compareTo(dateA); // Новые сначала
+                    })
+                    .collect(Collectors.toList());
+        } catch (Exception e) {
+            log.error("Error fetching recent feature flags: {}", e.getMessage());
+            return new ArrayList<>();
+        }
     }
     
     /**
@@ -370,5 +480,29 @@ public class AdminDashboardService {
         private int deactivatedSessions;
         private int deactivatedPackages;
         private LocalDateTime maintenanceTime;
+    }
+    
+    @lombok.Data
+    @lombok.Builder
+    public static class CombinedRecentActivity {
+        private List<ActivityItem> activities;
+        private int totalActivities;
+        private int orderCount;
+        private int flagCount;
+        private LocalDateTime lastUpdated;
+    }
+    
+    @lombok.Data
+    @lombok.Builder
+    public static class ActivityItem {
+        private String type; // "ORDER" или "FEATURE_FLAG"
+        private String title;
+        private String description;
+        private LocalDateTime timestamp;
+        private String icon; // CSS класс иконки
+        private String badgeClass; // CSS класс для статуса
+        private String badgeText;
+        private String actionUrl; // Ссылка для просмотра
+        private Map<String, String> metadata; // Дополнительные данные
     }
 }

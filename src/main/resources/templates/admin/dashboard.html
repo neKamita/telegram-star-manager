@@ -287,28 +287,7 @@
         </div>
     </main>
 
-    <!-- Toast notifications container -->
-    <div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 11">
-        <div id="successToast" class="toast" role="alert">
-            <div class="d-flex">
-                <div class="toast-body">
-                    <i class="fas fa-check-circle text-success me-2"></i>
-                    <span id="successMessage">Action completed successfully!</span>
-                </div>
-                <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button>
-            </div>
-        </div>
-        
-        <div id="errorToast" class="toast" role="alert">
-            <div class="d-flex">
-                <div class="toast-body">
-                    <i class="fas fa-exclamation-circle text-danger me-2"></i>
-                    <span id="errorMessage">An error occurred!</span>
-                </div>
-                <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button>
-            </div>
-        </div>
-    </div>
+    <!-- Toast notifications now handled by layout.html -->
 
     <!-- Scripts -->
     <script th:replace="~{admin/layout :: scripts}"></script>
@@ -512,19 +491,25 @@
         }
 
         function refreshCache() {
-            fetch('/admin/api/refresh-cache', { method: 'POST' })
-                .then(response => {
-                    if (response.ok) {
-                        showSuccess('Cache refreshed successfully');
-                        loadDashboardData();
-                    } else {
-                        throw new Error('Failed to refresh cache');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error refreshing cache:', error);
-                    showError('Failed to refresh cache');
-                });
+            fetch('/admin/api/refresh-cache', { 
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showSuccess(data.message || 'Cache refreshed successfully');
+                    loadDashboardData();
+                } else {
+                    throw new Error(data.message || 'Failed to refresh cache');
+                }
+            })
+            .catch(error => {
+                console.error('Error refreshing cache:', error);
+                showError('Failed to refresh cache: ' + error.message);
+            });
         }
 
         function exportConfig() {
@@ -594,25 +579,13 @@
             console.log(`Filter applied: ${filterId}, Visible rows: ${visibleCount}`);
         }
 
-        // Utility Functions
+        // Utility Functions - use centralized toast system
         function showSuccess(message) {
-            const successToast = document.getElementById('successToast');
-            const successMessage = document.getElementById('successMessage');
-            if (successToast && successMessage) {
-                successMessage.textContent = message;
-                const toast = new bootstrap.Toast(successToast);
-                toast.show();
-            }
+            showToast(message, 'success');
         }
 
         function showError(message) {
-            const errorToast = document.getElementById('errorToast');
-            const errorMessage = document.getElementById('errorMessage');
-            if (errorToast && errorMessage) {
-                errorMessage.textContent = message;
-                const toast = new bootstrap.Toast(errorToast);
-                toast.show();
-            }
+            showToast(message, 'danger');
         }
 
         // Cleanup on page unload

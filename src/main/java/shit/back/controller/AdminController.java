@@ -20,6 +20,7 @@ import shit.back.utils.FallbackUtils;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -321,6 +322,30 @@ public class AdminController {
         }
     }
     
+    @PostMapping("/feature-flags/{flagName}")
+    public String updateFeatureFlag(@PathVariable String flagName, @ModelAttribute FeatureFlag flag, RedirectAttributes redirectAttributes) {
+        try {
+            if (flag.getName() == null || flag.getName().trim().isEmpty()) {
+                flag.setName(flagName);
+            }
+            
+            // Set defaults for update
+            if (flag.getUpdatedBy() == null) {
+                flag.setUpdatedBy("Admin");
+            }
+            
+            featureFlagService.updateFeatureFlag(flagName, flag);
+            log.info("Feature flag '{}' updated via admin panel", flagName);
+            
+            redirectAttributes.addFlashAttribute("success", "Feature flag updated successfully");
+            return "redirect:/admin/feature-flags";
+        } catch (Exception e) {
+            log.error("Error updating feature flag '{}'", flagName, e);
+            redirectAttributes.addFlashAttribute("error", e.getMessage());
+            return "redirect:/admin/feature-flags";
+        }
+    }
+    
     // AJAX endpoints
     
     @PostMapping("/feature-flags/{flagName}/toggle")
@@ -398,6 +423,74 @@ public class AdminController {
             log.error("Error refreshing cache", e);
             redirectAttributes.addFlashAttribute("error", e.getMessage());
             return "redirect:/admin";
+        }
+    }
+    
+    @PostMapping("/api/refresh-cache")
+    @ResponseBody
+    public Map<String, Object> refreshCacheApi() {
+        try {
+            configurationRefreshService.refreshConfiguration();
+            featureFlagService.refreshCache();
+            log.info("Configuration cache refreshed via API");
+            
+            return Map.of(
+                "success", true,
+                "message", "Cache refreshed successfully",
+                "timestamp", LocalDateTime.now(),
+                "cacheSize", featureFlagService.getCacheSize()
+            );
+        } catch (Exception e) {
+            log.error("Error refreshing cache via API", e);
+            return Map.of(
+                "success", false,
+                "message", "Failed to refresh cache: " + e.getMessage(),
+                "timestamp", LocalDateTime.now()
+            );
+        }
+    }
+    
+    @GetMapping("/api/export-config")
+    public void exportConfig(jakarta.servlet.http.HttpServletResponse response) {
+        try {
+            response.setContentType("application/json");
+            response.setHeader("Content-Disposition", "attachment; filename=feature-flags-config.json");
+            
+            List<FeatureFlag> flags = featureFlagService.getAllFeatureFlags();
+            
+            // Simple JSON export
+            StringBuilder json = new StringBuilder();
+            json.append("{\n  \"featureFlags\": [\n");
+            
+            for (int i = 0; i < flags.size(); i++) {
+                FeatureFlag flag = flags.get(i);
+                json.append("    {\n");
+                json.append("      \"name\": \"").append(flag.getName()).append("\",\n");
+                json.append("      \"description\": \"").append(flag.getDescription() != null ? flag.getDescription() : "").append("\",\n");
+                json.append("      \"enabled\": ").append(flag.isEnabled()).append(",\n");
+                json.append("      \"environment\": \"").append(flag.getEnvironment() != null ? flag.getEnvironment() : "").append("\",\n");
+                json.append("      \"version\": \"").append(flag.getVersion() != null ? flag.getVersion() : "").append("\"\n");
+                json.append("    }");
+                if (i < flags.size() - 1) {
+                    json.append(",");
+                }
+                json.append("\n");
+            }
+            
+            json.append("  ],\n");
+            json.append("  \"exportedAt\": \"").append(LocalDateTime.now()).append("\"\n");
+            json.append("}");
+            
+            response.getWriter().write(json.toString());
+            response.getWriter().flush();
+            
+        } catch (Exception e) {
+            log.error("Error exporting config", e);
+            try {
+                response.getWriter().write("{\"error\": \"Failed to export config\"}");
+            } catch (Exception ex) {
+                log.error("Error writing error response", ex);
+            }
         }
     }
     

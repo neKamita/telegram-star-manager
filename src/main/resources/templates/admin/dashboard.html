@@ -97,7 +97,7 @@
                     <div class="stats-icon text-warning">
                         <i class="fas fa-users"></i>
                     </div>
-                    <h3 class="h4 mb-1" id="userCount">-</h3>
+                    <h3 class="h4 mb-1" id="userCount" th:text="${activeUsersCount ?: 0}">0</h3>
                     <p class="text-muted mb-0">Active Users</p>
                 </div>
             </div>
@@ -410,21 +410,48 @@
             const userCountEl = document.getElementById('userCount');
             if (!userCountEl) return;
             
-            // Try to get user count from dashboard data first
-            if (data && data.overview && data.overview.userStatistics && 
-                typeof data.overview.userStatistics.activeUsersCount === 'number') {
-                userCountEl.textContent = data.overview.userStatistics.activeUsersCount;
+            // Try multiple data sources in priority order
+            let userCount = null;
+            
+            // 1. Direct dashboard overview fields (highest priority)
+            if (data && data.overview) {
+                if (typeof data.overview.activeUsersCount === 'number') {
+                    userCount = data.overview.activeUsersCount;
+                } else if (typeof data.overview.onlineUsersCount === 'number') {
+                    userCount = data.overview.onlineUsersCount;
+                } else if (data.overview.userStatistics && typeof data.overview.userStatistics.activeUsersCount === 'number') {
+                    userCount = data.overview.userStatistics.activeUsersCount;
+                }
+            }
+            
+            // 2. Dashboard data direct fields
+            if (userCount === null && data) {
+                if (typeof data.activeUsersCount === 'number') {
+                    userCount = data.activeUsersCount;
+                } else if (typeof data.onlineUsersCount === 'number') {
+                    userCount = data.onlineUsersCount;
+                }
+            }
+            
+            // Update if we found a valid count
+            if (userCount !== null) {
+                userCountEl.textContent = userCount;
+                console.log('Updated user count to:', userCount);
                 return;
             }
             
-            // Fallback to system health API for user count
+            // 3. Fallback to system health API for user count
             fetch('/admin/api/system-health')
                 .then(response => response.json())
                 .then(healthData => {
-                    if (healthData && typeof healthData.onlineUsersCount === 'number') {
-                        userCountEl.textContent = healthData.onlineUsersCount;
-                    } else if (healthData && typeof healthData.activeUsersCount === 'number') {
+                    if (healthData && typeof healthData.activeUsersCount === 'number') {
                         userCountEl.textContent = healthData.activeUsersCount;
+                        console.log('Updated user count from health API:', healthData.activeUsersCount);
+                    } else if (healthData && typeof healthData.onlineUsersCount === 'number') {
+                        userCountEl.textContent = healthData.onlineUsersCount;
+                        console.log('Updated user count from health API (online):', healthData.onlineUsersCount);
+                    } else {
+                        console.warn('No valid user count found in health data:', healthData);
                     }
                 })
                 .catch(error => {
@@ -544,22 +571,15 @@
         }
         
         function toggleFlag(flagName) {
-            // Get CSRF token
-            const csrfToken = document.querySelector('meta[name="_csrf"]')?.getAttribute('content');
-            const csrfHeader = document.querySelector('meta[name="_csrf_header"]')?.getAttribute('content');
-            
-            const headers = {
-                'Content-Type': 'application/json'
-            };
-            
-            // Add CSRF token if available
-            if (csrfToken && csrfHeader) {
-                headers[csrfHeader] = csrfToken;
+            // Use improved CSRF handling from layout
+            if (!window.AdminGlobals || !window.AdminGlobals.csrf) {
+                console.error('CSRF protection not available - retrying in 1 second...');
+                setTimeout(() => toggleFlag(flagName), 1000);
+                return;
             }
             
-            fetch(`/admin/feature-flags/${flagName}/toggle`, {
-                method: 'POST',
-                headers: headers
+            window.AdminGlobals.securedFetch(`/admin/feature-flags/${flagName}/toggle`, {
+                method: 'POST'
             })
             .then(response => {
                 if (!response.ok) {

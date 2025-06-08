@@ -78,6 +78,11 @@ public class AdminController {
             model.addAttribute("activeFlagsCount", flagData.activeFlagsCount);
             model.addAttribute("cacheSize", flagData.cacheSize);
             
+            // Add user count directly for initial page load
+            model.addAttribute("activeUsersCount", overview.getActiveUsersCount());
+            model.addAttribute("onlineUsersCount", overview.getOnlineUsersCount());
+            model.addAttribute("totalUsersCount", overview.getTotalUsersCount());
+            
             return "admin/dashboard";
         } catch (Exception e) {
             log.error("Error loading enhanced admin dashboard", e);

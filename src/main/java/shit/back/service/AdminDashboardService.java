@@ -47,10 +47,21 @@ public class AdminDashboardService {
         // Get user session statistics
         UserSessionEnhancedService.UserSessionStatistics userStats = userSessionService.getUserSessionStatistics();
         
+        // Get direct user counts for easy frontend access
+        long totalUsersCount = userSessionService.getTotalUsersCount();
+        long activeUsersCount = userSessionService.getActiveUsersCount();
+        long onlineUsersCount = userSessionService.getOnlineUsersCount();
+        
+        log.info("Dashboard user counts - Total: {}, Active: {}, Online: {}", 
+                totalUsersCount, activeUsersCount, onlineUsersCount);
+        
         return DashboardOverview.builder()
                 .orderStatistics(orderStats)
                 .packageStatistics(packageStats)
                 .userStatistics(userStats)
+                .totalUsersCount(totalUsersCount)
+                .activeUsersCount(activeUsersCount)
+                .onlineUsersCount(onlineUsersCount)
                 .lastUpdated(LocalDateTime.now())
                 .build();
     }
@@ -276,6 +287,11 @@ public class AdminDashboardService {
         private StarPackageService.PackageStatistics packageStatistics;
         private UserSessionEnhancedService.UserSessionStatistics userStatistics;
         private LocalDateTime lastUpdated;
+        
+        // Direct user counts for easy access
+        private long totalUsersCount;
+        private long activeUsersCount;
+        private long onlineUsersCount;
     }
     
     @lombok.Data

@@ -172,8 +172,8 @@
                                     </small>
                                 </td>
                                 <td>
-                                    <button class="btn btn-sm btn-outline-primary me-1" 
-                                            th:onclick="'toggleFlag(\'' + ${flag.name} + '\')'" title="Toggle flag">
+                                    <button class="btn btn-sm btn-outline-primary me-1 toggle-flag-btn" 
+                                            th:data-flag-name="${flag.name}" title="Toggle flag">
                                         <i class="fas fa-toggle-on"></i>
                                     </button>
                                     <a th:href="@{/admin/feature-flags/{name}/edit(name=${flag.name})}" 
@@ -396,12 +396,17 @@
             });
             
             // Flags Status Chart
+            const activeFlagsElement = document.querySelector('[th\\:text*="activeFlagsCount"]');
+            const totalFlagsElement = document.querySelector('[th\\:text*="totalFlags"]');
+            const activeFlags = activeFlagsElement ? parseInt(activeFlagsElement.textContent) || 0 : 0;
+            const totalFlags = totalFlagsElement ? parseInt(totalFlagsElement.textContent) || 0 : 0;
+            
             dashboardFlagsStatusChart = new Chart(statusCtx.getContext('2d'), {
                 type: 'doughnut',
                 data: {
                     labels: ['Active', 'Inactive'],
                     datasets: [{
-                        data: [parseInt('[[${activeFlagsCount}]]') || 0, parseInt('[[${totalFlags}]]') - parseInt('[[${activeFlagsCount}]]') || 0],
+                        data: [activeFlags, totalFlags - activeFlags],
                         backgroundColor: ['#10b981', '#ef4444'],
                         borderWidth: 0
                     }]
@@ -518,6 +523,18 @@
                 el.style.display = 'none';
             });
         }
+        
+        // Event delegation for toggle flag buttons
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.toggle-flag-btn')) {
+                e.preventDefault();
+                const button = e.target.closest('.toggle-flag-btn');
+                const flagName = button.dataset.flagName;
+                if (flagName) {
+                    toggleFlag(flagName);
+                }
+            }
+        });
         
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', function() {

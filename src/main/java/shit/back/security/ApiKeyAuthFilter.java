@@ -35,11 +35,11 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
         String method = request.getMethod();
         
         // Логируем запрос
-        log.debug("Processing request: {} {}", method, requestUri);
+        log.info("🔍 ApiKeyAuthFilter: Processing request: {} {}", method, requestUri);
         
         // Пропускаем публичные эндпоинты
         if (isPublicEndpoint(requestUri)) {
-            log.debug("Public endpoint, skipping authentication: {}", requestUri);
+            log.info("✅ Public endpoint, skipping authentication: {}", requestUri);
             filterChain.doFilter(request, response);
             return;
         }

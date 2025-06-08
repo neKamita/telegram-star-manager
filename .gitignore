@@ -38,13 +38,31 @@ build/
 .DS_Store
 
 ### Security Files ###
+# Environment files with credentials
 .env
-.env.local
-.env.production
-.env.koyeb
+.env.*
+!.env.example
+!.env.production.example
+*.env
+*.env.*
+
+# Security keys and certificates
 *.key
 *.pem
+*.p12
+*.jks
 secrets/
+credentials/
+keys/
+
+# Database dumps and backups
+*.sql
+*.dump
+*.backup
+
+# Logs that may contain sensitive data
+*.log
+logs/
 
 ### Development Documentation (temporary files) ###
 # Keep only README.md, CONTRIBUTING.md, LICENSE for GitHub
@@ -71,3 +89,9 @@ FINAL_CLEAN_COMMANDS.md
 FIX_DOCKER_COMMANDS.md
 README_FEATURE_FLAGS.md
 CRITICAL_FIXES_COMPLETED.md
+DATABASE_CONNECTION_FIX.md
+FIXED_ARCHITECTURE_DIAGRAM.md
+CRITICAL_SECURITY_FIXES_REPORT.md
+SECURE_ENVIRONMENT_SETUP.md
+SECURITY_EMERGENCY_COMPLETED.md
+SECURITY_STATUS_VISUALIZATION.md

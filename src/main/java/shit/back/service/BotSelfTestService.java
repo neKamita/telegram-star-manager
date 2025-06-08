@@ -163,13 +163,16 @@ public class BotSelfTestService {
             String botStatus = telegramBotService.getBotStatus();
             String errorMessage = telegramBotService.getErrorMessage();
             
-            result.setServiceCheck(isInitialized && "ACTIVE".equals(botStatus));
+            // Исправлено: поддержка статусов RUNNING и ACTIVE
+            boolean isStatusValid = "ACTIVE".equals(botStatus) || "RUNNING".equals(botStatus);
+            result.setServiceCheck(isInitialized && isStatusValid);
             
-            if (isInitialized) {
+            if (result.isServiceCheck()) {
                 log.info("✅ Telegram сервис: инициализирован и активен");
-                log.info("📊 Статус бота: {}", botStatus);
+                log.info("📊 Статус бота: {} (webhook установлен: {})", botStatus, isInitialized);
             } else {
-                log.error("❌ Telegram сервис: не инициализирован");
+                log.error("❌ Telegram сервис: проблема инициализации");
+                log.error("📊 Webhook установлен: {}, Статус бота: {}", isInitialized, botStatus);
                 if (errorMessage != null) {
                     log.error("📝 Ошибка: {}", errorMessage);
                 }
@@ -197,7 +200,17 @@ public class BotSelfTestService {
         }
         
         try {
-            String healthEndpoint = webhookUrl.replace("/webhook/telegram", "/webhook/health");
+            // Исправлено: правильное формирование health endpoint
+            // Если webhookUrl уже содержит путь /webhook/telegram, заменяем на /webhook/health
+            // Если нет - добавляем /webhook/health
+            String healthEndpoint;
+            if (webhookUrl.contains("/webhook/telegram")) {
+                healthEndpoint = webhookUrl.replace("/webhook/telegram", "/webhook/health");
+            } else {
+                healthEndpoint = webhookUrl + "/webhook/health";
+            }
+            
+            log.debug("🔍 Проверяем health endpoint: {}", healthEndpoint);
             
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -216,6 +229,7 @@ public class BotSelfTestService {
             
             if (isHealthy) {
                 log.info("✅ Webhook endpoint доступен: {}", healthEndpoint);
+                log.debug("📄 Health response: {}", response.getBody());
             } else {
                 log.error("❌ Webhook endpoint недоступен: {} (статус: {})", 
                     healthEndpoint, response.getStatusCode());
@@ -245,7 +259,15 @@ public class BotSelfTestService {
             
             HttpEntity<Map<String, Object>> entity = new HttpEntity<>(testUpdate, headers);
             
-            String webhookEndpoint = webhookUrl + "/webhook/telegram";
+            // Исправлено: правильное формирование webhook endpoint
+            String webhookEndpoint;
+            if (webhookUrl.contains("/webhook/telegram")) {
+                webhookEndpoint = webhookUrl;
+            } else {
+                webhookEndpoint = webhookUrl + "/webhook/telegram";
+            }
+            
+            log.debug("📡 Отправляем тестовое сообщение на: {}", webhookEndpoint);
             
             // Отправляем тестовое сообщение
             ResponseEntity<String> response = restTemplate.exchange(

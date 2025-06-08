@@ -33,8 +33,22 @@ public class SecurityConfig {
         log.info("Configuring security filter chain. API Security enabled: {}", securityProperties.getApi().isEnabled());
         
         http
-            // Отключаем CSRF для API
-            .csrf(AbstractHttpConfigurer::disable)
+            // Настраиваем CSRF защиту
+            .csrf(csrf -> csrf
+                .csrfTokenRepository(org.springframework.security.web.csrf.CookieCsrfTokenRepository.withHttpOnlyFalse())
+                .ignoringRequestMatchers(
+                    // Telegram Bot API - не нужен CSRF
+                    "/api/bot/**",
+                    "/telegram/webhook",
+                    
+                    // Health checks и monitoring - публичные endpoints
+                    "/actuator/health",
+                    "/actuator/info",
+                    
+                    // REST API endpoints для внешних интеграций
+                    "/api/feature-flags/check/**"
+                )
+            )
             
             // Настраиваем CORS
             .cors(cors -> {

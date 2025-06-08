@@ -320,6 +320,7 @@ public class AdminController {
     @ResponseBody
     public String toggleFeatureFlag(@PathVariable String flagName) {
         try {
+            log.info("CSRF-protected toggle request for feature flag: {}", flagName);
             featureFlagService.toggleFeatureFlag(flagName, "Admin");
             configurationRefreshService.applyFeatureFlagChange(flagName);
             
@@ -327,6 +328,7 @@ public class AdminController {
                     .map(FeatureFlag::isEnabled)
                     .orElse(false);
             
+            log.info("Feature flag '{}' toggled to: {}", flagName, isEnabled ? "enabled" : "disabled");
             return isEnabled ? "enabled" : "disabled";
         } catch (Exception e) {
             log.error("Error toggling feature flag '{}'", flagName, e);

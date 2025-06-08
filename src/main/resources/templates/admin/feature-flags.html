@@ -372,7 +372,8 @@
         }
         
         function toggleFlag(flagName) {
-            fetch(`/admin/feature-flags/${flagName}/toggle`, {
+            // Use CSRF-protected fetch
+            window.AdminGlobals.securedFetch(`/admin/feature-flags/${flagName}/toggle`, {
                 method: 'POST'
             })
             .then(response => response.text())
@@ -438,7 +439,7 @@
             showLoading();
             
             Promise.all(flags.map(flagName => 
-                fetch(`/admin/feature-flags/${flagName}/${operation}`, { method: 'POST' })
+                window.AdminGlobals.securedFetch(`/admin/feature-flags/${flagName}/toggle`, { method: 'POST' })
             ))
             .then(responses => {
                 hideLoading();
@@ -466,7 +467,7 @@
         
         function deleteFlag(flagName) {
             if (confirm(`Are you sure you want to delete flag "${flagName}"? This action cannot be undone.`)) {
-                fetch(`/admin/feature-flags/${flagName}/delete`, {
+                window.AdminGlobals.securedFetch(`/admin/feature-flags/${flagName}/delete`, {
                     method: 'POST'
                 })
                 .then(response => {

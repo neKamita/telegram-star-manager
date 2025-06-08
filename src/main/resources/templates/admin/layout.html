@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title th:text="${title ?: 'Admin Panel'} + ' - Telegram Star Manager'">Admin Panel - Telegram Star Manager</title>
     
+    <!-- CSRF Protection -->
+    <meta name="_csrf" th:content="${_csrf?.token}" />
+    <meta name="_csrf_header" th:content="${_csrf?.headerName}" />
+    <meta name="_csrf_parameter_name" th:content="${_csrf?.parameterName}" />
+    
     <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome -->
@@ -277,6 +282,62 @@
     <script>
         // Global admin functions - use AdminGlobals namespace consistently
         window.AdminGlobals = window.AdminGlobals || {};
+        
+        // CSRF Protection Setup
+        (function() {
+            const csrfTokenMeta = document.querySelector("meta[name='_csrf']");
+            const csrfHeaderMeta = document.querySelector("meta[name='_csrf_header']");
+            const csrfParamMeta = document.querySelector("meta[name='_csrf_parameter_name']");
+            
+            if (csrfTokenMeta && csrfHeaderMeta) {
+                window.AdminGlobals.csrf = {
+                    token: csrfTokenMeta.getAttribute("content"),
+                    header: csrfHeaderMeta.getAttribute("content"),
+                    parameterName: csrfParamMeta ? csrfParamMeta.getAttribute("content") : "_csrf"
+                };
+                
+                console.log('CSRF protection enabled for admin panel');
+            } else {
+                console.warn('CSRF tokens not found - some functions may not work properly');
+                window.AdminGlobals.csrf = null;
+            }
+        })();
+        
+        // Enhanced fetch with CSRF protection
+        window.AdminGlobals.securedFetch = function(url, options = {}) {
+            const defaultOptions = {
+                credentials: 'same-origin',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                }
+            };
+            
+            // Add CSRF header for non-GET requests
+            if (window.AdminGlobals.csrf && options.method && options.method.toUpperCase() !== 'GET') {
+                defaultOptions.headers[window.AdminGlobals.csrf.header] = window.AdminGlobals.csrf.token;
+            }
+            
+            return fetch(url, { ...defaultOptions, ...options });
+        };
+        
+        // Helper function to add CSRF token to forms
+        window.AdminGlobals.addCSRFTokenToForm = function(form) {
+            if (!window.AdminGlobals.csrf) return;
+            
+            // Remove existing CSRF input if present
+            const existingCSRF = form.querySelector('input[name="' + window.AdminGlobals.csrf.parameterName + '"]');
+            if (existingCSRF) {
+                existingCSRF.remove();
+            }
+            
+            // Add new CSRF input
+            const csrfInput = document.createElement('input');
+            csrfInput.type = 'hidden';
+            csrfInput.name = window.AdminGlobals.csrf.parameterName;
+            csrfInput.value = window.AdminGlobals.csrf.token;
+            form.appendChild(csrfInput);
+        };
         
         // Mobile sidebar toggle
         const sidebarToggle = document.getElementById('sidebarToggle');

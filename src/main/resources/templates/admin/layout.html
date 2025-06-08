@@ -451,4 +451,12 @@
         <!-- Page scripts will be inserted here -->
     </th:block>
 </body>
+
+<!-- Scripts fragment for inclusion in other templates -->
+<th:block th:fragment="scripts">
+    <!-- Bootstrap already included in head, just reference existing functions -->
+    <script>
+        console.log('Admin layout scripts loaded successfully');
+    </script>
+</th:block>
 </html>

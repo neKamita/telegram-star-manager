@@ -1,5 +1,6 @@
 package shit.back.handler;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
@@ -14,6 +15,7 @@ import shit.back.utils.MessageUtils;
 
 import java.util.Optional;
 
+@Slf4j
 @Component
 public class MessageHandler {
     
@@ -28,6 +30,9 @@ public class MessageHandler {
         User user = message.getFrom();
         Long chatId = message.getChatId();
         
+        log.info("💬 MessageHandler: обработка сообщения от {} (ID: {}): {}", 
+            user.getFirstName(), user.getId(), text);
+        
         // Создаем или получаем сессию пользователя
         UserSession session = userSessionService.getOrCreateSession(
             user.getId(),
@@ -36,13 +41,21 @@ public class MessageHandler {
             user.getLastName()
         );
         
+        log.debug("👤 Сессия пользователя: состояние = {}", session.getState());
+        
+        SendMessage response;
+        
         // Обработка команд
         if (text.startsWith("/")) {
-            return handleCommand(text, chatId, session);
+            log.info("⚡ Обработка команды: {}", text);
+            response = handleCommand(text, chatId, session);
+        } else {
+            log.info("📝 Обработка текстового сообщения в состоянии: {}", session.getState());
+            response = handleTextMessage(text, chatId, session);
         }
         
-        // Обработка обычных сообщений
-        return handleTextMessage(text, chatId, session);
+        log.info("📨 MessageHandler: ответ подготовлен для chatId {}", chatId);
+        return response;
     }
     
     private SendMessage handleCommand(String command, Long chatId, UserSession session) {

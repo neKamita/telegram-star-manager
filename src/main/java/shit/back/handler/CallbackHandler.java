@@ -39,10 +39,13 @@ public class CallbackHandler {
         Long chatId = callbackQuery.getMessage().getChatId();
         Integer messageId = callbackQuery.getMessage().getMessageId();
         
+        log.info("🔘 CallbackHandler: обработка callback от {} (ID: {}): {}", 
+            user.getFirstName(), user.getId(), data);
+        
         // Валидация callback данных
         SecurityValidator.ValidationResult validationResult = securityValidator.validateCallbackData(data);
         if (!validationResult.isValid()) {
-            log.warn("Invalid callback data from user {}: {}", user.getId(), validationResult.getErrorMessage());
+            log.warn("❌ Невалидные callback данные от пользователя {}: {}", user.getId(), validationResult.getErrorMessage());
             return MessageUtils.createEditMessage(chatId, messageId, 
                 "❌ Некорректный запрос. Попробуйте еще раз или используйте /start");
         }
@@ -50,7 +53,7 @@ public class CallbackHandler {
         // Проверка rate limit для пользователя
         RateLimitService.RateLimitResult rateLimitResult = rateLimitService.checkUserLimit(user.getId());
         if (!rateLimitResult.isAllowed()) {
-            log.warn("Rate limit exceeded for user {}: {}", user.getId(), rateLimitResult.getErrorMessage());
+            log.warn("⏰ Rate limit превышен для пользователя {}: {}", user.getId(), rateLimitResult.getErrorMessage());
             return MessageUtils.createEditMessage(chatId, messageId, 
                 "⏰ Слишком много запросов. Подождите немного и попробуйте снова.");
         }
@@ -58,7 +61,7 @@ public class CallbackHandler {
         // Валидация данных пользователя
         SecurityValidator.ValidationResult usernameValidation = securityValidator.validateUsername(user.getUserName());
         if (!usernameValidation.isValid()) {
-            log.warn("Invalid username from user {}: {}", user.getId(), usernameValidation.getErrorMessage());
+            log.warn("⚠️ Невалидное имя пользователя от user {}: {}", user.getId(), usernameValidation.getErrorMessage());
             // Продолжаем работу, но логируем предупреждение
         }
         
@@ -70,9 +73,12 @@ public class CallbackHandler {
             securityValidator.sanitizeText(user.getLastName())
         );
         
-        log.debug("Processing callback from user {}: {}", user.getId(), data);
+        log.info("👤 Состояние сессии пользователя: {}", session.getState());
         
-        return handleCallbackData(data, chatId, messageId, session);
+        EditMessageText response = handleCallbackData(data, chatId, messageId, session);
+        log.info("📝 CallbackHandler: ответ подготовлен для chatId {}", chatId);
+        
+        return response;
     }
     
     private EditMessageText handleCallbackData(String data, Long chatId, Integer messageId, UserSession session) {

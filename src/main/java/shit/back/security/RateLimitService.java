@@ -98,7 +98,7 @@ public class RateLimitService {
             return RateLimitResult.allowed(remainingRequests);
             
         } catch (Exception e) {
-            log.error("Redis error during rate limit check: {}", e.getMessage());
+            log.debug("Redis unavailable, switching to in-memory rate limiting: {}", e.getMessage());
             return checkLimitInMemory(key, maxRequests, clientInfo);
         }
     }

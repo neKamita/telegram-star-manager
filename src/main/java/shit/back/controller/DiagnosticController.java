@@ -10,9 +10,11 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import shit.back.service.TelegramWebhookBotService;
+import shit.back.service.BotSelfTestService;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Диагностический контроллер для отладки Telegram Bot и системы
@@ -25,6 +27,9 @@ public class DiagnosticController {
 
     @Autowired(required = false)
     private TelegramWebhookBotService telegramBotService;
+
+    @Autowired(required = false)
+    private BotSelfTestService botSelfTestService;
 
     @Autowired
     private ApplicationContext applicationContext;
@@ -188,6 +193,99 @@ public class DiagnosticController {
         }
         
         return ResponseEntity.ok(result);
+    }
+
+    /**
+     * Запуск полного самотестирования бота
+     */
+    @GetMapping("/bot-self-test")
+    public ResponseEntity<Map<String, Object>> runBotSelfTest() {
+        logger.info("🧪 Запрос запуска самотестирования бота");
+        
+        Map<String, Object> response = new HashMap<>();
+        response.put("timestamp", System.currentTimeMillis());
+        
+        if (botSelfTestService == null) {
+            response.put("status", "ERROR");
+            response.put("message", "BotSelfTestService не доступен");
+            logger.error("❌ BotSelfTestService не найден в контексте Spring");
+            return ResponseEntity.badRequest().body(response);
+        }
+        
+        try {
+            // Запускаем самотестирование
+            CompletableFuture<BotSelfTestService.SelfTestResult> futureResult = 
+                botSelfTestService.performSelfTest();
+            
+            // Ждем результат (с таймаутом)
+            BotSelfTestService.SelfTestResult testResult = futureResult.get(30, java.util.concurrent.TimeUnit.SECONDS);
+            
+            // Формируем ответ
+            response.put("status", testResult.isOverallSuccess() ? "SUCCESS" : "FAILURE");
+            response.put("overallSuccess", testResult.isOverallSuccess());
+            response.put("duration", testResult.getEndTime() - testResult.getStartTime());
+            
+            Map<String, Boolean> testResults = new HashMap<>();
+            testResults.put("configuration", testResult.isConfigurationCheck());
+            testResults.put("service", testResult.isServiceCheck());
+            testResults.put("webhook", testResult.isWebhookCheck());
+            testResults.put("messageTest", testResult.isMessageTestCheck());
+            response.put("testResults", testResults);
+            
+            if (testResult.getErrorMessage() != null) {
+                response.put("errorMessage", testResult.getErrorMessage());
+            }
+            
+            logger.info("✅ Самотестирование завершено: {}", 
+                testResult.isOverallSuccess() ? "УСПЕХ" : "ОШИБКИ");
+            
+            return ResponseEntity.ok(response);
+            
+        } catch (java.util.concurrent.TimeoutException e) {
+            response.put("status", "TIMEOUT");
+            response.put("message", "Таймаут при выполнении самотестирования (30 сек)");
+            logger.error("⏰ Таймаут при самотестировании");
+            return ResponseEntity.internalServerError().body(response);
+            
+        } catch (Exception e) {
+            response.put("status", "ERROR");
+            response.put("message", "Ошибка при самотестировании: " + e.getMessage());
+            logger.error("❌ Ошибка при самотестировании: {}", e.getMessage(), e);
+            return ResponseEntity.internalServerError().body(response);
+        }
+    }
+
+    /**
+     * Получение информации о состоянии автотестирования
+     */
+    @GetMapping("/self-test-info")
+    public ResponseEntity<Map<String, Object>> getSelfTestInfo() {
+        logger.info("ℹ️ Запрос информации о самотестировании");
+        
+        Map<String, Object> info = new HashMap<>();
+        info.put("timestamp", System.currentTimeMillis());
+        info.put("selfTestServiceAvailable", botSelfTestService != null);
+        
+        if (botSelfTestService != null) {
+            info.put("serviceClass", botSelfTestService.getClass().getSimpleName());
+            info.put("description", "Сервис автоматического самотестирования Telegram бота");
+            
+            Map<String, String> availableTests = new HashMap<>();
+            availableTests.put("configuration", "Проверка конфигурации бота (токен, username, webhook)");
+            availableTests.put("service", "Проверка инициализации TelegramWebhookBotService");
+            availableTests.put("webhook", "Проверка доступности webhook endpoint");
+            availableTests.put("messageTest", "Симуляция обработки тестовых сообщений");
+            info.put("availableTests", availableTests);
+            
+            Map<String, String> endpoints = new HashMap<>();
+            endpoints.put("runSelfTest", "/diagnostic/bot-self-test");
+            endpoints.put("selfTestInfo", "/diagnostic/self-test-info");
+            info.put("endpoints", endpoints);
+        } else {
+            info.put("message", "Сервис самотестирования недоступен");
+        }
+        
+        return ResponseEntity.ok(info);
     }
 
     /**

@@ -27,22 +27,54 @@ public class WebhookController {
     @PostMapping("/telegram")
     public ResponseEntity<BotApiMethod<?>> webhook(@RequestBody Update update) {
         try {
-            logger.debug("Получен webhook update: {}", update.getUpdateId());
+            // Детальное логирование входящих обновлений
+            if (update.hasMessage()) {
+                logger.info("📨 Получено сообщение от пользователя {} (ID: {}): {}", 
+                    update.getMessage().getFrom().getFirstName(),
+                    update.getMessage().getFrom().getId(),
+                    update.getMessage().hasText() ? update.getMessage().getText() : "[не текст]");
+            } else if (update.hasCallbackQuery()) {
+                logger.info("🔘 Получен callback от пользователя {} (ID: {}): {}", 
+                    update.getCallbackQuery().getFrom().getFirstName(),
+                    update.getCallbackQuery().getFrom().getId(),
+                    update.getCallbackQuery().getData());
+            } else {
+                logger.info("📬 Получен webhook update ID: {} (тип: {})", 
+                    update.getUpdateId(), getUpdateType(update));
+            }
             
             BotApiMethod<?> response = telegramWebhookBotService.onWebhookUpdateReceived(update);
             
             if (response != null) {
-                logger.debug("Отправляется ответ: {}", response.getMethod());
+                logger.info("📤 Отправляется ответ: {}", response.getMethod());
                 return ResponseEntity.ok(response);
             } else {
-                logger.debug("Ответ не требуется для update: {}", update.getUpdateId());
+                logger.debug("✅ Обработка завершена без ответа для update: {}", update.getUpdateId());
                 return ResponseEntity.ok().build();
             }
             
         } catch (Exception e) {
-            logger.error("Ошибка при обработке webhook", e);
+            logger.error("❌ Ошибка при обработке webhook update {}: {}", 
+                update.getUpdateId(), e.getMessage(), e);
             return ResponseEntity.internalServerError().build();
         }
+    }
+    
+    /**
+     * Определение типа обновления для логирования
+     */
+    private String getUpdateType(Update update) {
+        if (update.hasMessage()) return "MESSAGE";
+        if (update.hasCallbackQuery()) return "CALLBACK";
+        if (update.hasInlineQuery()) return "INLINE_QUERY";
+        if (update.hasEditedMessage()) return "EDITED_MESSAGE";
+        if (update.hasChannelPost()) return "CHANNEL_POST";
+        if (update.hasEditedChannelPost()) return "EDITED_CHANNEL_POST";
+        if (update.hasShippingQuery()) return "SHIPPING_QUERY";
+        if (update.hasPreCheckoutQuery()) return "PRE_CHECKOUT_QUERY";
+        if (update.hasPoll()) return "POLL";
+        if (update.hasPollAnswer()) return "POLL_ANSWER";
+        return "UNKNOWN";
     }
     
     @GetMapping("/telegram/status")

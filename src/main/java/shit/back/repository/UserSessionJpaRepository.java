@@ -111,6 +111,6 @@ public interface UserSessionJpaRepository extends JpaRepository<UserSessionEntit
     List<Object[]> findSharedIpAddresses();
     
     // Время жизни сессий
-    @Query("SELECT AVG(EXTRACT(EPOCH FROM AGE(s.updatedAt, s.createdAt))/3600) FROM UserSessionEntity s WHERE s.state = 'COMPLETED'")
+    @Query("SELECT AVG((EXTRACT(EPOCH FROM s.updatedAt) - EXTRACT(EPOCH FROM s.createdAt))/3600) FROM UserSessionEntity s WHERE s.state = 'COMPLETED'")
     Double getAverageSessionDurationHours();
 }

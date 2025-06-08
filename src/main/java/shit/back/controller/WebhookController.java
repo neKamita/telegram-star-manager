@@ -149,6 +149,45 @@ public class WebhookController {
         return ResponseEntity.ok(health);
     }
     
+    // Test endpoint для симуляции /start команды
+    @PostMapping("/telegram/test-start")
+    public ResponseEntity<Map<String, Object>> testStartCommand() {
+        try {
+            logger.info("🧪 TEST: Симуляция команды /start для диагностики");
+            
+            Map<String, Object> result = new HashMap<>();
+            result.put("status", "TEST_INITIATED");
+            result.put("timestamp", LocalDateTime.now());
+            result.put("message", "Тест временно отключен - используйте реальные сообщения в Telegram");
+            result.put("instructions", Map.of(
+                "step1", "Напишите /start боту в Telegram",
+                "step2", "Проверьте логи приложения на сообщения с префиксом 📨",
+                "step3", "Если логи не появляются - проблема с webhook URL или токеном"
+            ));
+            result.put("diagnostics", Map.of(
+                "webhookSet", telegramWebhookBotService.isWebhookSet(),
+                "botStatus", telegramWebhookBotService.getBotStatus(),
+                "errorMessage", telegramWebhookBotService.getErrorMessage(),
+                "lastUpdate", telegramWebhookBotService.getLastUpdate(),
+                "botUsername", telegramWebhookBotService.getBotUsername(),
+                "webhookPath", telegramWebhookBotService.getBotPath()
+            ));
+            
+            logger.info("📋 TEST: Текущее состояние бота - {}", telegramWebhookBotService.getBotStatus());
+            return ResponseEntity.ok(result);
+            
+        } catch (Exception e) {
+            logger.error("❌ TEST: Ошибка при получении диагностической информации", e);
+            
+            Map<String, Object> errorResult = new HashMap<>();
+            errorResult.put("status", "ERROR");
+            errorResult.put("timestamp", LocalDateTime.now());
+            errorResult.put("error", e.getMessage());
+            
+            return ResponseEntity.internalServerError().body(errorResult);
+        }
+    }
+    
     // Data class для статуса webhook
     public static class WebhookStatus {
         private boolean webhookSet;

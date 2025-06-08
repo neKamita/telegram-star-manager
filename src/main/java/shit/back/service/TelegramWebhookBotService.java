@@ -130,38 +130,75 @@ public class TelegramWebhookBotService extends TelegramWebhookBot {
     public BotApiMethod<?> onWebhookUpdateReceived(Update update) {
         try {
             lastUpdate = LocalDateTime.now();
+            logger.info("🔄 onWebhookUpdateReceived: получен update ID {}", update.getUpdateId());
             
             if (update.hasMessage()) {
                 Message message = update.getMessage();
-                logger.debug("Получено сообщение от пользователя {}: {}", 
-                    message.getFrom().getId(), message.getText());
+                logger.info("📨 Обработка сообщения от пользователя {} (ID: {}): {}", 
+                    message.getFrom().getFirstName(), message.getFrom().getId(), 
+                    message.hasText() ? message.getText() : "[не текст]");
                 
-                return messageHandler.handleMessage(message);
+                if (messageHandler == null) {
+                    logger.error("❌ MessageHandler is NULL! Не могу обработать сообщение");
+                    return createErrorMessage(message.getChatId(), "Сервис временно недоступен");
+                }
+                
+                BotApiMethod<?> response = messageHandler.handleMessage(message);
+                logger.info("✅ MessageHandler вернул ответ: {}", 
+                    response != null ? response.getClass().getSimpleName() : "NULL");
+                return response;
             }
             
             if (update.hasCallbackQuery()) {
-                logger.debug("Получен callback query от пользователя {}: {}", 
+                logger.info("🔘 Обработка callback от пользователя {} (ID: {}): {}", 
+                    update.getCallbackQuery().getFrom().getFirstName(),
                     update.getCallbackQuery().getFrom().getId(), 
                     update.getCallbackQuery().getData());
+                
+                if (callbackHandler == null) {
+                    logger.error("❌ CallbackHandler is NULL! Не могу обработать callback");
+                    return null;
+                }
                 
                 return callbackHandler.handleCallback(update.getCallbackQuery());
             }
             
-            logger.debug("Получен неподдерживаемый тип обновления: {}", update);
+            logger.warn("⚠️ Получен неподдерживаемый тип обновления: updateId={}, type={}", 
+                update.getUpdateId(), getUpdateType(update));
             
         } catch (Exception e) {
-            logger.error("Ошибка при обработке webhook update", e);
+            logger.error("💥 Критическая ошибка при обработке webhook update {}: {}", 
+                update.getUpdateId(), e.getMessage(), e);
             
             // Возвращаем простое сообщение об ошибке, если можем определить chat_id
             if (update.hasMessage()) {
-                return SendMessage.builder()
-                    .chatId(update.getMessage().getChatId().toString())
-                    .text("Произошла ошибка при обработке сообщения. Попробуйте позже.")
-                    .build();
+                return createErrorMessage(update.getMessage().getChatId(), 
+                    "Произошла ошибка при обработке сообщения. Попробуйте позже.");
             }
         }
         
         return null;
+    }
+    
+    private SendMessage createErrorMessage(Long chatId, String errorText) {
+        return SendMessage.builder()
+            .chatId(chatId.toString())
+            .text(errorText)
+            .build();
+    }
+    
+    private String getUpdateType(Update update) {
+        if (update.hasMessage()) return "MESSAGE";
+        if (update.hasCallbackQuery()) return "CALLBACK";
+        if (update.hasInlineQuery()) return "INLINE_QUERY";
+        if (update.hasEditedMessage()) return "EDITED_MESSAGE";
+        if (update.hasChannelPost()) return "CHANNEL_POST";
+        if (update.hasEditedChannelPost()) return "EDITED_CHANNEL_POST";
+        if (update.hasShippingQuery()) return "SHIPPING_QUERY";
+        if (update.hasPreCheckoutQuery()) return "PRE_CHECKOUT_QUERY";
+        if (update.hasPoll()) return "POLL";
+        if (update.hasPollAnswer()) return "POLL_ANSWER";
+        return "UNKNOWN";
     }
     
     @Override

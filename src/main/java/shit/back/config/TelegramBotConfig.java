@@ -56,20 +56,37 @@ public class TelegramBotConfig {
         log.info("🔄 TelegramBotConfig.registerBots() вызван");
         log.info("📋 Доступные профили: {}", System.getProperty("spring.profiles.active"));
         
-        // Register long polling bot for development
-        if (telegramBotService != null) {
-            log.info("🤖 Development mode: Using TelegramBotService (Long Polling)");
-        } else {
-            log.info("❌ TelegramBotService не найден (нормально для production)");
-        }
-        
-        // Webhook bot registers itself in production
-        if (telegramWebhookBotService != null) {
-            log.info("🤖 Production mode: Using TelegramWebhookBotService (Webhook)");
-            log.info("✅ TelegramWebhookBotService инициализирован успешно");
-        } else {
-            log.error("❌ TelegramWebhookBotService НЕ НАЙДЕН! Проверьте профиль и конфигурацию");
-            log.error("🔍 Текущий профиль: {}", System.getProperty("spring.profiles.active"));
+        try {
+            // Register long polling bot for development
+            if (telegramBotService != null) {
+                log.info("🤖 Development mode: Using TelegramBotService (Long Polling)");
+                TelegramBotsApi api = telegramBotsApiForDevelopment();
+                if (api != null) {
+                    api.registerBot(telegramBotService);
+                    log.info("✅ TelegramBotService зарегистрирован для development");
+                }
+            } else {
+                log.info("❌ TelegramBotService не найден (нормально для production)");
+            }
+            
+            // Webhook bot for production - does NOT need registration in TelegramBotsApi
+            if (telegramWebhookBotService != null) {
+                log.info("🤖 Production mode: Using TelegramWebhookBotService (Webhook)");
+                log.info("📌 Webhook bots работают независимо от TelegramBotsApi");
+                log.info("🌐 Webhook URL: {}", telegramWebhookBotService.getBotPath());
+                log.info("👤 Bot Username: {}", telegramWebhookBotService.getBotUsername());
+                log.info("✅ TelegramWebhookBotService готов к приему webhook запросов");
+            } else {
+                log.error("❌ TelegramWebhookBotService НЕ НАЙДЕН! Проверьте профиль и конфигурацию");
+                log.error("🔍 Текущий профиль: {}", System.getProperty("spring.profiles.active"));
+            }
+            
+        } catch (Exception e) {
+            log.error("💥 Ошибка при регистрации ботов: {}", e.getMessage(), e);
+            // В production не падаем, webhook может работать независимо
+            if (telegramWebhookBotService != null) {
+                log.warn("🔄 Продолжаем работу с webhook без регистрации в API");
+            }
         }
         
         log.info("🏁 TelegramBotConfig.registerBots() завершен");

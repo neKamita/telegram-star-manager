@@ -1,64 +1,10 @@
 <!DOCTYPE html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: body}">
 <head th:replace="~{admin/layout :: head}">
     <title>Dashboard - Admin Panel</title>
 </head>
 <body>
-    <!-- Sidebar -->
-    <nav class="sidebar">
-        <a href="/admin" class="sidebar-brand">
-            <i class="fas fa-flag"></i>
-            <strong>Feature Flags</strong>
-        </a>
-        
-        <ul class="sidebar-nav">
-            <li>
-                <a href="/admin" class="nav-link active">
-                    <i class="fas fa-tachometer-alt"></i>
-                    Dashboard
-                </a>
-            </li>
-            <li>
-                <a href="/admin/feature-flags" class="nav-link">
-                    <i class="fas fa-toggle-on"></i>
-                    Feature Flags
-                </a>
-            </li>
-            <li>
-                <a href="/admin/monitoring" class="nav-link">
-                    <i class="fas fa-chart-line"></i>
-                    Monitoring
-                </a>
-            </li>
-        </ul>
-    </nav>
-    
-    <!-- Main Content -->
-    <main class="main-content">
-        <!-- Mobile Menu Button -->
-        <button class="btn btn-primary d-md-none mb-3" id="sidebarToggle" title="Toggle menu">
-            <i class="fas fa-bars"></i>
-        </button>
-        
-        <!-- Page Header -->
-        <div class="header-card">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h1 class="h3 mb-1">Dashboard</h1>
-                    <p class="text-muted mb-0">Feature Flags Overview</p>
-                </div>
-                <div>
-                    <button class="btn btn-outline-primary me-2" onclick="refreshData()" title="Refresh data">
-                        <i class="fas fa-sync-alt"></i>
-                        Refresh
-                    </button>
-                    <span class="badge bg-success">
-                        <i class="fas fa-circle"></i>
-                        Online
-                    </span>
-                </div>
-            </div>
-        </div>
+    <div th:fragment="content">
         
         <!-- Statistics Cards -->
         <div class="row mb-4">
@@ -106,8 +52,8 @@
         <!-- Recent Activity -->
         <div class="row">
             <div class="col-lg-8 mb-4">
-                <div class="recent-flags-table">
-                    <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
+                <div class="feature-flag-card">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
                         <h5 class="mb-0">
                             <i class="fas fa-history text-primary me-2"></i>
                             Recent Activity
@@ -129,7 +75,8 @@
                             </label>
                         </div>
                     </div>
-                    <table class="table table-hover mb-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
                         <thead class="table-light">
                             <tr>
                                 <th>Type</th>
@@ -190,9 +137,10 @@
                                 </td>
                             </tr>
                         </tbody>
-                    </table>
+                        </table>
+                    </div>
                     
-                    <div class="p-3 border-top bg-light" th:if="${combinedActivity != null and combinedActivity.totalActivities > 0}">
+                    <div class="mt-3 pt-3 border-top" th:if="${combinedActivity != null and combinedActivity.totalActivities > 0}">
                         <div class="d-flex justify-content-between align-items-center">
                             <small class="text-muted">
                                 Showing <span th:text="${combinedActivity.totalActivities}">0</span> recent activities
@@ -285,12 +233,9 @@
                 </div>
             </div>
         </div>
-    </main>
+    </div>
 
-    <!-- Toast notifications now handled by layout.html -->
-
-    <!-- Scripts -->
-    <script th:replace="~{admin/layout :: scripts}"></script>
+    <th:block th:fragment="scripts">
     <script>
         // Dashboard Variables
         let refreshInterval;
@@ -595,5 +540,6 @@
             }
         });
     </script>
+    </th:block>
 </body>
 </html>

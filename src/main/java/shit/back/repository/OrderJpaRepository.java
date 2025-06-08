@@ -68,8 +68,8 @@ public interface OrderJpaRepository extends JpaRepository<OrderEntity, String> {
     List<Object[]> getTopCustomers(Pageable pageable);
     
     // Заказы за сегодня
-    @Query("SELECT o FROM OrderEntity o WHERE DATE(o.createdAt) = CURRENT_DATE ORDER BY o.createdAt DESC")
-    List<OrderEntity> getTodaysOrders();
+    @Query("SELECT o FROM OrderEntity o WHERE o.createdAt >= :startOfDay AND o.createdAt < :endOfDay ORDER BY o.createdAt DESC")
+    List<OrderEntity> getTodaysOrders(@Param("startOfDay") LocalDateTime startOfDay, @Param("endOfDay") LocalDateTime endOfDay);
     
     // Незавершенные заказы старше определенного времени
     @Query("SELECT o FROM OrderEntity o WHERE o.status IN ('CREATED', 'AWAITING_PAYMENT') AND o.createdAt < :cutoffTime")

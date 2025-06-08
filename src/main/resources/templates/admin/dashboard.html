@@ -438,11 +438,9 @@
         }
 
         function refreshCache() {
-            fetch('/admin/api/refresh-cache', { 
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                }
+            // Use the secured fetch with CSRF protection
+            window.AdminGlobals.securedFetch('/admin/api/refresh-cache', { 
+                method: 'POST'
             })
             .then(response => response.json())
             .then(data => {

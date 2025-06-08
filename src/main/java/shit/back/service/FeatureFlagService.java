@@ -8,6 +8,7 @@ import shit.back.entity.FeatureFlagEntity;
 import shit.back.model.FeatureFlag;
 import shit.back.repository.FeatureFlagJpaRepository;
 import shit.back.repository.FeatureFlagRepository;
+import jakarta.annotation.PostConstruct;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -31,6 +32,17 @@ public class FeatureFlagService {
     
     // Кэш для быстрого доступа к флагам
     private final Map<String, FeatureFlag> flagCache = new ConcurrentHashMap<>();
+    
+    // Инициализация кэша после создания бина
+    @PostConstruct
+    private void initializeCache() {
+        try {
+            log.info("Initializing feature flags cache...");
+            refreshCache();
+        } catch (Exception e) {
+            log.error("Failed to initialize feature flags cache: {}", e.getMessage());
+        }
+    }
     
     public boolean isFeatureEnabled(String flagName) {
         return isFeatureEnabled(flagName, null);

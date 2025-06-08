@@ -223,11 +223,12 @@ public class UserSessionEnhancedService {
     }
     
     /**
-     * Get active users count (optimized)
+     * Get active users count (active in last 24 hours)
      */
     @Transactional(readOnly = true)
     public long getActiveUsersCount() {
-        return sessionRepository.countByIsActiveTrue();
+        LocalDateTime cutoff = LocalDateTime.now().minusHours(24);
+        return sessionRepository.countByIsActiveTrueAndLastActivityAfter(cutoff);
     }
     
     /**

@@ -12,7 +12,7 @@
 ```bash
 # 1. Сделайте Fork этого репозитория
 # 2. Клонируйте ваш fork
-git clone https://github.com/YOUR-USERNAME/TelegramStarManager.git
+git clone https://github.com/neKamita/TelegramStarManager.git
 cd TelegramStarManager
 ```
 

@@ -39,7 +39,8 @@ public class SecurityConfig {
                 .ignoringRequestMatchers(
                     // Telegram Bot API - не нужен CSRF
                     "/api/bot/**",
-                    "/telegram/webhook",
+                    "/webhook/telegram",  // Исправлен путь для webhook
+                    "/webhook/**",        // Разрешаем все webhook пути
                     
                     // Health checks и monitoring - публичные endpoints
                     "/actuator/health",
@@ -70,8 +71,9 @@ public class SecurityConfig {
                 .requestMatchers("/actuator/health").permitAll()
                 .requestMatchers("/actuator/info").permitAll()
                 
-                // Telegram webhook (если будет использоваться)
-                .requestMatchers("/telegram/webhook").permitAll()
+                // Telegram webhook - КРИТИЧЕСКИ ВАЖНО для бота!
+                .requestMatchers("/webhook/telegram").permitAll()
+                .requestMatchers("/webhook/**").permitAll()
                 
                 // Feature flags endpoints - требуют аутентификации
                 .requestMatchers("/api/feature-flags/**").authenticated()

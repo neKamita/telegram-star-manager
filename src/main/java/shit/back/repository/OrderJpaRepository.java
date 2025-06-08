@@ -76,7 +76,7 @@ public interface OrderJpaRepository extends JpaRepository<OrderEntity, String> {
     List<OrderEntity> findStaleOrders(@Param("cutoffTime") LocalDateTime cutoffTime);
     
     // Статистика по дням
-    @Query("SELECT DATE(o.createdAt), COUNT(o), SUM(o.finalAmount) FROM OrderEntity o WHERE o.createdAt >= :fromDate GROUP BY DATE(o.createdAt) ORDER BY DATE(o.createdAt)")
+    @Query("SELECT FUNCTION('DATE', o.createdAt), COUNT(o), SUM(o.finalAmount) FROM OrderEntity o WHERE o.createdAt >= :fromDate GROUP BY FUNCTION('DATE', o.createdAt) ORDER BY FUNCTION('DATE', o.createdAt)")
     List<Object[]> getDailyStatistics(@Param("fromDate") LocalDateTime fromDate);
     
     // Подсчет заказов пользователя

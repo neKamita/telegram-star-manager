@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import shit.back.entity.UserSessionEntity;
@@ -222,11 +223,11 @@ public class UserSessionEnhancedService {
     }
     
     /**
-     * Get active users count
+     * Get active users count (optimized)
      */
     @Transactional(readOnly = true)
     public long getActiveUsersCount() {
-        return sessionRepository.findByIsActiveTrueOrderByLastActivityDesc().size();
+        return sessionRepository.countByIsActiveTrue();
     }
     
     /**
@@ -349,6 +350,23 @@ public class UserSessionEnhancedService {
                 .averageStarsPerUser(averages.getAverageStarsPurchased())
                 .averageSessionDurationHours(getAverageSessionDurationHours())
                 .build();
+    }
+    
+    /**
+     * Scheduled task for automatic cleanup of expired sessions
+     * Runs every hour to maintain database cleanliness
+     */
+    @Scheduled(fixedRate = 3600000) // Every hour (3600000 ms)
+    @Transactional
+    public void scheduledCleanupExpiredSessions() {
+        try {
+            int deactivated = deactivateExpiredSessions(48); // Deactivate sessions older than 48 hours
+            if (deactivated > 0) {
+                log.info("Scheduled cleanup: deactivated {} expired sessions", deactivated);
+            }
+        } catch (Exception e) {
+            log.error("Error during scheduled session cleanup", e);
+        }
     }
     
     // Data transfer objects

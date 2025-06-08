@@ -1,5 +1,7 @@
 package shit.back.service;
 
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import shit.back.model.UserSession;
 import shit.back.model.Order;
@@ -10,20 +12,40 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.Optional;
 
+@Slf4j
 @Service
 public class UserSessionService {
+    
+    @Autowired
+    private UserSessionEnhancedService enhancedService;
     
     private final Map<Long, UserSession> userSessions = new ConcurrentHashMap<>();
     private final Map<String, Order> orders = new ConcurrentHashMap<>();
     
     public UserSession getOrCreateSession(Long userId, String username, String firstName, String lastName) {
         UserSession session = userSessions.get(userId);
+        boolean isNewSession = false;
+        
         if (session == null) {
             session = new UserSession(userId, username, firstName, lastName);
             userSessions.put(userId, session);
+            isNewSession = true;
+            log.info("Created new in-memory session for user {}", userId);
         } else {
             session.updateActivity();
         }
+        
+        // Синхронизация с PostgreSQL для статистики админ панели
+        try {
+            enhancedService.createOrUpdateSession(session);
+            if (isNewSession) {
+                log.info("Synchronized new user {} with PostgreSQL", userId);
+            }
+        } catch (Exception e) {
+            log.warn("Failed to sync session for user {} with PostgreSQL: {}", userId, e.getMessage());
+            // Не прерываем работу бота при ошибке синхронизации
+        }
+        
         return session;
     }
     
@@ -40,6 +62,14 @@ public class UserSessionService {
         if (session != null) {
             session.setState(state);
             session.updateActivity();
+            
+            // Синхронизация изменения состояния с PostgreSQL
+            try {
+                enhancedService.createOrUpdateSession(session);
+                log.debug("Synchronized state change for user {} to {}", userId, state);
+            } catch (Exception e) {
+                log.warn("Failed to sync state change for user {} to PostgreSQL: {}", userId, e.getMessage());
+            }
         }
     }
     
@@ -49,9 +79,17 @@ public class UserSessionService {
             session.setSelectedPackage(starPackage);
             session.setState(UserSession.SessionState.CONFIRMING_ORDER);
             session.updateActivity();
+            
+            // Синхронизация выбора пакета с PostgreSQL
+            try {
+                enhancedService.createOrUpdateSession(session);
+                log.debug("Synchronized package selection for user {}", userId);
+            } catch (Exception e) {
+                log.warn("Failed to sync package selection for user {} to PostgreSQL: {}", userId, e.getMessage());
+            }
         }
     }
-    
+
     public Order createOrder(Long userId) {
         UserSession session = userSessions.get(userId);
         if (session != null && session.getSelectedPackage() != null) {
@@ -60,6 +98,15 @@ public class UserSessionService {
             session.setOrderId(order.getOrderId());
             session.setState(UserSession.SessionState.AWAITING_PAYMENT);
             session.updateActivity();
+            
+            // Синхронизация создания заказа с PostgreSQL
+            try {
+                enhancedService.createOrUpdateSession(session);
+                log.info("Synchronized order creation for user {}, orderId: {}", userId, order.getOrderId());
+            } catch (Exception e) {
+                log.warn("Failed to sync order creation for user {} to PostgreSQL: {}", userId, e.getMessage());
+            }
+            
             return order;
         }
         return null;
@@ -91,6 +138,14 @@ public class UserSessionService {
             session.setSelectedPackage(null);
             session.setOrderId(null);
             session.updateActivity();
+            
+            // Синхронизация очистки сессии с PostgreSQL
+            try {
+                enhancedService.createOrUpdateSession(session);
+                log.debug("Synchronized session clear for user {}", userId);
+            } catch (Exception e) {
+                log.warn("Failed to sync session clear for user {} to PostgreSQL: {}", userId, e.getMessage());
+            }
         }
     }
     

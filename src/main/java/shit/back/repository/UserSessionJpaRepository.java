@@ -27,6 +27,9 @@ public interface UserSessionJpaRepository extends JpaRepository<UserSessionEntit
     
     Page<UserSessionEntity> findByIsActiveTrueOrderByLastActivityDesc(Pageable pageable);
     
+    // Эффективный подсчет активных пользователей
+    Long countByIsActiveTrue();
+    
     // Поиск по состоянию
     List<UserSessionEntity> findByStateOrderByLastActivityDesc(SessionState state);
     

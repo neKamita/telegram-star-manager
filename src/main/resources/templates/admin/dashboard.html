@@ -315,10 +315,14 @@
 
         // Update Dashboard Data
         function updateDashboardData(data) {
-            // Update user count if available
+            // Update user count if available (handle both camelCase and snake_case)
             const userCountElement = document.getElementById('userCount');
-            if (userCountElement && data.activeUsersCount !== undefined) {
-                userCountElement.textContent = data.activeUsersCount;
+            const activeUsersCount = data.activeUsersCount || data.active_users_count || 
+                                   data.overview?.activeUsersCount || data.overview?.active_users_count;
+            
+            if (userCountElement && activeUsersCount !== undefined) {
+                userCountElement.textContent = activeUsersCount;
+                console.log('Updated user count to:', activeUsersCount);
             }
         }
 
@@ -340,12 +344,12 @@
         function updateStatusIndicators(healthData) {
             console.log('Health data received:', healthData);
             
-            // Adapt to AdminDashboardService.SystemHealth structure
+            // Adapt to AdminDashboardService.SystemHealth structure (snake_case fields)
             const indicators = {
                 'apiStatus': true, // API is working if we got response
-                'redisStatus': healthData.redisHealthy !== false,
-                'botStatus': healthData.botHealthy !== false,
-                'cacheStatus': healthData.cacheHealthy !== false
+                'redisStatus': healthData.redis_healthy !== false,
+                'botStatus': healthData.bot_healthy !== false,
+                'cacheStatus': healthData.cache_healthy !== false
             };
 
             Object.keys(indicators).forEach(indicatorId => {
@@ -367,9 +371,11 @@
 
         // Update Health Score
         function updateHealthScore(healthData) {
-            const healthScore = healthData.healthScore || 0;
+            const healthScore = healthData.health_score || 0; // snake_case field
             const healthScoreBar = document.getElementById('healthScoreBar');
             const healthScoreText = document.getElementById('healthScoreText');
+
+            console.log('Updating health score:', healthScore);
 
             if (healthScoreBar && healthScoreText) {
                 healthScoreBar.style.width = healthScore + '%';

@@ -445,6 +445,17 @@ public class AdminController {
         }
     }
     
+    @GetMapping(value = "/api/recent-activity", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public AdminDashboardService.RecentActivity getRecentActivity() {
+        try {
+            return adminDashboardService.getRecentActivity();
+        } catch (Exception e) {
+            log.error("Error getting recent activity", e);
+            return AdminDashboardService.RecentActivity.builder().build();
+        }
+    }
+    
     // Data transfer objects
     
     @lombok.Data

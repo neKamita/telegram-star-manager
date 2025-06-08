@@ -384,30 +384,53 @@
         }
         
         function updateStats(data) {
-            // Update statistics cards with null checks
+            // Only update stats if data exists and is valid, otherwise keep current values
             const statsCards = document.querySelectorAll('.stats-card h3');
-            if (statsCards[0]) statsCards[0].textContent = data.totalFlags || 0;
-            if (statsCards[1]) statsCards[1].textContent = data.activeFlags || 0;
-            if (statsCards[2]) statsCards[2].textContent = data.cacheSize || 0;
             
-            // Use real user data from backend
-            const userCountEl = document.getElementById('userCount');
-            if (userCountEl && data.overview && data.overview.userStatistics) {
-                userCountEl.textContent = data.overview.userStatistics.activeUsersCount || 0;
-            } else {
-                // Fallback to API call for real data
-                fetch('/admin/api/system-health')
-                    .then(response => response.json())
-                    .then(healthData => {
-                        if (userCountEl) {
-                            userCountEl.textContent = healthData.onlineUsersCount || 0;
-                        }
-                    })
-                    .catch(error => {
-                        console.warn('Could not fetch user count:', error);
-                        if (userCountEl) userCountEl.textContent = '0';
-                    });
+            // Update Total Flags only if we have valid data
+            if (statsCards[0] && data && typeof data.totalFlags === 'number') {
+                statsCards[0].textContent = data.totalFlags;
             }
+            
+            // Update Active Flags only if we have valid data
+            if (statsCards[1] && data && typeof data.activeFlags === 'number') {
+                statsCards[1].textContent = data.activeFlags;
+            }
+            
+            // Update Cache Size only if we have valid data
+            if (statsCards[2] && data && typeof data.cacheSize === 'number') {
+                statsCards[2].textContent = data.cacheSize;
+            }
+            
+            // Update user count from API independently
+            updateUserCount(data);
+        }
+        
+        function updateUserCount(data) {
+            const userCountEl = document.getElementById('userCount');
+            if (!userCountEl) return;
+            
+            // Try to get user count from dashboard data first
+            if (data && data.overview && data.overview.userStatistics && 
+                typeof data.overview.userStatistics.activeUsersCount === 'number') {
+                userCountEl.textContent = data.overview.userStatistics.activeUsersCount;
+                return;
+            }
+            
+            // Fallback to system health API for user count
+            fetch('/admin/api/system-health')
+                .then(response => response.json())
+                .then(healthData => {
+                    if (healthData && typeof healthData.onlineUsersCount === 'number') {
+                        userCountEl.textContent = healthData.onlineUsersCount;
+                    } else if (healthData && typeof healthData.activeUsersCount === 'number') {
+                        userCountEl.textContent = healthData.activeUsersCount;
+                    }
+                })
+                .catch(error => {
+                    console.warn('Could not fetch user count:', error);
+                    // Don't change the current value on error
+                });
         }
         
         function updateCharts(data) {
@@ -547,7 +570,12 @@
             .then(result => {
                 if (result === 'enabled' || result === 'disabled') {
                     showToast(`Flag ${flagName} ${result}`, 'success');
-                    setTimeout(refreshData, 1000);
+                    
+                    // Immediately update the UI for the toggled flag
+                    updateFlagStatusInUI(flagName, result);
+                    
+                    // Also refresh data after a short delay to get updated counts
+                    setTimeout(refreshData, 500);
                 } else {
                     console.error('Unexpected response:', result);
                     showToast(`Error toggling flag ${flagName}: ${result}`, 'danger');
@@ -556,6 +584,26 @@
             .catch(error => {
                 console.error('Error toggling flag:', error);
                 showToast(`Error toggling flag ${flagName}: ${error.message}`, 'danger');
+            });
+        }
+        
+        function updateFlagStatusInUI(flagName, status) {
+            // Find the flag row and update its status badge
+            const flagRows = document.querySelectorAll('tbody tr');
+            flagRows.forEach(row => {
+                const toggleBtn = row.querySelector(`[data-flag-name="${flagName}"]`);
+                if (toggleBtn) {
+                    const statusBadge = row.querySelector('.status-badge');
+                    if (statusBadge) {
+                        if (status === 'enabled') {
+                            statusBadge.className = 'status-badge status-active';
+                            statusBadge.textContent = 'Active';
+                        } else {
+                            statusBadge.className = 'status-badge status-inactive';
+                            statusBadge.textContent = 'Inactive';
+                        }
+                    }
+                }
             });
         }
         
@@ -651,7 +699,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             try {
                 initCharts();
-                refreshData();
+                updateSystemStatus(); // Only update system status, don't refresh all data immediately
             } catch (error) {
                 console.error('Dashboard initialization error:', error);
             }

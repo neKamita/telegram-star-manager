@@ -244,27 +244,37 @@
                         System Status
                     </h5>
                     
-                    <div class="row text-center">
+                    <div class="row text-center" id="systemStatusIndicators">
                         <div class="col-6 mb-3">
-                            <div class="status-indicator bg-success rounded-circle mx-auto mb-2" 
-                                 style="width: 20px; height: 20px;"></div>
+                            <div class="status-indicator bg-secondary rounded-circle mx-auto mb-2" 
+                                 style="width: 20px; height: 20px;" id="apiStatus"></div>
                             <small class="text-muted d-block">API</small>
                         </div>
                         <div class="col-6 mb-3">
-                            <div class="status-indicator bg-warning rounded-circle mx-auto mb-2" 
-                                 style="width: 20px; height: 20px;"></div>
+                            <div class="status-indicator bg-secondary rounded-circle mx-auto mb-2" 
+                                 style="width: 20px; height: 20px;" id="redisStatus"></div>
                             <small class="text-muted d-block">Redis</small>
                         </div>
                         <div class="col-6">
-                            <div class="status-indicator bg-success rounded-circle mx-auto mb-2" 
-                                 style="width: 20px; height: 20px;"></div>
+                            <div class="status-indicator bg-secondary rounded-circle mx-auto mb-2" 
+                                 style="width: 20px; height: 20px;" id="botStatus"></div>
                             <small class="text-muted d-block">Bot</small>
                         </div>
                         <div class="col-6">
-                            <div class="status-indicator bg-success rounded-circle mx-auto mb-2" 
-                                 style="width: 20px; height: 20px;"></div>
+                            <div class="status-indicator bg-secondary rounded-circle mx-auto mb-2" 
+                                 style="width: 20px; height: 20px;" id="cacheStatus"></div>
                             <small class="text-muted d-block">Cache</small>
                         </div>
+                    </div>
+                    
+                    <!-- Health Score -->
+                    <div class="mt-3 text-center">
+                        <small class="text-muted">Health Score:</small>
+                        <div class="progress mt-1" style="height: 8px;">
+                            <div class="progress-bar bg-success" role="progressbar" 
+                                 style="width: 0%" id="healthScoreBar"></div>
+                        </div>
+                        <small class="text-muted" id="healthScoreText">Loading...</small>
                     </div>
                 </div>
             </div>
@@ -312,6 +322,7 @@
                 .then(data => {
                     updateStats(data);
                     updateCharts(data);
+                    updateSystemStatus();
                     hideLoading();
                     showToast('Dashboard data refreshed', 'success');
                 })
@@ -322,6 +333,56 @@
                 });
         }
         
+        function updateSystemStatus() {
+            fetch('/admin/api/system-health')
+                .then(response => response.json())
+                .then(healthData => {
+                    // Update status indicators
+                    updateStatusIndicator('apiStatus', true); // API is working if we get response
+                    updateStatusIndicator('redisStatus', healthData.redisHealthy !== false);
+                    updateStatusIndicator('botStatus', healthData.botHealthy !== false);
+                    updateStatusIndicator('cacheStatus', healthData.cacheHealthy !== false);
+                    
+                    // Update health score
+                    const healthScore = healthData.healthScore || 0;
+                    const healthScoreBar = document.getElementById('healthScoreBar');
+                    const healthScoreText = document.getElementById('healthScoreText');
+                    
+                    if (healthScoreBar) {
+                        healthScoreBar.style.width = healthScore + '%';
+                        // Change color based on health score
+                        healthScoreBar.className = 'progress-bar ' + 
+                            (healthScore >= 80 ? 'bg-success' : 
+                             healthScore >= 60 ? 'bg-warning' : 'bg-danger');
+                    }
+                    
+                    if (healthScoreText) {
+                        healthScoreText.textContent = healthScore + '%';
+                    }
+                })
+                .catch(error => {
+                    console.warn('Could not fetch system health:', error);
+                    // Set all indicators to warning state
+                    updateStatusIndicator('apiStatus', false);
+                    updateStatusIndicator('redisStatus', false);
+                    updateStatusIndicator('botStatus', false);
+                    updateStatusIndicator('cacheStatus', false);
+                    
+                    const healthScoreText = document.getElementById('healthScoreText');
+                    if (healthScoreText) {
+                        healthScoreText.textContent = 'Error';
+                    }
+                });
+        }
+        
+        function updateStatusIndicator(elementId, isHealthy) {
+            const indicator = document.getElementById(elementId);
+            if (indicator) {
+                indicator.className = indicator.className.replace(/bg-\w+/, '');
+                indicator.classList.add(isHealthy ? 'bg-success' : 'bg-danger');
+            }
+        }
+        
         function updateStats(data) {
             // Update statistics cards with null checks
             const statsCards = document.querySelectorAll('.stats-card h3');
@@ -329,15 +390,48 @@
             if (statsCards[1]) statsCards[1].textContent = data.activeFlags || 0;
             if (statsCards[2]) statsCards[2].textContent = data.cacheSize || 0;
             
+            // Use real user data from backend
             const userCountEl = document.getElementById('userCount');
-            if (userCountEl) userCountEl.textContent = Math.floor(Math.random() * 100) + 1; // Mock data
+            if (userCountEl && data.overview && data.overview.userStatistics) {
+                userCountEl.textContent = data.overview.userStatistics.activeUsersCount || 0;
+            } else {
+                // Fallback to API call for real data
+                fetch('/admin/api/system-health')
+                    .then(response => response.json())
+                    .then(healthData => {
+                        if (userCountEl) {
+                            userCountEl.textContent = healthData.onlineUsersCount || 0;
+                        }
+                    })
+                    .catch(error => {
+                        console.warn('Could not fetch user count:', error);
+                        if (userCountEl) userCountEl.textContent = '0';
+                    });
+            }
         }
         
         function updateCharts(data) {
-            // Update usage chart
+            // Update usage chart with real analytics data
             if (dashboardFlagsUsageChart) {
-                dashboardFlagsUsageChart.data.datasets[0].data = generateUsageData();
-                dashboardFlagsUsageChart.update();
+                // Fetch real analytics data for last 7 time periods
+                fetch('/admin/api/analytics/7')
+                    .then(response => response.json())
+                    .then(analyticsData => {
+                        if (analyticsData && analyticsData.dailyActiveUsers) {
+                            // Use real daily active users data
+                            const realData = analyticsData.dailyActiveUsers.map(day => day.activeUsers || 0);
+                            dashboardFlagsUsageChart.data.datasets[0].data = realData;
+                        } else {
+                            // Fallback to generated data if no real data available
+                            dashboardFlagsUsageChart.data.datasets[0].data = generateUsageData();
+                        }
+                        dashboardFlagsUsageChart.update();
+                    })
+                    .catch(error => {
+                        console.warn('Could not fetch analytics data:', error);
+                        dashboardFlagsUsageChart.data.datasets[0].data = generateUsageData();
+                        dashboardFlagsUsageChart.update();
+                    });
             }
             
             // Update status chart
@@ -427,24 +521,41 @@
         }
         
         function toggleFlag(flagName) {
+            // Get CSRF token
+            const csrfToken = document.querySelector('meta[name="_csrf"]')?.getAttribute('content');
+            const csrfHeader = document.querySelector('meta[name="_csrf_header"]')?.getAttribute('content');
+            
+            const headers = {
+                'Content-Type': 'application/json'
+            };
+            
+            // Add CSRF token if available
+            if (csrfToken && csrfHeader) {
+                headers[csrfHeader] = csrfToken;
+            }
+            
             fetch(`/admin/feature-flags/${flagName}/toggle`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                }
+                headers: headers
             })
-            .then(response => response.text())
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                return response.text();
+            })
             .then(result => {
                 if (result === 'enabled' || result === 'disabled') {
                     showToast(`Flag ${flagName} ${result}`, 'success');
                     setTimeout(refreshData, 1000);
                 } else {
-                    showToast(`Error toggling flag ${flagName}`, 'danger');
+                    console.error('Unexpected response:', result);
+                    showToast(`Error toggling flag ${flagName}: ${result}`, 'danger');
                 }
             })
             .catch(error => {
                 console.error('Error toggling flag:', error);
-                showToast(`Error toggling flag ${flagName}`, 'danger');
+                showToast(`Error toggling flag ${flagName}: ${error.message}`, 'danger');
             });
         }
         

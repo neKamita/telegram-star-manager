@@ -323,6 +323,12 @@
                 </a>
             </li>
             <li>
+                <a href="/admin/activity-logs" class="nav-link" th:classappend="${#httpServletRequest != null and #strings.contains(#httpServletRequest.requestURI, '/activity-logs')} ? 'active' : ''">
+                    <i class="fas fa-stream"></i>
+                    Activity Logs
+                </a>
+            </li>
+            <li>
                 <a href="/admin/feature-flags" class="nav-link" th:classappend="${#httpServletRequest != null and #strings.contains(#httpServletRequest.requestURI, '/feature-flags')} ? 'active' : ''">
                     <i class="fas fa-toggle-on"></i>
                     Feature Flags

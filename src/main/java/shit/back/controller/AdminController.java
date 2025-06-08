@@ -14,14 +14,18 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import shit.back.entity.OrderEntity;
 import shit.back.entity.StarPackageEntity;
 import shit.back.entity.UserSessionEntity;
+import shit.back.entity.UserActivityLogEntity;
+import shit.back.entity.UserActivityLogEntity.ActionType;
 import shit.back.model.FeatureFlag;
 import shit.back.service.*;
 import shit.back.utils.FallbackUtils;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Enhanced admin controller with PostgreSQL integration
@@ -48,6 +52,9 @@ public class AdminController {
     
     @Autowired
     private UserSessionEnhancedService userSessionService;
+    
+    @Autowired
+    private UserActivityLogService activityLogService;
     
     /**
      * Main admin dashboard with comprehensive analytics
@@ -249,6 +256,123 @@ public class AdminController {
             log.error("Error loading monitoring page", e);
             model.addAttribute("error", "Ошибка загрузки страницы мониторинга: " + e.getMessage());
             return "admin/error";
+        }
+    }
+    
+    /**
+     * Activity Logs page with real-time user activity feed and payment status dashboard
+     */
+    @GetMapping("/activity-logs")
+    public String activityLogsPage(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "30") int size,
+            @RequestParam(defaultValue = "false") boolean showAll,
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) List<ActionType> actionTypes,
+            Model model) {
+        
+        try {
+            log.info("Loading activity logs page - showAll: {}, search: {}", showAll, search);
+            
+            // Prepare pagination
+            Pageable pageable = PageRequest.of(page, size, Sort.by("timestamp").descending());
+            
+            // Get filtered activities
+            Page<UserActivityLogEntity> activities = activityLogService.getActivitiesWithFilters(
+                showAll, null, null, actionTypes, search, pageable
+            );
+            
+            // Get recent activities for live feed
+            List<UserActivityLogEntity> recentActivities = activityLogService.getRecentActivities(1);
+            
+            // Get payment status dashboard
+            UserActivityLogService.PaymentStatusDashboard paymentDashboard = 
+                activityLogService.getPaymentStatusDashboard();
+            
+            // Get activity statistics
+            UserActivityLogService.ActivityStatistics stats = 
+                activityLogService.getActivityStatistics(24);
+            
+            model.addAttribute("title", "Activity Logs");
+            model.addAttribute("subtitle", "Real-time User Activity & Payment Status Dashboard");
+            model.addAttribute("activities", activities);
+            model.addAttribute("recentActivities", recentActivities);
+            model.addAttribute("paymentDashboard", paymentDashboard);
+            model.addAttribute("activityStats", stats);
+            model.addAttribute("showAll", showAll);
+            model.addAttribute("search", search);
+            model.addAttribute("actionTypes", ActionType.values());
+            model.addAttribute("selectedActionTypes", actionTypes);
+            model.addAttribute("currentPage", page);
+            model.addAttribute("totalPages", activities.getTotalPages());
+            
+            return "admin/activity-logs";
+        } catch (Exception e) {
+            log.error("Error loading activity logs page", e);
+            model.addAttribute("error", "Ошибка загрузки логов активности: " + e.getMessage());
+            return "admin/error";
+        }
+    }
+    
+    /**
+     * SSE endpoint for real-time activity stream
+     */
+    @GetMapping(value = "/api/activity-stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @ResponseBody
+    public SseEmitter activityStream() {
+        try {
+            String clientId = "admin-" + UUID.randomUUID().toString().substring(0, 8);
+            log.info("Creating SSE connection for activity stream: {}", clientId);
+            
+            return activityLogService.createSseConnection(clientId);
+        } catch (Exception e) {
+            log.error("Error creating activity stream SSE connection", e);
+            SseEmitter emitter = new SseEmitter(0L);
+            try {
+                emitter.completeWithError(e);
+            } catch (Exception ex) {
+                log.error("Error completing SSE with error", ex);
+            }
+            return emitter;
+        }
+    }
+    
+    /**
+     * API endpoint for payment status dashboard data
+     */
+    @GetMapping(value = "/api/payment-status-dashboard", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public UserActivityLogService.PaymentStatusDashboard getPaymentStatusDashboard() {
+        try {
+            return activityLogService.getPaymentStatusDashboard();
+        } catch (Exception e) {
+            log.error("Error getting payment status dashboard", e);
+            return UserActivityLogService.PaymentStatusDashboard.builder()
+                .completedPayments(List.of())
+                .pendingPayments(List.of())
+                .failedPayments(List.of())
+                .cancelledOrders(List.of())
+                .stuckUsers(List.of())
+                .build();
+        }
+    }
+    
+    /**
+     * API endpoint for activity statistics
+     */
+    @GetMapping(value = "/api/activity-statistics", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public UserActivityLogService.ActivityStatistics getActivityStatistics(
+            @RequestParam(defaultValue = "24") int hours) {
+        try {
+            return activityLogService.getActivityStatistics(hours);
+        } catch (Exception e) {
+            log.error("Error getting activity statistics for {} hours", hours, e);
+            return UserActivityLogService.ActivityStatistics.builder()
+                .totalActivities(0)
+                .keyActivities(0)
+                .periodHours(hours)
+                .build();
         }
     }
     

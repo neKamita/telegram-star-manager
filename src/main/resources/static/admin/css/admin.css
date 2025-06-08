@@ -264,7 +264,7 @@
 .flag-name {
     font-size: 1rem;
     font-weight: 600;
-    color: var(--dark-color);
+    color: white;
     letter-spacing: 0.025em;
     margin-bottom: 2px;
 }

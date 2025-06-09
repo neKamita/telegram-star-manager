@@ -287,4 +287,219 @@ public class OptimizedAdminController {
             );
         }
     }
+
+    // ==================== ADMIN PAGE ENDPOINTS ====================
+
+    /**
+     * Activity Logs page - фиксирует 404 ошибку
+     */
+    @GetMapping("/activity-logs")
+    public String activityLogs(Model model) {
+        long startTime = System.currentTimeMillis();
+        
+        try {
+            log.info("Loading activity logs page");
+            
+            model.addAttribute("title", "Activity Logs");
+            model.addAttribute("subtitle", "User Activity Monitoring");
+            model.addAttribute("pageSection", "activity-logs");
+            
+            // Основные данные загружаются через AJAX для оптимизации
+            model.addAttribute("logsCount", "Loading...");
+            model.addAttribute("progressiveLoading", true);
+            
+            long loadTime = System.currentTimeMillis() - startTime;
+            log.info("Activity logs page loaded in {}ms", loadTime);
+            
+            return "admin/activity-logs";
+            
+        } catch (Exception e) {
+            log.error("Error loading activity logs page", e);
+            model.addAttribute("error", "Failed to load activity logs");
+            return "admin/error";
+        }
+    }
+
+    /**
+     * Feature Flags page
+     */
+    @GetMapping("/feature-flags")
+    public String featureFlags(Model model) {
+        long startTime = System.currentTimeMillis();
+        
+        try {
+            log.info("Loading feature flags page");
+            
+            model.addAttribute("title", "Feature Flags");
+            model.addAttribute("subtitle", "Application Features Management");
+            model.addAttribute("pageSection", "feature-flags");
+            
+            // Минимальные данные для быстрой загрузки
+            try {
+                int totalFlags = featureFlagService.getAllFeatureFlags().size();
+                model.addAttribute("totalFlags", totalFlags);
+                model.addAttribute("cacheSize", featureFlagService.getCacheSize());
+            } catch (Exception e) {
+                log.warn("Error getting feature flags count: {}", e.getMessage());
+                model.addAttribute("totalFlags", 0);
+                model.addAttribute("cacheSize", 0);
+            }
+            
+            model.addAttribute("progressiveLoading", true);
+            
+            long loadTime = System.currentTimeMillis() - startTime;
+            log.info("Feature flags page loaded in {}ms", loadTime);
+            
+            return "admin/feature-flags";
+            
+        } catch (Exception e) {
+            log.error("Error loading feature flags page", e);
+            model.addAttribute("error", "Failed to load feature flags");
+            return "admin/error";
+        }
+    }
+
+    /**
+     * Feature Flag Form page (для создания/редактирования)
+     */
+    @GetMapping("/feature-flags/new")
+    public String newFeatureFlag(Model model) {
+        try {
+            log.info("Loading new feature flag form");
+            
+            model.addAttribute("title", "New Feature Flag");
+            model.addAttribute("subtitle", "Create Feature Flag");
+            model.addAttribute("pageSection", "feature-flags");
+            model.addAttribute("formMode", "create");
+            
+            return "admin/feature-flag-form";
+            
+        } catch (Exception e) {
+            log.error("Error loading feature flag form", e);
+            model.addAttribute("error", "Failed to load form");
+            return "admin/error";
+        }
+    }
+
+    /**
+     * Feature Flag Edit Form page
+     */
+    @GetMapping("/feature-flags/edit/{flagName}")
+    public String editFeatureFlag(@PathVariable String flagName, Model model) {
+        try {
+            log.info("Loading edit feature flag form for: {}", flagName);
+            
+            model.addAttribute("title", "Edit Feature Flag");
+            model.addAttribute("subtitle", "Edit: " + flagName);
+            model.addAttribute("pageSection", "feature-flags");
+            model.addAttribute("formMode", "edit");
+            model.addAttribute("flagName", flagName);
+            
+            return "admin/feature-flag-form";
+            
+        } catch (Exception e) {
+            log.error("Error loading feature flag edit form for {}", flagName, e);
+            model.addAttribute("error", "Failed to load edit form");
+            return "admin/error";
+        }
+    }
+
+    /**
+     * Monitoring page
+     */
+    @GetMapping("/monitoring")
+    public String monitoring(Model model) {
+        long startTime = System.currentTimeMillis();
+        
+        try {
+            log.info("Loading monitoring page");
+            
+            model.addAttribute("title", "System Monitoring");
+            model.addAttribute("subtitle", "Performance & Health Metrics");
+            model.addAttribute("pageSection", "monitoring");
+            
+            // Минимальные данные для быстрой загрузки
+            model.addAttribute("systemStatus", "Loading...");
+            model.addAttribute("memoryUsage", "Loading...");
+            model.addAttribute("progressiveLoading", true);
+            
+            long loadTime = System.currentTimeMillis() - startTime;
+            log.info("Monitoring page loaded in {}ms", loadTime);
+            
+            return "admin/monitoring";
+            
+        } catch (Exception e) {
+            log.error("Error loading monitoring page", e);
+            model.addAttribute("error", "Failed to load monitoring");
+            return "admin/error";
+        }
+    }
+
+    // ==================== API ENDPOINTS FOR PAGES ====================
+
+    /**
+     * API endpoint для загрузки activity logs данных
+     */
+    @GetMapping(value = "/api/activity-logs", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public CompletableFuture<Map<String, Object>> getActivityLogsData() {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                log.debug("Loading activity logs data via API");
+                
+                // Здесь будет логика получения activity logs
+                // Пока возвращаем заглушку для быстрого исправления 404
+                return Map.of(
+                    "success", true,
+                    "logs", java.util.Collections.emptyList(),
+                    "totalCount", 0,
+                    "message", "Activity logs data loaded",
+                    "timestamp", LocalDateTime.now()
+                );
+                
+            } catch (Exception e) {
+                log.error("Error loading activity logs data", e);
+                return Map.of(
+                    "success", false,
+                    "error", e.getMessage(),
+                    "logs", java.util.Collections.emptyList(),
+                    "timestamp", LocalDateTime.now()
+                );
+            }
+        });
+    }
+
+    /**
+     * API endpoint для загрузки monitoring данных
+     */
+    @GetMapping(value = "/api/monitoring", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public CompletableFuture<Map<String, Object>> getMonitoringData() {
+        return CompletableFuture.supplyAsync(() -> {
+            try {
+                log.debug("Loading monitoring data via API");
+                
+                AdminDashboardService.SystemHealth systemHealth = 
+                    cacheService.getSystemHealthAsync().join();
+                
+                AdminDashboardService.PerformanceMetrics performance = 
+                    cacheService.getPerformanceMetricsCached();
+                
+                return Map.of(
+                    "success", true,
+                    "systemHealth", systemHealth,
+                    "performance", performance,
+                    "timestamp", LocalDateTime.now()
+                );
+                
+            } catch (Exception e) {
+                log.error("Error loading monitoring data", e);
+                return Map.of(
+                    "success", false,
+                    "error", e.getMessage(),
+                    "timestamp", LocalDateTime.now()
+                );
+            }
+        });
+    }
 }

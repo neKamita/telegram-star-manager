@@ -109,3 +109,23 @@ et --hard 5ddb69c
 ACTIVE_USERS_COUNT_FIX.md
 ADMIN_404_FIX.md
 THYMELEAF_TEMPLATE_FIX.md
+ADMIN_PANEL_TEST_RESULTS.md
+
+### Local Development Files ###
+# H2 Database files
+data/
+*.db
+*.mv.db
+*.trace.db
+
+# IDE run configurations (keep only local development config)
+.idea/runConfigurations/*
+!.idea/runConfigurations/TelegramStarManager_Local.xml
+
+# Local development logs
+dev-logs/
+local-logs/
+LOCAL_TESTING_ARCHITECTURE.md
+FINAL_STATUS_REPORT.md
+DOCUMENTATION_INDEX.md
+.idea/runConfigurations/TelegramStarManager_Local.xml

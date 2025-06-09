@@ -74,7 +74,7 @@ public class HttpClientConfig {
         RequestConfig requestConfig = RequestConfig.custom()
                 .setConnectionRequestTimeout(Timeout.of(2, TimeUnit.SECONDS))
                 .setConnectTimeout(Timeout.of(5, TimeUnit.SECONDS))
-                .setResponseTimeout(Timeout.of(15, TimeUnit.SECONDS))
+                .setResponseTimeout(Timeout.of(45, TimeUnit.SECONDS)) // Увеличено для Koyeb
                 .build();
 
         CloseableHttpClient httpClient = HttpClients.custom()

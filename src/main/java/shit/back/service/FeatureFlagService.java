@@ -367,7 +367,8 @@ public class FeatureFlagService {
                 flag != null ? flag.getName() : "N/A");
             
         } catch (Exception e) {
-            log.error("Error publishing feature flag event: {}", e.getMessage());
+            // Логируем ошибку, но НЕ прерываем выполнение основной логики
+            log.warn("Failed to publish feature flag event '{}': {}", eventType, e.getMessage());
         }
     }
     

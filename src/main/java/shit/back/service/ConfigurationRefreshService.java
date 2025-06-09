@@ -3,6 +3,7 @@ package shit.back.service;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import shit.back.model.FeatureFlag;
@@ -17,6 +18,7 @@ import java.util.concurrent.CompletableFuture;
 public class ConfigurationRefreshService {
     
     @Autowired
+    @Lazy
     private FeatureFlagService featureFlagService;
     
     @Autowired

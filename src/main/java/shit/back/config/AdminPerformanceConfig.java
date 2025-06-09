@@ -33,10 +33,7 @@ public class AdminPerformanceConfig {
         
         ConcurrentMapCacheManager cacheManager = new ConcurrentMapCacheManager(
             "admin_performance",
-            "admin_recent_activity", 
-            "admin_dashboard_cache",
-            "admin_user_counts",
-            "admin_lightweight"
+            "admin_recent_activity"
         );
         cacheManager.setAllowNullValues(false);
         

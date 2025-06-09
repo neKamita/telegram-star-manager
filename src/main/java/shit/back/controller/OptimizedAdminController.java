@@ -31,56 +31,55 @@ public class OptimizedAdminController {
     private FeatureFlagService featureFlagService;
 
     /**
-     * Fast-loading main admin dashboard
-     * Loads minimal data first, then progressive enhancement via AJAX
+     * Ultra-fast admin dashboard - minimal memory footprint
+     * Only essential data, no heavy operations
      */
     @GetMapping
     public String adminDashboard(Model model) {
         long startTime = System.currentTimeMillis();
         
         try {
-            log.info("Loading optimized admin dashboard");
+            log.info("Loading ultra-lightweight admin dashboard");
             
-            // 1. Быстрая загрузка только самых важных данных
-            AdminDashboardCacheService.LightweightDashboardOverview lightweightData = 
-                cacheService.getLightweightDashboard();
-            
-            // 2. Минимальные feature flags данные
-            FallbackUtils.AdminData flagData = new FallbackUtils.AdminData(featureFlagService);
-            
-            // 3. Добавляем в модель для быстрого рендеринга
+            // Только самые критичные данные без тяжелых запросов
             model.addAttribute("title", "Admin Dashboard");
-            model.addAttribute("subtitle", "Optimized for Performance");
-            model.addAttribute("lightweightOverview", lightweightData);
+            model.addAttribute("subtitle", "Memory Optimized");
             
-            // Legacy feature flags (быстро)
-            model.addAttribute("totalFlags", flagData.totalFlags);
-            model.addAttribute("activeFlagsCount", flagData.activeFlagsCount);
-            model.addAttribute("cacheSize", flagData.cacheSize);
+            // Минимальные статические данные
+            model.addAttribute("totalUsersCount", "Loading...");
+            model.addAttribute("activeUsersCount", "Loading...");
+            model.addAttribute("onlineUsersCount", "Loading...");
             
-            // Простые счетчики для начального отображения
-            model.addAttribute("totalUsersCount", lightweightData.getTotalUsersCount());
-            model.addAttribute("activeUsersCount", lightweightData.getActiveUsersCount());
-            model.addAttribute("onlineUsersCount", lightweightData.getOnlineUsersCount());
+            // Feature flags - только счетчики
+            try {
+                int totalFlags = featureFlagService.getAllFeatureFlags().size();
+                model.addAttribute("totalFlags", totalFlags);
+                model.addAttribute("activeFlagsCount", totalFlags);
+                model.addAttribute("cacheSize", featureFlagService.getCacheSize());
+            } catch (Exception e) {
+                log.warn("Error getting feature flags: {}", e.getMessage());
+                model.addAttribute("totalFlags", 0);
+                model.addAttribute("activeFlagsCount", 0);
+                model.addAttribute("cacheSize", 0);
+            }
             
-            // Флаг для фронтенда - нужно ли загружать полные данные
+            // Полностью полагаемся на AJAX для данных
             model.addAttribute("needsProgressiveLoading", true);
-            model.addAttribute("dataLoaded", lightweightData.isDataLoaded());
+            model.addAttribute("dataLoaded", false);
+            model.addAttribute("ultraLightweight", true);
             
             long loadTime = System.currentTimeMillis() - startTime;
-            log.info("Optimized admin dashboard loaded in {}ms", loadTime);
-            
-            // Асинхронно прогреваем кэш для следующих запросов
-            cacheService.warmupCache();
+            log.info("Ultra-lightweight admin dashboard loaded in {}ms", loadTime);
             
             return "admin/dashboard";
             
         } catch (Exception e) {
-            log.error("Error loading optimized admin dashboard", e);
+            log.error("Error loading ultra-lightweight dashboard", e);
             
-            // Fallback к минимальным данным
+            // Минимальный fallback
             model.addAttribute("title", "Admin Dashboard");
-            model.addAttribute("error", "Partial data loading issue: " + e.getMessage());
+            model.addAttribute("subtitle", "Error Recovery Mode");
+            model.addAttribute("error", "Please refresh the page");
             model.addAttribute("totalUsersCount", 0);
             model.addAttribute("activeUsersCount", 0);
             model.addAttribute("onlineUsersCount", 0);

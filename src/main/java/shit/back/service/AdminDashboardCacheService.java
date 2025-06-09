@@ -25,9 +25,10 @@ public class AdminDashboardCacheService {
     @Autowired
     private AdminDashboardService adminDashboardService;
 
-    // In-memory cache для быстрого доступа
-    private final Map<String, CachedData> cache = new ConcurrentHashMap<>();
-    private static final long CACHE_TTL_MS = 300_000; // 5 minutes
+    // Минимальный кэш для экономии памяти на Koyeb
+    private final Map<String, CachedData> cache = new ConcurrentHashMap<>(8, 0.75f, 1);
+    private static final long CACHE_TTL_MS = 120_000; // 2 minutes (уменьшено)
+    private static final int MAX_CACHE_SIZE = 10; // Максимум 10 записей
 
     /**
      * Fast lightweight dashboard overview - only essential data
@@ -56,8 +57,8 @@ public class AdminDashboardCacheService {
                     .dataLoaded(true)
                     .build();
 
-            // Кэшируем результат
-            cache.put("lightweight_overview", new CachedData(overview));
+            // Кэшируем результат с проверкой размера
+            putWithSizeLimit("lightweight_overview", new CachedData(overview));
             log.debug("Cached lightweight dashboard overview");
             
             return overview;
@@ -243,6 +244,26 @@ public class AdminDashboardCacheService {
         } catch (Exception e) {
             log.warn("Error warming up cache: {}", e.getMessage());
         }
+    }
+
+    /**
+     * Добавляет элемент в кэш с ограничением размера для экономии памяти
+     */
+    private void putWithSizeLimit(String key, CachedData data) {
+        // Если кэш переполнен, удаляем старые записи
+        if (cache.size() >= MAX_CACHE_SIZE) {
+            // Удаляем самые старые записи
+            cache.entrySet().removeIf(entry -> entry.getValue().isExpired());
+            
+            // Если все еще переполнен, удаляем случайную запись
+            if (cache.size() >= MAX_CACHE_SIZE) {
+                String oldestKey = cache.keySet().iterator().next();
+                cache.remove(oldestKey);
+                log.debug("Removed cache entry '{}' due to size limit", oldestKey);
+            }
+        }
+        
+        cache.put(key, data);
     }
 
     // Внутренние классы для кэширования

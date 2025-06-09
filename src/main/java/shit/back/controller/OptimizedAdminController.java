@@ -229,6 +229,38 @@ public class OptimizedAdminController {
     }
 
     /**
+     * API endpoint для получения быстрых счетчиков пользователей
+     */
+    @GetMapping(value = "/api/users/count", produces = MediaType.APPLICATION_JSON_VALUE)
+    @ResponseBody
+    public Map<String, Object> getUsersCount() {
+        try {
+            log.debug("Getting users count via API");
+            AdminDashboardCacheService.LightweightDashboardOverview overview = 
+                cacheService.getLightweightDashboard();
+            
+            return Map.of(
+                "success", true,
+                "totalUsers", overview.getTotalUsersCount(),
+                "activeUsers", overview.getActiveUsersCount(),
+                "onlineUsers", overview.getOnlineUsersCount(),
+                "dataLoaded", overview.isDataLoaded(),
+                "timestamp", LocalDateTime.now()
+            );
+        } catch (Exception e) {
+            log.error("Error getting users count", e);
+            return Map.of(
+                "success", false,
+                "error", e.getMessage(),
+                "totalUsers", 0,
+                "activeUsers", 0,
+                "onlineUsers", 0,
+                "timestamp", LocalDateTime.now()
+            );
+        }
+    }
+
+    /**
      * Health check для admin панели
      */
     @GetMapping(value = "/api/health", produces = MediaType.APPLICATION_JSON_VALUE)

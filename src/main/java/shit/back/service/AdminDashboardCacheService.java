@@ -100,7 +100,7 @@ public class AdminDashboardCacheService {
     }
 
     /**
-     * Кэшированный счетчик пользователей
+     * Кэшированный счетчик пользователей - оптимизирован для быстрого ответа
      */
     private long getTotalUsersCountCached() {
         CachedData cached = cache.get("total_users_count");
@@ -109,13 +109,25 @@ public class AdminDashboardCacheService {
         }
 
         try {
-            // Простой быстрый запрос
-            long count = adminDashboardService.getDashboardOverview().getTotalUsersCount();
-            cache.put("total_users_count", new CachedData(count));
+            log.debug("Fetching total users count from service");
+            // Используем асинхронный вызов с timeout для быстрого ответа
+            CompletableFuture<Long> future = CompletableFuture.supplyAsync(() -> {
+                try {
+                    return adminDashboardService.getDashboardOverview().getTotalUsersCount();
+                } catch (Exception e) {
+                    log.warn("Async total users count failed: {}", e.getMessage());
+                    return 0L;
+                }
+            });
+            
+            // Ждем максимум 3 секунды
+            long count = future.get(3, java.util.concurrent.TimeUnit.SECONDS);
+            putWithSizeLimit("total_users_count", new CachedData(count));
             return count;
         } catch (Exception e) {
-            log.warn("Error getting total users count: {}", e.getMessage());
-            return 0;
+            log.warn("Error getting total users count, using fallback: {}", e.getMessage());
+            // Fallback - возвращаем приблизительное значение из кэша или 0
+            return getFallbackCount("total_users_count", 0L);
         }
     }
 
@@ -126,12 +138,22 @@ public class AdminDashboardCacheService {
         }
 
         try {
-            long count = adminDashboardService.getDashboardOverview().getActiveUsersCount();
-            cache.put("active_users_count", new CachedData(count));
+            log.debug("Fetching active users count from service");
+            CompletableFuture<Long> future = CompletableFuture.supplyAsync(() -> {
+                try {
+                    return adminDashboardService.getDashboardOverview().getActiveUsersCount();
+                } catch (Exception e) {
+                    log.warn("Async active users count failed: {}", e.getMessage());
+                    return 0L;
+                }
+            });
+            
+            long count = future.get(3, java.util.concurrent.TimeUnit.SECONDS);
+            putWithSizeLimit("active_users_count", new CachedData(count));
             return count;
         } catch (Exception e) {
-            log.warn("Error getting active users count: {}", e.getMessage());
-            return 0;
+            log.warn("Error getting active users count, using fallback: {}", e.getMessage());
+            return getFallbackCount("active_users_count", 0L);
         }
     }
 
@@ -142,13 +164,36 @@ public class AdminDashboardCacheService {
         }
 
         try {
-            long count = adminDashboardService.getDashboardOverview().getOnlineUsersCount();
-            cache.put("online_users_count", new CachedData(count));
+            log.debug("Fetching online users count from service");
+            CompletableFuture<Long> future = CompletableFuture.supplyAsync(() -> {
+                try {
+                    return adminDashboardService.getDashboardOverview().getOnlineUsersCount();
+                } catch (Exception e) {
+                    log.warn("Async online users count failed: {}", e.getMessage());
+                    return 0L;
+                }
+            });
+            
+            long count = future.get(3, java.util.concurrent.TimeUnit.SECONDS);
+            putWithSizeLimit("online_users_count", new CachedData(count));
             return count;
         } catch (Exception e) {
-            log.warn("Error getting online users count: {}", e.getMessage());
-            return 0;
+            log.warn("Error getting online users count, using fallback: {}", e.getMessage());
+            return getFallbackCount("online_users_count", 0L);
         }
+    }
+
+    /**
+     * Fallback метод для получения приблизительного значения из старого кэша
+     */
+    private long getFallbackCount(String cacheKey, long defaultValue) {
+        CachedData cached = cache.get(cacheKey);
+        if (cached != null) {
+            // Используем устаревшие данные как fallback
+            log.debug("Using stale cache data for {}", cacheKey);
+            return (Long) cached.data;
+        }
+        return defaultValue;
     }
 
     /**

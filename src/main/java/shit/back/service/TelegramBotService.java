@@ -14,6 +14,7 @@ import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import shit.back.handler.CallbackHandler;
 import shit.back.handler.MessageHandler;
+import shit.back.entity.UserActivityLogEntity.ActionType;
 
 import jakarta.annotation.PostConstruct;
 
@@ -36,6 +37,9 @@ public class TelegramBotService extends TelegramLongPollingBot {
     
     @Autowired
     private TelegramBotsApi telegramBotsApi;
+    
+    @Autowired
+    private UserActivityLogService activityLogService;
     
     // Status tracking fields
     @Getter
@@ -119,25 +123,81 @@ public class TelegramBotService extends TelegramLongPollingBot {
     }
     
     private void handleTextMessage(Update update) {
+        Long userId = update.getMessage().getFrom().getId();
+        String messageText = update.getMessage().getText();
+        
         try {
+            // Log incoming message
+            String username = update.getMessage().getFrom().getUserName();
+            String firstName = update.getMessage().getFrom().getFirstName();
+            String lastName = update.getMessage().getFrom().getLastName();
+            
+            activityLogService.logUserActivity(
+                userId, username, firstName, lastName,
+                ActionType.USER_INPUT_RECEIVED, 
+                "User sent message: " + (messageText.length() > 50 ? messageText.substring(0, 50) + "..." : messageText)
+            );
+            
             SendMessage message = messageHandler.handleMessage(update.getMessage());
             execute(message);
-            log.info("Sent message to user: {}", update.getMessage().getFrom().getId());
+            
+            // Log outgoing message
+            activityLogService.logUserActivity(
+                userId, username, firstName, lastName,
+                ActionType.BOT_MESSAGE_SENT, 
+                "Bot replied to user message"
+            );
+            
+            log.info("Sent message to user: {}", userId);
         } catch (TelegramApiException e) {
+            // Log error
+            String username = update.getMessage().getFrom().getUserName();
+            String firstName = update.getMessage().getFrom().getFirstName();
+            String lastName = update.getMessage().getFrom().getLastName();
+            
+            activityLogService.logUserActivity(
+                userId, username, firstName, lastName,
+                ActionType.PAYMENT_FAILED, 
+                "Failed to send message: " + e.getMessage()
+            );
             log.error("Error sending message: {}", e.getMessage(), e);
         }
     }
     
     private void handleCallbackQuery(Update update) {
+        Long userId = update.getCallbackQuery().getFrom().getId();
+        String callbackData = update.getCallbackQuery().getData();
+        
         try {
+            // Log callback interaction
+            String username = update.getCallbackQuery().getFrom().getUserName();
+            String firstName = update.getCallbackQuery().getFrom().getFirstName();
+            String lastName = update.getCallbackQuery().getFrom().getLastName();
+            
+            activityLogService.logUserActivity(
+                userId, username, firstName, lastName,
+                ActionType.CALLBACK_RECEIVED, 
+                "User clicked button: " + callbackData
+            );
+            
             EditMessageText editMessage = callbackHandler.handleCallback(update.getCallbackQuery());
             execute(editMessage);
             
             // Отвечаем на callback query
             answerCallbackQuery(update.getCallbackQuery().getId());
             
-            log.info("Handled callback from user: {}", update.getCallbackQuery().getFrom().getId());
+            log.info("Handled callback from user: {}", userId);
         } catch (TelegramApiException e) {
+            // Log callback error
+            String username = update.getCallbackQuery().getFrom().getUserName();
+            String firstName = update.getCallbackQuery().getFrom().getFirstName();
+            String lastName = update.getCallbackQuery().getFrom().getLastName();
+            
+            activityLogService.logUserActivity(
+                userId, username, firstName, lastName,
+                ActionType.PAYMENT_FAILED, 
+                "Failed to handle callback: " + e.getMessage()
+            );
             log.error("Error handling callback: {}", e.getMessage(), e);
         }
     }

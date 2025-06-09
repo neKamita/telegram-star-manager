@@ -8,6 +8,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import shit.back.entity.OrderEntity;
+import shit.back.entity.UserActivityLogEntity.ActionType;
 import shit.back.model.Order;
 import shit.back.repository.OrderJpaRepository;
 
@@ -26,6 +27,9 @@ public class OrderService {
     
     @Autowired
     private OrderJpaRepository orderRepository;
+    
+    @Autowired
+    private UserActivityLogService activityLogService;
     
     /**
      * Create a new order
@@ -46,6 +50,20 @@ public class OrderService {
         entity.setPaymentMethod("TELEGRAM_STARS");
         
         OrderEntity saved = orderRepository.save(entity);
+        
+        // Log order creation activity
+        activityLogService.logOrderActivity(
+                saved.getUserId(),
+                saved.getUsername(),
+                null, null, // firstName, lastName не доступны
+                ActionType.ORDER_CREATED,
+                "Created order for " + saved.getStarCount() + "⭐ package",
+                saved.getOrderId(),
+                saved.getFinalAmount(),
+                saved.getStarCount(),
+                saved.getPaymentMethod()
+        );
+        
         log.info("Order created with ID: {}", saved.getOrderId());
         return saved;
     }
@@ -59,15 +77,46 @@ public class OrderService {
         Optional<OrderEntity> orderOpt = orderRepository.findById(orderId);
         if (orderOpt.isPresent()) {
             OrderEntity order = orderOpt.get();
+            OrderEntity.OrderStatus previousStatus = order.getStatus();
             order.updateStatus(status);
             
             OrderEntity updated = orderRepository.save(order);
+            
+            // Log order status change activity
+            ActionType actionType = mapOrderStatusToActionType(status);
+            String description = String.format("Order status changed from %s to %s", previousStatus, status);
+            
+            activityLogService.logOrderActivity(
+                    updated.getUserId(),
+                    updated.getUsername(),
+                    null, null,
+                    actionType,
+                    description,
+                    updated.getOrderId(),
+                    updated.getFinalAmount(),
+                    updated.getStarCount(),
+                    updated.getPaymentMethod()
+            );
+            
             log.info("Order {} status updated to {}", orderId, status);
             return Optional.of(updated);
         }
         
         log.warn("Order {} not found for status update", orderId);
         return Optional.empty();
+    }
+    
+    /**
+     * Map order status to appropriate action type for logging
+     */
+    private ActionType mapOrderStatusToActionType(OrderEntity.OrderStatus status) {
+        return switch (status) {
+            case AWAITING_PAYMENT -> ActionType.PAYMENT_INITIATED;
+            case COMPLETED -> ActionType.PAYMENT_COMPLETED;
+            case FAILED -> ActionType.PAYMENT_FAILED;
+            case CANCELLED -> ActionType.ORDER_CANCELLED;
+            default -> ActionType.STATE_CHANGED;
+        };
     }
     
     /**

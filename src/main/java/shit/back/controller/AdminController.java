@@ -32,7 +32,7 @@ import java.util.UUID;
  */
 @Slf4j
 @Controller
-@RequestMapping("/admin")
+@RequestMapping("/admin-legacy")
 public class AdminController {
     
     @Autowired

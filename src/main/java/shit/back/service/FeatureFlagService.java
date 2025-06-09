@@ -39,8 +39,11 @@ public class FeatureFlagService {
         try {
             log.info("Initializing feature flags cache...");
             refreshCache();
+            log.info("Feature flags cache initialized successfully");
         } catch (Exception e) {
-            log.error("Failed to initialize feature flags cache: {}", e.getMessage());
+            log.error("Failed to initialize feature flags cache: {}", e.getMessage(), e);
+            // НЕ бросаем исключение - продолжаем работу с пустым кэшем
+            log.warn("Application will continue with empty feature flags cache");
         }
     }
     
@@ -296,15 +299,23 @@ public class FeatureFlagService {
     
     public void refreshCache() {
         log.info("Refreshing feature flags cache...");
-        flagCache.clear();
         
-        List<FeatureFlag> allFlags = getAllFeatureFlags();
-        for (FeatureFlag flag : allFlags) {
-            flagCache.put(flag.getName(), flag);
+        try {
+            flagCache.clear();
+            
+            List<FeatureFlag> allFlags = getAllFeatureFlags();
+            for (FeatureFlag flag : allFlags) {
+                flagCache.put(flag.getName(), flag);
+            }
+            
+            log.info("Feature flags cache refreshed. Loaded {} flags", allFlags.size());
+            publishFeatureFlagEvent("CACHE_REFRESHED", null);
+            
+        } catch (Exception e) {
+            log.error("Failed to refresh feature flags cache: {}", e.getMessage(), e);
+            // НЕ бросаем исключение - просто логируем ошибку
+            log.warn("Feature flags cache refresh failed, continuing with existing cache");
         }
-        
-        log.info("Feature flags cache refreshed. Loaded {} flags", allFlags.size());
-        publishFeatureFlagEvent("CACHE_REFRESHED", null);
     }
     
     public void refreshFlag(String flagName) {

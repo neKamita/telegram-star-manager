@@ -76,7 +76,7 @@ public class AdminDashboardCacheService {
     /**
      * Асинхронная загрузка полных данных dashboard
      */
-    @Async
+    @Async("adminAsyncExecutor")
     public CompletableFuture<DashboardOverview> getFullDashboardAsync() {
         log.debug("Loading full dashboard data asynchronously");
         

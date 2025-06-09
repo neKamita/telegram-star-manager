@@ -7,6 +7,7 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -44,7 +45,9 @@ public class BotSelfTestService {
     @Value("${telegram.self-test.delay-seconds:10}")
     private int selfTestDelay;
 
-    private final RestTemplate restTemplate = new RestTemplate();
+    @Autowired
+    @Qualifier("selfTestRestTemplate")
+    private RestTemplate restTemplate;
 
     /**
      * Автоматический запуск self-test после инициализации приложения

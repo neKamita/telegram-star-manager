@@ -35,7 +35,7 @@ public class AdminDashboardCacheService {
      */
     public LightweightDashboardOverview getLightweightDashboard() {
         log.debug("Getting lightweight dashboard overview");
-        
+
         try {
             // Используем кэшированные данные если доступны
             CachedData cachedOverview = cache.get("lightweight_overview");
@@ -48,7 +48,7 @@ public class AdminDashboardCacheService {
             long totalUsers = getTotalUsersCountCached();
             long activeUsers = getActiveUsersCountCached();
             long onlineUsers = getOnlineUsersCountCached();
-            
+
             LightweightDashboardOverview overview = LightweightDashboardOverview.builder()
                     .totalUsersCount(totalUsers)
                     .activeUsersCount(activeUsers)
@@ -60,7 +60,7 @@ public class AdminDashboardCacheService {
             // Кэшируем результат с проверкой размера
             putWithSizeLimit("lightweight_overview", new CachedData(overview));
             log.debug("Cached lightweight dashboard overview");
-            
+
             return overview;
         } catch (Exception e) {
             log.warn("Error getting lightweight dashboard, returning minimal data: {}", e.getMessage());
@@ -80,7 +80,7 @@ public class AdminDashboardCacheService {
     @Async("adminAsyncExecutor")
     public CompletableFuture<DashboardOverview> getFullDashboardAsync() {
         log.debug("Loading full dashboard data asynchronously");
-        
+
         try {
             CachedData cachedData = cache.get("full_dashboard");
             if (cachedData != null && !cachedData.isExpired()) {
@@ -90,7 +90,7 @@ public class AdminDashboardCacheService {
 
             DashboardOverview overview = adminDashboardService.getDashboardOverview();
             cache.put("full_dashboard", new CachedData(overview));
-            
+
             log.debug("Full dashboard loaded and cached");
             return CompletableFuture.completedFuture(overview);
         } catch (Exception e) {
@@ -111,36 +111,34 @@ public class AdminDashboardCacheService {
 
         try {
             log.debug("Fetching ALL user counts in single batch request");
-            
+
             // Используем BATCH запрос вместо множественных отдельных запросов
             CompletableFuture<UserCountsBatch> future = CompletableFuture.supplyAsync(() -> {
                 try {
                     // ОДИН запрос вместо трех - ключевая оптимизация
-                    AdminDashboardService.DashboardOverview overview = 
-                        adminDashboardService.getDashboardOverview();
-                    
+                    AdminDashboardService.DashboardOverview overview = adminDashboardService.getDashboardOverview();
+
                     return new UserCountsBatch(
-                        overview.getTotalUsersCount(),
-                        overview.getActiveUsersCount(), 
-                        overview.getOnlineUsersCount()
-                    );
+                            overview.getTotalUsersCount(),
+                            overview.getActiveUsersCount(),
+                            overview.getOnlineUsersCount());
                 } catch (Exception e) {
                     log.warn("Batch user counts failed: {}", e.getMessage());
                     return new UserCountsBatch(0L, 0L, 0L);
                 }
             });
-            
+
             // Timeout для быстрого ответа
             UserCountsBatch batch = future.get(5, java.util.concurrent.TimeUnit.SECONDS);
-            
+
             // Кэшируем батч результат
             putWithSizeLimit("users_counts_batch", new CachedData(batch));
-            
+
             // Также кэшируем отдельные счетчики для обратной совместимости
             putWithSizeLimit("total_users_count", new CachedData(batch.totalUsers));
             putWithSizeLimit("active_users_count", new CachedData(batch.activeUsers));
             putWithSizeLimit("online_users_count", new CachedData(batch.onlineUsers));
-            
+
             return batch;
         } catch (Exception e) {
             log.warn("Error getting batch user counts, using fallback: {}", e.getMessage());
@@ -175,12 +173,12 @@ public class AdminDashboardCacheService {
             log.debug("Using stale batch cache data");
             return (UserCountsBatch) cached.data;
         }
-        
+
         // Пытаемся получить из отдельных кэшей
         long total = getFallbackCount("total_users_count", 0L);
         long active = getFallbackCount("active_users_count", 0L);
         long online = getFallbackCount("online_users_count", 0L);
-        
+
         return new UserCountsBatch(total, active, online);
     }
 
@@ -234,7 +232,7 @@ public class AdminDashboardCacheService {
         log.debug("Getting cached recent activity");
         try {
             RecentActivity fullActivity = adminDashboardService.getRecentActivity();
-            
+
             // Упрощаем данные для быстрой загрузки
             return SimplifiedRecentActivity.builder()
                     .totalRecentOrders(fullActivity.getTotalRecentOrders())
@@ -263,11 +261,10 @@ public class AdminDashboardCacheService {
         } catch (Exception e) {
             log.error("Error getting system health: {}", e.getMessage());
             return CompletableFuture.completedFuture(
-                SystemHealth.builder()
-                    .healthScore(50)
-                    .lastChecked(LocalDateTime.now())
-                    .build()
-            );
+                    SystemHealth.builder()
+                            .healthScore(50)
+                            .lastChecked(LocalDateTime.now())
+                            .build());
         }
     }
 
@@ -275,7 +272,7 @@ public class AdminDashboardCacheService {
      * Очистка кэша каждые 5 минут
      */
     @Scheduled(fixedRate = 300000)
-    @CacheEvict(value = {"admin_performance", "admin_recent_activity"}, allEntries = true)
+    @CacheEvict(value = { "admin_performance", "admin_recent_activity" }, allEntries = true)
     public void clearCache() {
         log.debug("Clearing admin dashboard cache");
         cache.entrySet().removeIf(entry -> entry.getValue().isExpired());
@@ -285,7 +282,7 @@ public class AdminDashboardCacheService {
     /**
      * Принудительная очистка всего кэша
      */
-    @CacheEvict(value = {"admin_performance", "admin_recent_activity"}, allEntries = true)
+    @CacheEvict(value = { "admin_performance", "admin_recent_activity" }, allEntries = true)
     public void clearAllCache() {
         cache.clear();
         log.info("Cleared all admin dashboard cache");
@@ -315,7 +312,7 @@ public class AdminDashboardCacheService {
         if (cache.size() >= MAX_CACHE_SIZE) {
             // Удаляем самые старые записи
             cache.entrySet().removeIf(entry -> entry.getValue().isExpired());
-            
+
             // Если все еще переполнен, удаляем случайную запись
             if (cache.size() >= MAX_CACHE_SIZE) {
                 String oldestKey = cache.keySet().iterator().next();
@@ -323,7 +320,7 @@ public class AdminDashboardCacheService {
                 log.debug("Removed cache entry '{}' due to size limit", oldestKey);
             }
         }
-        
+
         cache.put(key, data);
     }
 
@@ -363,5 +360,121 @@ public class AdminDashboardCacheService {
         private int totalOnlineUsers;
         private int totalTodaysOrders;
         private LocalDateTime lastUpdated;
+    }
+
+    /**
+     * КРИТИЧЕСКАЯ ОПТИМИЗАЦИЯ: Единый кэшированный метод для полных данных
+     * Dashboard
+     * Объединяет все 5+ вызовов к разным сервисам в один кэшированный результат
+     * Решает проблему множественных запросов на Dashboard странице
+     */
+    @Cacheable(value = "full_dashboard_data", unless = "#result == null")
+    public FullDashboardDataCached getFullDashboardDataCached() {
+        log.debug("Getting FULL dashboard data with unified caching");
+
+        try {
+            long startTime = System.currentTimeMillis();
+
+            // Используем CompletableFuture для параллельного выполнения запросов
+            CompletableFuture<AdminDashboardService.DashboardOverview> overviewFuture = CompletableFuture
+                    .supplyAsync(() -> {
+                        try {
+                            return adminDashboardService.getDashboardOverview();
+                        } catch (Exception e) {
+                            log.warn("Error getting dashboard overview: {}", e.getMessage());
+                            return null;
+                        }
+                    });
+
+            CompletableFuture<AdminDashboardService.PerformanceMetrics> performanceFuture = CompletableFuture
+                    .supplyAsync(() -> {
+                        try {
+                            return adminDashboardService.getPerformanceMetrics();
+                        } catch (Exception e) {
+                            log.warn("Error getting performance metrics: {}", e.getMessage());
+                            return AdminDashboardService.PerformanceMetrics.builder().build();
+                        }
+                    });
+
+            CompletableFuture<AdminDashboardService.RecentActivity> recentActivityFuture = CompletableFuture
+                    .supplyAsync(() -> {
+                        try {
+                            return adminDashboardService.getRecentActivity();
+                        } catch (Exception e) {
+                            log.warn("Error getting recent activity: {}", e.getMessage());
+                            return AdminDashboardService.RecentActivity.builder().build();
+                        }
+                    });
+
+            CompletableFuture<AdminDashboardService.SystemHealth> systemHealthFuture = CompletableFuture
+                    .supplyAsync(() -> {
+                        try {
+                            return adminDashboardService.getSystemHealth();
+                        } catch (Exception e) {
+                            log.warn("Error getting system health: {}", e.getMessage());
+                            return AdminDashboardService.SystemHealth.builder()
+                                    .healthScore(50)
+                                    .lastChecked(LocalDateTime.now())
+                                    .build();
+                        }
+                    });
+
+            // Ожидаем завершения всех запросов с таймаутом
+            AdminDashboardService.DashboardOverview overview = overviewFuture.get(10,
+                    java.util.concurrent.TimeUnit.SECONDS);
+            AdminDashboardService.PerformanceMetrics performance = performanceFuture.get(5,
+                    java.util.concurrent.TimeUnit.SECONDS);
+            AdminDashboardService.RecentActivity recentActivity = recentActivityFuture.get(5,
+                    java.util.concurrent.TimeUnit.SECONDS);
+            AdminDashboardService.SystemHealth systemHealth = systemHealthFuture.get(5,
+                    java.util.concurrent.TimeUnit.SECONDS);
+
+            long executionTime = System.currentTimeMillis() - startTime;
+
+            FullDashboardDataCached result = FullDashboardDataCached.builder()
+                    .overview(overview)
+                    .performance(performance)
+                    .recentActivity(recentActivity)
+                    .systemHealth(systemHealth)
+                    .lastUpdated(LocalDateTime.now())
+                    .executionTimeMs(executionTime)
+                    .dataComplete(overview != null)
+                    .build();
+
+            log.debug("Full dashboard data cached successfully in {}ms", executionTime);
+            return result;
+
+        } catch (Exception e) {
+            log.error("Error getting full dashboard data: {}", e.getMessage(), e);
+
+            // Возвращаем минимальный fallback результат
+            return FullDashboardDataCached.builder()
+                    .overview(null)
+                    .performance(AdminDashboardService.PerformanceMetrics.builder().build())
+                    .recentActivity(AdminDashboardService.RecentActivity.builder().build())
+                    .systemHealth(AdminDashboardService.SystemHealth.builder()
+                            .healthScore(25)
+                            .lastChecked(LocalDateTime.now())
+                            .build())
+                    .lastUpdated(LocalDateTime.now())
+                    .executionTimeMs(0L)
+                    .dataComplete(false)
+                    .build();
+        }
+    }
+
+    /**
+     * DTO для полных кэшированных данных Dashboard
+     */
+    @lombok.Data
+    @lombok.Builder
+    public static class FullDashboardDataCached {
+        private AdminDashboardService.DashboardOverview overview;
+        private AdminDashboardService.PerformanceMetrics performance;
+        private AdminDashboardService.RecentActivity recentActivity;
+        private AdminDashboardService.SystemHealth systemHealth;
+        private LocalDateTime lastUpdated;
+        private Long executionTimeMs;
+        private boolean dataComplete;
     }
 }

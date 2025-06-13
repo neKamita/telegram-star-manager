@@ -14,7 +14,6 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import shit.back.entity.OrderEntity;
 import shit.back.entity.UserActivityLogEntity.ActionType;
 import shit.back.security.RateLimitService;
@@ -99,8 +98,8 @@ public class AdminOrdersController {
             // Получение заказов с фильтрами
             Page<OrderEntity> orders = getFilteredOrders(status, search, startDate, endDate, pageable);
 
-            // Получение статистики заказов
-            OrderService.OrderStatistics orderStats = orderService.getOrderStatistics();
+            // Получение ОПТИМИЗИРОВАННОЙ статистики заказов (один SQL запрос вместо 9+)
+            OrderService.OrderStatistics orderStats = orderService.getOrderStatisticsOptimized();
 
             // Статусы для фильтра
             List<OrderEntity.OrderStatus> availableStatuses = Arrays.asList(OrderEntity.OrderStatus.values());
@@ -261,7 +260,7 @@ public class AdminOrdersController {
 
             // Получение данных
             Page<OrderEntity> orders = getFilteredOrders(status, search, startDate, endDate, pageable);
-            OrderService.OrderStatistics orderStats = orderService.getOrderStatistics();
+            OrderService.OrderStatistics orderStats = orderService.getOrderStatisticsOptimized();
 
             // Формирование ответа
             Map<String, Object> response = new HashMap<>();
@@ -573,45 +572,112 @@ public class AdminOrdersController {
     }
 
     /**
-     * Безопасная проверка администраторского доступа через API ключ
-     * Использует криптографически стойкое сравнение для предотвращения timing
-     * attacks
+     * Безопасная проверка администраторского доступа с поддержкой веб и API
+     * запросов
+     * - Веб-запросы (из браузера) проходят без API ключа
+     * - API-запросы требуют X-Admin-API-Key заголовок
      */
     private boolean isValidAdminRequest(HttpServletRequest request) {
         String remoteAddr = request.getRemoteAddr();
 
         try {
-            // Получаем API ключ из конфигурации
-            String expectedApiKey = securityProperties.getApi().getKey();
+            // Определяем тип запроса на основе заголовков
+            boolean isApiRequest = isApiRequest(request);
 
-            // Проверяем, что API ключ настроен
-            if (expectedApiKey == null || expectedApiKey.trim().isEmpty()) {
-                log.error("Admin API key is not configured. Set API_SECRET_KEY environment variable");
-                return false;
-            }
-
-            // Получаем API ключ из заголовка запроса
-            String providedApiKey = request.getHeader("X-Admin-API-Key");
-
-            // Проверяем наличие ключа в запросе
-            if (providedApiKey == null || providedApiKey.trim().isEmpty()) {
-                log.warn("Admin access attempt without API key from IP: {}", remoteAddr);
-                return false;
-            }
-
-            // Используем constant-time сравнение для предотвращения timing attacks
-            boolean isValid = constantTimeEquals(expectedApiKey, providedApiKey);
-
-            if (isValid) {
-                log.debug("Valid admin API key provided from IP: {}", remoteAddr);
-                return true;
+            if (isApiRequest) {
+                // Для API запросов требуем API ключ
+                return validateApiKey(request, remoteAddr);
             } else {
-                log.warn("Invalid admin API key provided from IP: {}", remoteAddr);
-                return false;
+                // Для веб-запросов (браузерных) разрешаем доступ без API ключа
+                log.debug("Web request (browser) allowed from IP: {}", remoteAddr);
+                return true;
             }
 
         } catch (Exception e) {
             log.error("Error during admin authentication from IP: {}", remoteAddr, e);
+            return false;
+        }
+    }
+
+    /**
+     * Определяет, является ли запрос API-запросом на основе заголовков
+     */
+    private boolean isApiRequest(HttpServletRequest request) {
+        String acceptHeader = request.getHeader("Accept");
+        String contentType = request.getHeader("Content-Type");
+        String userAgent = request.getHeader("User-Agent");
+        String apiKeyHeader = request.getHeader("X-Admin-API-Key");
+        String requestUri = request.getRequestURI();
+
+        // Если присутствует API ключ, считаем это API запросом
+        if (apiKeyHeader != null && !apiKeyHeader.trim().isEmpty()) {
+            return true;
+        }
+
+        // Если URL содержит /api/, считаем это API запросом
+        if (requestUri != null && requestUri.contains("/api/")) {
+            return true;
+        }
+
+        // Если Accept заголовок содержит только application/json, считаем это API
+        // запросом
+        if (acceptHeader != null &&
+                acceptHeader.contains("application/json") &&
+                !acceptHeader.contains("text/html")) {
+            return true;
+        }
+
+        // Если Content-Type это application/json (для POST/PUT запросов), считаем это
+        // API запросом
+        if (contentType != null && contentType.contains("application/json")) {
+            return true;
+        }
+
+        // Если User-Agent отсутствует или не содержит признаков браузера, считаем это
+        // API запросом
+        if (userAgent == null ||
+                (!userAgent.contains("Mozilla") &&
+                        !userAgent.contains("Chrome") &&
+                        !userAgent.contains("Safari") &&
+                        !userAgent.contains("Firefox") &&
+                        !userAgent.contains("Edge"))) {
+            return true;
+        }
+
+        // Во всех остальных случаях считаем это веб-запросом (браузерным)
+        return false;
+    }
+
+    /**
+     * Валидация API ключа для API запросов
+     */
+    private boolean validateApiKey(HttpServletRequest request, String remoteAddr) {
+        // Получаем API ключ из конфигурации
+        String expectedApiKey = securityProperties.getApi().getKey();
+
+        // Проверяем, что API ключ настроен
+        if (expectedApiKey == null || expectedApiKey.trim().isEmpty()) {
+            log.error("Admin API key is not configured. Set API_SECRET_KEY environment variable");
+            return false;
+        }
+
+        // Получаем API ключ из заголовка запроса
+        String providedApiKey = request.getHeader("X-Admin-API-Key");
+
+        // Проверяем наличие ключа в API запросе
+        if (providedApiKey == null || providedApiKey.trim().isEmpty()) {
+            log.warn("API request without API key from IP: {}", remoteAddr);
+            return false;
+        }
+
+        // Используем constant-time сравнение для предотвращения timing attacks
+        boolean isValid = constantTimeEquals(expectedApiKey, providedApiKey);
+
+        if (isValid) {
+            log.debug("Valid admin API key provided from IP: {}", remoteAddr);
+            return true;
+        } else {
+            log.warn("Invalid admin API key provided from IP: {}", remoteAddr);
             return false;
         }
     }

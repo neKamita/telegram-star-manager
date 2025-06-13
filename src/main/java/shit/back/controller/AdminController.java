@@ -32,50 +32,74 @@ import java.util.UUID;
 @Controller
 @RequestMapping("/admin-legacy")
 public class AdminController {
-    
+
     @Autowired
     private AdminDashboardService adminDashboardService;
-    
+
+    @Autowired
+    private AdminDashboardCacheService adminDashboardCacheService;
+
     @Autowired
     private OrderService orderService;
-    
+
     @Autowired
     private StarPackageService starPackageService;
-    
+
     @Autowired
     private UserSessionEnhancedService userSessionService;
-    
+
     @Autowired
     private UserActivityLogService activityLogService;
-    
+
     /**
      * Main admin dashboard with comprehensive analytics (Feature Flags removed)
      */
     @GetMapping
     public String adminDashboard(Model model) {
         try {
-            log.info("Loading enhanced admin dashboard");
-            
-            // Get comprehensive dashboard data
-            AdminDashboardService.DashboardOverview overview = adminDashboardService.getDashboardOverview();
-            AdminDashboardService.PerformanceMetrics performance = adminDashboardService.getPerformanceMetrics();
-            AdminDashboardService.RecentActivity recentActivity = adminDashboardService.getRecentActivity();
-            AdminDashboardService.CombinedRecentActivity combinedActivity = adminDashboardService.getCombinedRecentActivity();
-            AdminDashboardService.SystemHealth systemHealth = adminDashboardService.getSystemHealth();
-            
+            log.info("Loading enhanced admin dashboard with OPTIMIZED caching");
+
+            // КРИТИЧЕСКАЯ ОПТИМИЗАЦИЯ: Используем единый кэшированный метод вместо 5+
+            // отдельных вызовов
+            AdminDashboardCacheService.FullDashboardDataCached fullData = adminDashboardCacheService
+                    .getFullDashboardDataCached();
+
+            // Lightweight fallback для быстрой загрузки, если full data недоступна
+            AdminDashboardCacheService.LightweightDashboardOverview lightweightOverview = null;
+            if (!fullData.isDataComplete() || fullData.getOverview() == null) {
+                log.warn("Full dashboard data incomplete, using lightweight fallback");
+                lightweightOverview = adminDashboardCacheService.getLightweightDashboard();
+            }
+
             model.addAttribute("title", "Enhanced Dashboard");
-            model.addAttribute("subtitle", "PostgreSQL-powered Analytics");
-            model.addAttribute("overview", overview);
-            model.addAttribute("performance", performance);
-            model.addAttribute("recentActivity", recentActivity);
-            model.addAttribute("combinedActivity", combinedActivity);
-            model.addAttribute("systemHealth", systemHealth);
-            
-            // Add user count directly for initial page load
-            model.addAttribute("activeUsersCount", overview.getActiveUsersCount());
-            model.addAttribute("onlineUsersCount", overview.getOnlineUsersCount());
-            model.addAttribute("totalUsersCount", overview.getTotalUsersCount());
-            
+            model.addAttribute("subtitle", "PostgreSQL-powered Analytics (Optimized)");
+
+            // Используем данные из единого кэшированного результата
+            model.addAttribute("overview",
+                    fullData.getOverview() != null ? fullData.getOverview() : lightweightOverview);
+            model.addAttribute("performance", fullData.getPerformance());
+            model.addAttribute("recentActivity", fullData.getRecentActivity());
+            model.addAttribute("systemHealth", fullData.getSystemHealth());
+            model.addAttribute("executionTime", fullData.getExecutionTimeMs());
+            model.addAttribute("dataComplete", fullData.isDataComplete());
+            model.addAttribute("lastUpdated", fullData.getLastUpdated());
+
+            // Add user count - используем либо full data, либо lightweight fallback
+            if (fullData.getOverview() != null) {
+                model.addAttribute("activeUsersCount", fullData.getOverview().getActiveUsersCount());
+                model.addAttribute("onlineUsersCount", fullData.getOverview().getOnlineUsersCount());
+                model.addAttribute("totalUsersCount", fullData.getOverview().getTotalUsersCount());
+            } else if (lightweightOverview != null) {
+                model.addAttribute("activeUsersCount", lightweightOverview.getActiveUsersCount());
+                model.addAttribute("onlineUsersCount", lightweightOverview.getOnlineUsersCount());
+                model.addAttribute("totalUsersCount", lightweightOverview.getTotalUsersCount());
+            } else {
+                // Final fallback
+                model.addAttribute("activeUsersCount", 0L);
+                model.addAttribute("onlineUsersCount", 0L);
+                model.addAttribute("totalUsersCount", 0L);
+            }
+
             return "admin/dashboard";
         } catch (Exception e) {
             log.error("Error loading enhanced admin dashboard", e);
@@ -83,7 +107,7 @@ public class AdminController {
             return "admin/error";
         }
     }
-    
+
     /**
      * Orders management page
      */
@@ -95,15 +119,14 @@ public class AdminController {
             @RequestParam(defaultValue = "desc") String sortDir,
             @RequestParam(required = false) String search,
             Model model) {
-        
+
         try {
-            Sort sort = sortDir.equalsIgnoreCase("desc") ? 
-                Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
+            Sort sort = sortDir.equalsIgnoreCase("desc") ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
             Pageable pageable = PageRequest.of(page, size, sort);
-            
+
             Page<OrderEntity> orders = adminDashboardService.getOrdersWithSearch(search, pageable);
             OrderService.OrderStatistics orderStats = orderService.getOrderStatistics();
-            
+
             model.addAttribute("title", "Orders Management");
             model.addAttribute("orders", orders);
             model.addAttribute("orderStats", orderStats);
@@ -112,7 +135,7 @@ public class AdminController {
             model.addAttribute("totalPages", orders.getTotalPages());
             model.addAttribute("sortBy", sortBy);
             model.addAttribute("sortDir", sortDir);
-            
+
             return "admin/orders";
         } catch (Exception e) {
             log.error("Error loading orders page", e);
@@ -120,7 +143,7 @@ public class AdminController {
             return "admin/error";
         }
     }
-    
+
     /**
      * Users management page
      */
@@ -132,15 +155,14 @@ public class AdminController {
             @RequestParam(defaultValue = "desc") String sortDir,
             @RequestParam(required = false) String search,
             Model model) {
-        
+
         try {
-            Sort sort = sortDir.equalsIgnoreCase("desc") ? 
-                Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
+            Sort sort = sortDir.equalsIgnoreCase("desc") ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
             Pageable pageable = PageRequest.of(page, size, sort);
-            
+
             Page<UserSessionEntity> users = adminDashboardService.getUsersWithSearch(search, pageable);
             UserSessionEnhancedService.UserSessionStatistics userStats = userSessionService.getUserSessionStatistics();
-            
+
             model.addAttribute("title", "Users Management");
             model.addAttribute("users", users);
             model.addAttribute("userStats", userStats);
@@ -149,7 +171,7 @@ public class AdminController {
             model.addAttribute("totalPages", users.getTotalPages());
             model.addAttribute("sortBy", sortBy);
             model.addAttribute("sortDir", sortDir);
-            
+
             return "admin/users";
         } catch (Exception e) {
             log.error("Error loading users page", e);
@@ -157,7 +179,7 @@ public class AdminController {
             return "admin/error";
         }
     }
-    
+
     /**
      * Packages management page
      */
@@ -168,15 +190,14 @@ public class AdminController {
             @RequestParam(defaultValue = "sortOrder") String sortBy,
             @RequestParam(defaultValue = "asc") String sortDir,
             Model model) {
-        
+
         try {
-            Sort sort = sortDir.equalsIgnoreCase("desc") ? 
-                Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
+            Sort sort = sortDir.equalsIgnoreCase("desc") ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
             Pageable pageable = PageRequest.of(page, size, sort);
-            
+
             Page<StarPackageEntity> packages = adminDashboardService.getPackages(pageable);
             StarPackageService.PackageStatistics packageStats = starPackageService.getPackageStatistics();
-            
+
             model.addAttribute("title", "Packages Management");
             model.addAttribute("packages", packages);
             model.addAttribute("packageStats", packageStats);
@@ -184,7 +205,7 @@ public class AdminController {
             model.addAttribute("totalPages", packages.getTotalPages());
             model.addAttribute("sortBy", sortBy);
             model.addAttribute("sortDir", sortDir);
-            
+
             return "admin/packages";
         } catch (Exception e) {
             log.error("Error loading packages page", e);
@@ -192,7 +213,7 @@ public class AdminController {
             return "admin/error";
         }
     }
-    
+
     /**
      * Analytics page with charts and graphs
      */
@@ -200,16 +221,16 @@ public class AdminController {
     public String analyticsPage(
             @RequestParam(defaultValue = "30") int days,
             Model model) {
-        
+
         try {
             AdminDashboardService.AnalyticsData analytics = adminDashboardService.getAnalyticsData(days);
             AdminDashboardService.TopPerformers topPerformers = adminDashboardService.getTopPerformers();
-            
+
             model.addAttribute("title", "Analytics");
             model.addAttribute("analytics", analytics);
             model.addAttribute("topPerformers", topPerformers);
             model.addAttribute("days", days);
-            
+
             return "admin/analytics";
         } catch (Exception e) {
             log.error("Error loading analytics page", e);
@@ -217,7 +238,7 @@ public class AdminController {
             return "admin/error";
         }
     }
-    
+
     /**
      * System monitoring page (Feature Flags removed)
      */
@@ -225,11 +246,11 @@ public class AdminController {
     public String monitoringPage(Model model) {
         try {
             AdminDashboardService.SystemHealth systemHealth = adminDashboardService.getSystemHealth();
-            
+
             model.addAttribute("title", "System Monitoring");
             model.addAttribute("subtitle", "System Health & Performance Monitoring");
             model.addAttribute("systemHealth", systemHealth);
-            
+
             return "admin/monitoring";
         } catch (Exception e) {
             log.error("Error loading monitoring page", e);
@@ -237,9 +258,10 @@ public class AdminController {
             return "admin/error";
         }
     }
-    
+
     /**
-     * Activity Logs page with real-time user activity feed and payment status dashboard
+     * Activity Logs page with real-time user activity feed and payment status
+     * dashboard
      */
     @GetMapping("/activity-logs")
     public String activityLogsPage(
@@ -249,29 +271,27 @@ public class AdminController {
             @RequestParam(required = false) String search,
             @RequestParam(required = false) List<ActionType> actionTypes,
             Model model) {
-        
+
         try {
             log.info("Loading activity logs page - showAll: {}, search: {}", showAll, search);
-            
+
             // Prepare pagination
             Pageable pageable = PageRequest.of(page, size, Sort.by("timestamp").descending());
-            
+
             // Get filtered activities
             Page<UserActivityLogEntity> activities = activityLogService.getActivitiesWithFilters(
-                showAll, null, null, actionTypes, search, pageable
-            );
-            
+                    showAll, null, null, actionTypes, search, pageable);
+
             // Get recent activities for live feed
             List<UserActivityLogEntity> recentActivities = activityLogService.getRecentActivities(1);
-            
+
             // Get payment status dashboard
-            UserActivityLogService.PaymentStatusDashboard paymentDashboard = 
-                activityLogService.getPaymentStatusDashboard();
-            
+            UserActivityLogService.PaymentStatusDashboard paymentDashboard = activityLogService
+                    .getPaymentStatusDashboard();
+
             // Get activity statistics
-            UserActivityLogService.ActivityStatistics stats = 
-                activityLogService.getActivityStatistics(24);
-            
+            UserActivityLogService.ActivityStatistics stats = activityLogService.getActivityStatistics(24);
+
             model.addAttribute("title", "Activity Logs");
             model.addAttribute("subtitle", "Real-time User Activity & Payment Status Dashboard");
             model.addAttribute("activities", activities);
@@ -284,7 +304,7 @@ public class AdminController {
             model.addAttribute("selectedActionTypes", actionTypes);
             model.addAttribute("currentPage", page);
             model.addAttribute("totalPages", activities.getTotalPages());
-            
+
             return "admin/activity-logs";
         } catch (Exception e) {
             log.error("Error loading activity logs page", e);
@@ -292,7 +312,7 @@ public class AdminController {
             return "admin/error";
         }
     }
-    
+
     /**
      * SSE endpoint for real-time activity stream
      */
@@ -302,7 +322,7 @@ public class AdminController {
         try {
             String clientId = "admin-" + UUID.randomUUID().toString().substring(0, 8);
             log.info("Creating SSE connection for activity stream: {}", clientId);
-            
+
             return activityLogService.createSseConnection(clientId);
         } catch (Exception e) {
             log.error("Error creating activity stream SSE connection", e);
@@ -315,7 +335,7 @@ public class AdminController {
             return emitter;
         }
     }
-    
+
     /**
      * API endpoint for payment status dashboard data
      */
@@ -327,15 +347,15 @@ public class AdminController {
         } catch (Exception e) {
             log.error("Error getting payment status dashboard", e);
             return UserActivityLogService.PaymentStatusDashboard.builder()
-                .completedPayments(List.of())
-                .pendingPayments(List.of())
-                .failedPayments(List.of())
-                .cancelledOrders(List.of())
-                .stuckUsers(List.of())
-                .build();
+                    .completedPayments(List.of())
+                    .pendingPayments(List.of())
+                    .failedPayments(List.of())
+                    .cancelledOrders(List.of())
+                    .stuckUsers(List.of())
+                    .build();
         }
     }
-    
+
     /**
      * API endpoint for activity statistics
      */
@@ -348,13 +368,13 @@ public class AdminController {
         } catch (Exception e) {
             log.error("Error getting activity statistics for {} hours", hours, e);
             return UserActivityLogService.ActivityStatistics.builder()
-                .totalActivities(0)
-                .keyActivities(0)
-                .periodHours(hours)
-                .build();
+                    .totalActivities(0)
+                    .keyActivities(0)
+                    .periodHours(hours)
+                    .build();
         }
     }
-    
+
     /**
      * Package toggle endpoint
      */
@@ -372,7 +392,7 @@ public class AdminController {
             return "error";
         }
     }
-    
+
     /**
      * Maintenance operations
      */
@@ -390,7 +410,7 @@ public class AdminController {
                     .build();
         }
     }
-    
+
     /**
      * Simple cache refresh (Feature Flags operations removed)
      */
@@ -407,7 +427,7 @@ public class AdminController {
             return "redirect:/admin-legacy";
         }
     }
-    
+
     /**
      * API cache refresh (Feature Flags operations removed)
      */
@@ -416,31 +436,29 @@ public class AdminController {
     public Map<String, Object> refreshCacheApi() {
         try {
             log.info("Basic cache refresh via API");
-            
+
             return Map.of(
-                "success", true,
-                "message", "Cache refreshed successfully",
-                "timestamp", LocalDateTime.now()
-            );
+                    "success", true,
+                    "message", "Cache refreshed successfully",
+                    "timestamp", LocalDateTime.now());
         } catch (Exception e) {
             log.error("Error refreshing cache via API", e);
             return Map.of(
-                "success", false,
-                "message", "Failed to refresh cache: " + e.getMessage(),
-                "timestamp", LocalDateTime.now()
-            );
+                    "success", false,
+                    "message", "Failed to refresh cache: " + e.getMessage(),
+                    "timestamp", LocalDateTime.now());
         }
     }
-    
+
     // API endpoints for dashboard data (Feature Flags removed)
-    
+
     @GetMapping(value = "/api/dashboard-data", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
     public CleanDashboardData getDashboardData() {
         try {
             AdminDashboardService.DashboardOverview overview = adminDashboardService.getDashboardOverview();
             AdminDashboardService.PerformanceMetrics performance = adminDashboardService.getPerformanceMetrics();
-            
+
             return CleanDashboardData.builder()
                     .overview(overview)
                     .performance(performance)
@@ -453,7 +471,7 @@ public class AdminController {
                     .build();
         }
     }
-    
+
     @GetMapping(value = "/api/analytics/{days}", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
     public AdminDashboardService.AnalyticsData getAnalyticsData(@PathVariable int days) {
@@ -464,7 +482,7 @@ public class AdminController {
             return AdminDashboardService.AnalyticsData.builder().build();
         }
     }
-    
+
     @GetMapping(value = "/api/system-health", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
     public AdminDashboardService.SystemHealth getSystemHealth() {
@@ -478,7 +496,7 @@ public class AdminController {
                     .build();
         }
     }
-    
+
     @GetMapping(value = "/api/recent-activity", produces = MediaType.APPLICATION_JSON_VALUE)
     @ResponseBody
     public AdminDashboardService.RecentActivity getRecentActivity() {
@@ -489,9 +507,9 @@ public class AdminController {
             return AdminDashboardService.RecentActivity.builder().build();
         }
     }
-    
+
     // Data transfer objects (Feature Flags removed)
-    
+
     @lombok.Data
     @lombok.Builder
     public static class CleanDashboardData {

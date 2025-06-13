@@ -334,7 +334,7 @@ public class OrderService {
     }
 
     /**
-     * Get orders statistics
+     * Get orders statistics (LEGACY - uses multiple queries)
      */
     @Transactional(readOnly = true)
     public OrderStatistics getOrderStatistics() {
@@ -348,6 +348,79 @@ public class OrderService {
                 .monthRevenue(getMonthRevenue())
                 .averageOrderValue(getAverageOrderValue())
                 .conversionRate(getOrderConversionRate())
+                .build();
+    }
+
+    /**
+     * ОПТИМИЗИРОВАННЫЙ метод получения статистики заказов
+     * Объединяет все 9+ отдельных SQL запросов в ОДИН запрос с CASE WHEN агрегацией
+     * Значительно улучшает производительность на Orders и Dashboard страницах
+     */
+    @Transactional(readOnly = true)
+    public OrderStatistics getOrderStatisticsOptimized() {
+        log.debug("Getting optimized order statistics with single SQL query");
+
+        try {
+            // Используем нативный SQL запрос для максимальной производительности
+            List<Object[]> result = orderRepository.getOrderStatisticsOptimized();
+
+            if (result.isEmpty() || result.get(0) == null) {
+                log.warn("No order statistics data returned, using defaults");
+                return createEmptyOrderStatistics();
+            }
+
+            Object[] row = result.get(0);
+
+            // Извлекаем все значения из одного запроса
+            Long totalOrders = ((Number) row[0]).longValue();
+            Long completedOrders = ((Number) row[1]).longValue();
+            Long pendingOrders = ((Number) row[2]).longValue();
+            Long failedOrders = ((Number) row[3]).longValue();
+            BigDecimal totalRevenue = (BigDecimal) row[4];
+            BigDecimal todayRevenue = (BigDecimal) row[5];
+            BigDecimal monthRevenue = (BigDecimal) row[6];
+            BigDecimal averageOrderValue = (BigDecimal) row[7];
+
+            // Вычисляем конверсию
+            Double conversionRate = totalOrders > 0 ? (completedOrders * 100.0) / totalOrders : 0.0;
+
+            OrderStatistics statistics = OrderStatistics.builder()
+                    .totalOrders(totalOrders != null ? totalOrders : 0L)
+                    .completedOrders(completedOrders != null ? completedOrders : 0L)
+                    .pendingOrders(pendingOrders != null ? pendingOrders : 0L)
+                    .failedOrders(failedOrders != null ? failedOrders : 0L)
+                    .totalRevenue(totalRevenue != null ? totalRevenue : BigDecimal.ZERO)
+                    .todayRevenue(todayRevenue != null ? todayRevenue : BigDecimal.ZERO)
+                    .monthRevenue(monthRevenue != null ? monthRevenue : BigDecimal.ZERO)
+                    .averageOrderValue(averageOrderValue != null ? averageOrderValue : BigDecimal.ZERO)
+                    .conversionRate(conversionRate)
+                    .build();
+
+            log.debug("Optimized order statistics retrieved: {} total orders, {} completed",
+                    totalOrders, completedOrders);
+
+            return statistics;
+
+        } catch (Exception e) {
+            log.error("Error getting optimized order statistics: {}", e.getMessage(), e);
+            return createEmptyOrderStatistics();
+        }
+    }
+
+    /**
+     * Создает пустую статистику заказов для fallback случаев
+     */
+    private OrderStatistics createEmptyOrderStatistics() {
+        return OrderStatistics.builder()
+                .totalOrders(0L)
+                .completedOrders(0L)
+                .pendingOrders(0L)
+                .failedOrders(0L)
+                .totalRevenue(BigDecimal.ZERO)
+                .todayRevenue(BigDecimal.ZERO)
+                .monthRevenue(BigDecimal.ZERO)
+                .averageOrderValue(BigDecimal.ZERO)
+                .conversionRate(0.0)
                 .build();
     }
 

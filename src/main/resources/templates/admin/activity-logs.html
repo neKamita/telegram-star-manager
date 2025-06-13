@@ -1,64 +1,130 @@
 <!DOCTYPE html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::title}, ~{::content})}">
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
 <head>
-    <title th:text="${title}">Activity Logs</title>
+    <title>Activity Logs - Telegram Star Manager</title>
+    <style>
+        .category-filter {
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .category-filter.active {
+            border-color: #007bff;
+            background-color: rgba(0, 123, 255, 0.1);
+        }
+        .category-filter:hover {
+            border-color: #007bff;
+            background-color: rgba(0, 123, 255, 0.05);
+        }
+        .activity-item.telegram-bot {
+            border-left: 4px solid #28a745;
+        }
+        .activity-item.application {
+            border-left: 4px solid #007bff;
+        }
+        .category-icon {
+            font-size: 1.2em;
+            margin-right: 0.5rem;
+        }
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .stats-card {
+            transition: transform 0.2s ease;
+        }
+        .stats-card:hover {
+            transform: translateY(-2px);
+        }
+    </style>
 </head>
 <body>
 <div th:fragment="content">
     <!-- Page Header -->
     <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
         <div>
-            <h1 class="h2" th:text="${title}">Activity Logs</h1>
-            <p class="text-muted mb-0" th:text="${subtitle}">Real-time User Activity & Payment Status Dashboard</p>
-        </div>
-        <div class="btn-toolbar mb-2 mb-md-0">
-            <div class="btn-group me-2">
-                <button type="button" class="btn btn-outline-secondary" id="toggleShowAll">
-                    <i class="fas fa-eye"></i>
-                    <span th:text="${showAll} ? 'Show Key Only' : 'Show All Logs'">Show All Logs</span>
-                </button>
-                <button type="button" class="btn btn-outline-primary" id="pauseStream">
-                    <i class="fas fa-pause"></i>
-                    <span>Pause Stream</span>
-                </button>
+            <h1 class="h2">
+                <i class="fas fa-chart-line me-2"></i>
+                Логи активности
+            </h1>
+            <div class="btn-toolbar mb-2 mb-md-0">
+                <div class="btn-group me-2">
+                    <button type="button" class="btn btn-outline-secondary" id="toggleShowAll">
+                        <i class="fas fa-eye"></i>
+                        <span th:text="${showAll} ? 'Показать ключевые' : 'Показать все логи'">Показать все логи</span>
+                    </button>
+                    <button type="button" class="btn btn-outline-primary" id="pauseStream">
+                        <i class="fas fa-pause"></i>
+                        <span>Пауза</span>
+                    </button>
+                </div>
             </div>
         </div>
     </div>
 
     <!-- Statistics Summary Cards -->
-    <div class="row mb-4" th:if="${activityStats}">
-        <div class="col-md-3">
-            <div class="card text-white bg-primary">
+    <div class="row mb-4" id="statisticsCards">
+        <div class="col-md-2">
+            <div class="card text-white bg-primary stats-card">
                 <div class="card-body">
                     <div class="d-flex align-items-center">
                         <div class="flex-grow-1">
-                            <h6 class="card-title mb-0">Total Activities</h6>
-                            <h4 class="mb-0" th:text="${activityStats.totalActivities}">0</h4>
+                            <h6 class="card-title mb-0">Всего логов</h6>
+                            <h4 class="mb-0" id="totalLogsCount">0</h4>
                         </div>
                         <i class="fas fa-chart-line fa-2x opacity-75"></i>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card text-white bg-success">
+        <div class="col-md-2">
+            <div class="card text-white bg-success stats-card">
                 <div class="card-body">
                     <div class="d-flex align-items-center">
                         <div class="flex-grow-1">
-                            <h6 class="card-title mb-0">Key Activities</h6>
-                            <h4 class="mb-0" th:text="${activityStats.keyActivities}">0</h4>
+                            <h6 class="card-title mb-0">💼 Приложение</h6>
+                            <h4 class="mb-0" id="applicationLogsCount">0</h4>
+                        </div>
+                        <i class="fas fa-desktop fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-white bg-info stats-card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h6 class="card-title mb-0">🤖 Телеграм Бот</h6>
+                            <h4 class="mb-0" id="telegramLogsCount">0</h4>
+                        </div>
+                        <i class="fab fa-telegram-plane fa-2x opacity-75"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2">
+            <div class="card text-white bg-warning stats-card">
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <div class="flex-grow-1">
+                            <h6 class="card-title mb-0">Ключевые</h6>
+                            <h4 class="mb-0" id="keyLogsCount">0</h4>
                         </div>
                         <i class="fas fa-key fa-2x opacity-75"></i>
                     </div>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card text-white bg-info">
+        <div class="col-md-2">
+            <div class="card text-white bg-secondary stats-card">
                 <div class="card-body">
                     <div class="d-flex align-items-center">
                         <div class="flex-grow-1">
-                            <h6 class="card-title mb-0">Live Feed</h6>
+                            <h6 class="card-title mb-0">В реальном времени</h6>
                             <h4 class="mb-0"><span id="liveActivitiesCount">0</span></h4>
                         </div>
                         <i class="fas fa-broadcast-tower fa-2x opacity-75"></i>
@@ -66,13 +132,13 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card text-white bg-warning">
+        <div class="col-md-2">
+            <div class="card text-white bg-dark stats-card">
                 <div class="card-body">
                     <div class="d-flex align-items-center">
                         <div class="flex-grow-1">
-                            <h6 class="card-title mb-0">Period</h6>
-                            <h4 class="mb-0" th:text="${activityStats.periodHours + 'h'}">24h</h4>
+                            <h6 class="card-title mb-0">Период</h6>
+                            <h4 class="mb-0" id="periodDisplay">24ч</h4>
                         </div>
                         <i class="fas fa-clock fa-2x opacity-75"></i>
                     </div>
@@ -88,17 +154,57 @@
             <div class="card">
                 <div class="card-header">
                     <h5 class="card-title mb-0">
-                        <i class="fas fa-filter"></i> Filters
+                        <i class="fas fa-filter"></i> Фильтры
                     </h5>
                 </div>
                 <div class="card-body">
+                    <!-- Category Filters -->
                     <div class="mb-3">
-                        <label for="searchInput" class="form-label">Search</label>
-                        <input type="text" class="form-control" id="searchInput" 
-                               placeholder="Username, order ID..." th:value="${search}">
+                        <label class="form-label">Категория логов</label>
+                        <div class="row g-2">
+                            <div class="col-12">
+                                <div class="card category-filter" id="categoryAll" data-category="ALL">
+                                    <div class="card-body text-center py-2">
+                                        <div class="category-icon">📋</div>
+                                        <div class="fw-bold">Все логи</div>
+                                        <small class="text-muted">Показать все</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="card category-filter" id="categoryApplication" data-category="APPLICATION">
+                                    <div class="card-body text-center py-2">
+                                        <div class="category-icon">💼</div>
+                                        <div class="fw-bold">Приложение</div>
+                                        <small class="text-muted">Системные логи</small>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12">
+                                <div class="card category-filter" id="categoryTelegramBot" data-category="TELEGRAM_BOT">
+                                    <div class="card-body text-center py-2">
+                                        <div class="category-icon">🤖</div>
+                                        <div class="fw-bold">Телеграм Бот</div>
+                                        <small class="text-muted">Активности бота</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
+
+                    <!-- Search Filter -->
+                    <div class="mb-3">
+                        <label for="searchInput" class="form-label">Поиск</label>
+                        <input type="text" class="form-control" id="searchInput" 
+                               placeholder="Имя пользователя, ID заказа..." th:value="${search}">
+                    </div>
+                    
                     <button type="button" class="btn btn-primary w-100" id="applyFilters">
-                        <i class="fas fa-search"></i> Apply Filters
+                        <i class="fas fa-search"></i> Применить фильтры
+                    </button>
+                    
+                    <button type="button" class="btn btn-outline-secondary w-100 mt-2" id="clearFilters">
+                        <i class="fas fa-times"></i> Сбросить фильтры
                     </button>
                 </div>
             </div>
@@ -107,32 +213,32 @@
             <div class="card mt-3" th:if="${paymentDashboard}">
                 <div class="card-header">
                     <h5 class="card-title mb-0">
-                        <i class="fas fa-credit-card"></i> Payment Status
+                        <i class="fas fa-credit-card"></i> Статус платежей
                     </h5>
                 </div>
                 <div class="card-body">
                     <div class="row text-center">
                         <div class="col-6 mb-2">
                             <div class="badge bg-success p-2 w-100">
-                                <div>✅ Completed</div>
+                                <div>✅ Завершено</div>
                                 <div class="h6 mb-0" th:text="${#lists.size(paymentDashboard.completedPayments)}">0</div>
                             </div>
                         </div>
                         <div class="col-6 mb-2">
                             <div class="badge bg-warning p-2 w-100">
-                                <div>⏳ Pending</div>
+                                <div>⏳ В ожидании</div>
                                 <div class="h6 mb-0" th:text="${#lists.size(paymentDashboard.pendingPayments)}">0</div>
                             </div>
                         </div>
                         <div class="col-6 mb-2">
                             <div class="badge bg-danger p-2 w-100">
-                                <div>❌ Failed</div>
+                                <div>❌ Неудачные</div>
                                 <div class="h6 mb-0" th:text="${#lists.size(paymentDashboard.failedPayments)}">0</div>
                             </div>
                         </div>
                         <div class="col-6 mb-2">
                             <div class="badge bg-secondary p-2 w-100">
-                                <div>🚫 Cancelled</div>
+                                <div>🚫 Отменено</div>
                                 <div class="h6 mb-0" th:text="${#lists.size(paymentDashboard.cancelledOrders)}">0</div>
                             </div>
                         </div>
@@ -146,15 +252,18 @@
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="card-title mb-0">
-                        <i class="fas fa-stream"></i> Live Activity Feed
-                        <span class="badge bg-success ms-2" id="connectionStatus">Connecting...</span>
+                        <i class="fas fa-stream"></i> Лента активности
+                        <span class="badge bg-success ms-2" id="connectionStatus">Подключение...</span>
                     </h5>
-                    <small class="text-muted">Real-time updates</small>
+                    <div>
+                        <span class="badge bg-info me-2" id="currentCategoryDisplay">Все логи</span>
+                        <small class="text-muted">Обновления в реальном времени</small>
+                    </div>
                 </div>
                 <div class="card-body p-0">
                     <div id="activityFeed" style="height: 500px; overflow-y: auto;">
                         <div class="p-3 text-center text-muted" id="loadingMessage">
-                            <i class="fas fa-spinner fa-spin"></i> Connecting to live feed...
+                            <i class="fas fa-spinner fa-spin"></i> Подключение к ленте...
                         </div>
                     </div>
                 </div>
@@ -166,18 +275,19 @@
             <div class="card">
                 <div class="card-header bg-info text-white">
                     <h6 class="card-title mb-0">
-                        <i class="fas fa-history"></i> Recent Activities
+                        <i class="fas fa-history"></i> Последние активности
                     </h6>
                 </div>
                 <div class="card-body p-0">
-                    <div class="list-group list-group-flush" style="max-height: 500px; overflow-y: auto;">
-                        <div class="list-group-item py-2" th:each="activity : ${#lists.size(activities.content) > 0 ? activities.content.subList(0, T(java.lang.Math).min(10, activities.content.size())) : {}}">
+                    <div class="list-group list-group-flush" id="recentActivities" style="max-height: 500px; overflow-y: auto;">
+                        <div class="list-group-item py-2" th:each="activity : ${activities != null && activities.content != null && #lists.size(activities.content) > 0 ? activities.content.subList(0, T(java.lang.Math).min(10, activities.content.size())) : {}}">
                             <div class="d-flex justify-content-between align-items-start">
                                 <div class="flex-grow-1">
                                     <div class="d-flex align-items-center mb-1">
+                                        <span th:text="${activity.logCategory == 'TELEGRAM_BOT' ? '🤖' : (activity.logCategory == 'APPLICATION' ? '💼' : '📝')}" class="category-icon me-2">📝</span>
                                         <span th:text="${activity.actionIcon}" class="me-2">📝</span>
                                         <strong th:text="${activity.displayName}" class="small">User</strong>
-                                        <span th:if="${activity.isKeyAction}" class="badge bg-warning ms-1 small">KEY</span>
+                                        <span th:if="${activity.isKeyAction}" class="badge bg-warning ms-1 small">КЛЮЧ</span>
                                     </div>
                                     <div class="text-muted small" th:text="${activity.actionDescription}">Action</div>
                                 </div>
@@ -186,9 +296,9 @@
                                 </div>
                             </div>
                         </div>
-                        <div th:if="${#lists.isEmpty(activities.content)}" class="list-group-item text-center text-muted py-3">
+                        <div th:if="${activities == null || activities.content == null || #lists.isEmpty(activities.content)}" class="list-group-item text-center text-muted py-3">
                             <i class="fas fa-inbox"></i><br>
-                            <small>No recent activities</small>
+                            <small>Нет активностей</small>
                         </div>
                     </div>
                 </div>
@@ -200,7 +310,7 @@
     <div class="card mt-4">
         <div class="card-header">
             <h5 class="card-title mb-0">
-                <i class="fas fa-history"></i> Historical Activities
+                <i class="fas fa-history"></i> Исторические активности
             </h5>
         </div>
         <div class="card-body">
@@ -208,18 +318,30 @@
                 <table class="table table-striped table-hover">
                     <thead>
                         <tr>
-                            <th>Time</th>
-                            <th>User</th>
-                            <th>Action</th>
-                            <th>Details</th>
-                            <th>Order Info</th>
+                            <th>Время</th>
+                            <th>Категория</th>
+                            <th>Пользователь</th>
+                            <th>Действие</th>
+                            <th>Детали</th>
+                            <th>Информация о заказе</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr th:each="activity : ${activities.content}" 
+                        <tr th:each="activity : ${activities != null && activities.content != null ? activities.content : {}}" 
                             th:class="'table-' + ${activity.priorityClass}">
                             <td>
                                 <span class="badge bg-secondary" th:text="${activity.formattedTimestamp}">Time</span>
+                            </td>
+                            <td>
+                                <span th:if="${activity.logCategory == 'TELEGRAM_BOT'}" class="badge bg-info">
+                                    🤖 Телеграм Бот
+                                </span>
+                                <span th:if="${activity.logCategory == 'APPLICATION'}" class="badge bg-primary">
+                                    💼 Приложение
+                                </span>
+                                <span th:if="${activity.logCategory == null}" class="badge bg-secondary">
+                                    📝 Общее
+                                </span>
                             </td>
                             <td>
                                 <div th:text="${activity.displayName}">User</div>
@@ -227,7 +349,7 @@
                             </td>
                             <td>
                                 <span th:text="${activity.actionDisplayName}" class="badge bg-primary">Action</span>
-                                <span th:if="${activity.isKeyAction}" class="badge bg-warning ms-1">KEY</span>
+                                <span th:if="${activity.isKeyAction}" class="badge bg-warning ms-1">КЛЮЧ</span>
                             </td>
                             <td th:text="${activity.actionDescription}">Description</td>
                             <td>
@@ -235,10 +357,10 @@
                                 <span th:unless="${activity.orderId}" class="text-muted">-</span>
                             </td>
                         </tr>
-                        <tr th:if="${#lists.isEmpty(activities.content)}">
-                            <td colspan="5" class="text-center text-muted py-4">
+                        <tr th:if="${activities == null || activities.content == null || #lists.isEmpty(activities.content)}">
+                            <td colspan="6" class="text-center text-muted py-4">
                                 <i class="fas fa-inbox fa-2x mb-2"></i><br>
-                                No activities found
+                                Активности не найдены
                             </td>
                         </tr>
                     </tbody>
@@ -246,35 +368,119 @@
             </div>
 
             <!-- Pagination -->
-            <nav th:if="${activities.totalPages > 1}">
+            <nav th:if="${activities != null && activities.totalPages != null && activities.totalPages > 1}">
                 <ul class="pagination justify-content-center">
-                    <li class="page-item" th:classappend="${!activities.hasPrevious()} ? 'disabled'">
-                        <a class="page-link" th:href="@{/admin/activity-logs(page=${activities.number - 1}, showAll=${showAll}, search=${search})}">Previous</a>
+                    <li class="page-item" th:classappend="${activities == null || !activities.hasPrevious()} ? 'disabled'">
+                        <a class="page-link" th:href="@{/admin/activity-logs(page=${activities.number - 1}, showAll=${showAll}, search=${search}, category=${category})}">Предыдущая</a>
                     </li>
                     
-                    <li class="page-item" th:each="i : ${#numbers.sequence(0, activities.totalPages - 1)}"
+                    <li class="page-item" th:each="i : ${activities != null && activities.totalPages != null ? #numbers.sequence(0, activities.totalPages - 1) : {}}"
                         th:classappend="${i == activities.number} ? 'active'">
-                        <a class="page-link" th:href="@{/admin/activity-logs(page=${i}, showAll=${showAll}, search=${search})}" th:text="${i + 1}">1</a>
+                        <a class="page-link" th:href="@{/admin/activity-logs(page=${i}, showAll=${showAll}, search=${search}, category=${category})}" th:text="${i + 1}">1</a>
                     </li>
                     
-                    <li class="page-item" th:classappend="${!activities.hasNext()} ? 'disabled'">
-                        <a class="page-link" th:href="@{/admin/activity-logs(page=${activities.number + 1}, showAll=${showAll}, search=${search})}">Next</a>
+                    <li class="page-item" th:classappend="${activities == null || !activities.hasNext()} ? 'disabled'">
+                        <a class="page-link" th:href="@{/admin/activity-logs(page=${activities.number + 1}, showAll=${showAll}, search=${search}, category=${category})}">Следующая</a>
                     </li>
                 </ul>
             </nav>
         </div>
     </div>
 
-    <!-- JavaScript for Real-time functionality -->
+    </div>
+
+<!-- Page Scripts -->
+<th:block th:fragment="scripts">
     <script>
         let eventSource = null;
         let isStreamPaused = false;
         let activityBuffer = [];
+        let currentCategory = 'ALL';
+        let categoryStatistics = {};
+        
+        // Локальное хранилище для сохранения состояния
+        const STORAGE_KEY = 'activityLogs_preferences';
         
         document.addEventListener('DOMContentLoaded', function() {
+            loadPreferences();
             initializeActivityStream();
             setupEventHandlers();
+            loadCategoryStatistics();
+            initializeCategoryFilter();
+            
+            // ИСПРАВЛЕНИЕ: Автоматическая загрузка исторических данных при инициализации
+            // Загружаем данные после инициализации категории
+            setTimeout(() => {
+                loadHistoricalData(currentCategory);
+            }, 100);
         });
+        
+        function loadPreferences() {
+            try {
+                const stored = localStorage.getItem(STORAGE_KEY);
+                if (stored) {
+                    const prefs = JSON.parse(stored);
+                    currentCategory = prefs.category || 'ALL';
+                }
+            } catch (e) {
+                console.warn('Не удалось загрузить предпочтения:', e);
+            }
+            
+            // Загрузить из URL параметров
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('category')) {
+                currentCategory = urlParams.get('category');
+            }
+        }
+        
+        function savePreferences() {
+            try {
+                const prefs = {
+                    category: currentCategory,
+                    timestamp: Date.now()
+                };
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+            } catch (e) {
+                console.warn('Не удалось сохранить предпочтения:', e);
+            }
+        }
+        
+        function initializeCategoryFilter() {
+            // Установить активный фильтр
+            document.querySelectorAll('.category-filter').forEach(filter => {
+                filter.classList.remove('active');
+            });
+            
+            const activeFilter = document.querySelector(`[data-category="${currentCategory}"]`);
+            if (activeFilter) {
+                activeFilter.classList.add('active');
+            }
+            
+            updateCategoryDisplay();
+        }
+        
+        function updateCategoryDisplay() {
+            const displayElement = document.getElementById('currentCategoryDisplay');
+            if (displayElement) {
+                switch(currentCategory) {
+                    case 'ALL':
+                        displayElement.textContent = 'Все логи';
+                        displayElement.className = 'badge bg-info me-2';
+                        break;
+                    case 'APPLICATION':
+                        displayElement.textContent = '💼 Приложение';
+                        displayElement.className = 'badge bg-primary me-2';
+                        break;
+                    case 'TELEGRAM_BOT':
+                        displayElement.textContent = '🤖 Телеграм Бот';
+                        displayElement.className = 'badge bg-success me-2';
+                        break;
+                    default:
+                        displayElement.textContent = 'Все логи';
+                        displayElement.className = 'badge bg-info me-2';
+                }
+            }
+        }
         
         function initializeActivityStream() {
             if (!isStreamPaused) {
@@ -286,11 +492,30 @@
             const statusElement = document.getElementById('connectionStatus');
             const loadingElement = document.getElementById('loadingMessage');
             
+            // ДИАГНОСТИКА: Логирование начала подключения SSE
+            console.log('LIVE_FEED_DEBUG: SSE connection attempt', {
+                currentCategory: currentCategory,
+                existingConnection: !!eventSource,
+                timestamp: new Date().toISOString()
+            });
+            
             try {
-                eventSource = new EventSource('/admin/api/activity-stream');
+                // Закрыть существующее соединение
+                if (eventSource) {
+                    console.log('LIVE_FEED_DEBUG: Closing existing SSE connection');
+                    eventSource.close();
+                }
+                
+                // Создать новое соединение с фильтрацией по категориям
+                const streamUrl = `/admin/api/activity-stream-categorized?category=${currentCategory}`;
+                console.log('LIVE_FEED_DEBUG: Creating new SSE connection', {
+                    url: streamUrl,
+                    category: currentCategory
+                });
+                eventSource = new EventSource(streamUrl);
                 
                 eventSource.onopen = function(event) {
-                    statusElement.textContent = 'Connected';
+                    statusElement.textContent = 'Подключено';
                     statusElement.className = 'badge bg-success ms-2';
                     if (loadingElement) {
                         loadingElement.style.display = 'none';
@@ -300,25 +525,39 @@
                 eventSource.onmessage = function(event) {
                     try {
                         const activity = JSON.parse(event.data);
+                        // ДИАГНОСТИКА: Логирование получения активности через SSE
+                        console.log('LIVE_FEED_DEBUG: Received activity via onmessage', {
+                            actionType: activity.actionType,
+                            logCategory: activity.logCategory || activity.log_category,
+                            currentCategory: currentCategory,
+                            timestamp: new Date().toISOString()
+                        });
                         addActivityToFeed(activity);
                         updateLiveCounter();
                     } catch (e) {
-                        console.error('Error parsing activity data:', e);
+                        console.error('Ошибка парсинга данных активности:', e);
                     }
                 };
                 
                 eventSource.addEventListener('activity', function(event) {
                     try {
                         const activity = JSON.parse(event.data);
+                        // ДИАГНОСТИКА: Логирование получения активности через event listener
+                        console.log('LIVE_FEED_DEBUG: Received activity via event listener', {
+                            actionType: activity.actionType,
+                            logCategory: activity.logCategory || activity.log_category,
+                            currentCategory: currentCategory,
+                            timestamp: new Date().toISOString()
+                        });
                         addActivityToFeed(activity);
                         updateLiveCounter();
                     } catch (e) {
-                        console.error('Error parsing activity event:', e);
+                        console.error('Ошибка парсинга события активности:', e);
                     }
                 });
                 
                 eventSource.onerror = function(event) {
-                    statusElement.textContent = 'Disconnected';
+                    statusElement.textContent = 'Отключено';
                     statusElement.className = 'badge bg-danger ms-2';
                     
                     setTimeout(() => {
@@ -329,8 +568,8 @@
                 };
                 
             } catch (error) {
-                console.error('Error connecting to activity stream:', error);
-                statusElement.textContent = 'Error';
+                console.error('Ошибка подключения к потоку активности:', error);
+                statusElement.textContent = 'Ошибка';
                 statusElement.className = 'badge bg-danger ms-2';
             }
         }
@@ -364,35 +603,50 @@
         
         function createActivityElement(activity) {
             const div = document.createElement('div');
-            div.className = 'border-bottom p-3 activity-item';
+            div.className = 'border-bottom p-3 activity-item fade-in';
             
-            const keyBadge = activity.isKeyAction ? '<span class="badge bg-warning ms-1">KEY</span>' : '';
+            // ИСПРАВЛЕНИЕ: Используем правильные имена полей для live feed
+            const logCategory = activity.log_category || activity.logCategory;
+            const isKeyAction = activity.is_key_action || activity.isKeyAction;
+            
+            // Добавить класс категории для стилизации
+            if (logCategory === 'TELEGRAM_BOT') {
+                div.classList.add('telegram-bot');
+            } else if (logCategory === 'APPLICATION') {
+                div.classList.add('application');
+            }
+            
+            const keyBadge = isKeyAction ? '<span class="badge bg-warning ms-1">КЛЮЧ</span>' : '';
+            const categoryIcon = getCategoryIcon(logCategory);
             
             div.innerHTML = `
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="flex-grow-1">
                         <div class="d-flex align-items-center mb-1">
+                            <span class="category-icon me-2">${categoryIcon}</span>
                             <span class="me-2">${activity.actionIcon || '📝'}</span>
-                            <strong>${activity.displayName || 'Unknown User'}</strong>
-                            <span class="badge bg-secondary ms-2">${activity.formattedTimestamp || 'Now'}</span>
+                            <strong>${activity.displayName || 'Неизвестный пользователь'}</strong>
+                            <span class="badge bg-secondary ms-2">${activity.formattedTimestamp || 'Сейчас'}</span>
                             ${keyBadge}
                         </div>
-                        <div class="text-muted small">${activity.actionDescription || 'No description'}</div>
+                        <div class="text-muted small">${activity.actionDescription || 'Нет описания'}</div>
                         ${activity.orderInfo ? `<div class="small text-info">${activity.orderInfo}</div>` : ''}
                     </div>
                 </div>
             `;
             
-            div.style.opacity = '0';
-            div.style.transform = 'translateY(-10px)';
-            
-            setTimeout(() => {
-                div.style.transition = 'all 0.3s ease';
-                div.style.opacity = '1';
-                div.style.transform = 'translateY(0)';
-            }, 50);
-            
             return div;
+        }
+        
+        function getCategoryIcon(category) {
+            switch(category) {
+                case 'TELEGRAM_BOT':
+                    return '🤖';
+                case 'APPLICATION':
+                    return '💼';
+                default:
+                    return '📝';
+            }
         }
         
         function updateLiveCounter() {
@@ -402,13 +656,49 @@
             }
         }
         
+        function loadCategoryStatistics() {
+            fetch('/admin/api/category-statistics')
+                .then(response => response.json())
+                .then(data => {
+                    categoryStatistics = data;
+                    updateStatisticsCards();
+                })
+                .catch(error => {
+                    console.error('Ошибка загрузки статистики категорий:', error);
+                });
+        }
+        
+        function updateStatisticsCards() {
+            // Обновить карточки статистики
+            const totalElement = document.getElementById('totalLogsCount');
+            const appElement = document.getElementById('applicationLogsCount');
+            const telegramElement = document.getElementById('telegramLogsCount');
+            const keyElement = document.getElementById('keyLogsCount');
+            
+            if (categoryStatistics) {
+                if (totalElement) totalElement.textContent = categoryStatistics.totalLogs || 0;
+                if (appElement) appElement.textContent = categoryStatistics.applicationLogs || 0;
+                if (telegramElement) telegramElement.textContent = categoryStatistics.telegramBotLogs || 0;
+                if (keyElement) keyElement.textContent = categoryStatistics.keyLogs || 0;
+            }
+        }
+        
         function setupEventHandlers() {
+            // Обработчики фильтров категорий
+            document.querySelectorAll('.category-filter').forEach(filter => {
+                filter.addEventListener('click', function() {
+                    const category = this.dataset.category;
+                    selectCategory(category);
+                });
+            });
+            
             const toggleBtn = document.getElementById('toggleShowAll');
             if (toggleBtn) {
                 toggleBtn.addEventListener('click', function() {
                     const showAll = /*[[${showAll}]]*/ false;
                     const newUrl = new URL(window.location);
                     newUrl.searchParams.set('showAll', !showAll);
+                    newUrl.searchParams.set('category', currentCategory);
                     window.location.href = newUrl.toString();
                 });
             }
@@ -425,12 +715,12 @@
                             eventSource.close();
                         }
                         icon.className = 'fas fa-play';
-                        text.textContent = 'Resume Stream';
+                        text.textContent = 'Возобновить';
                         pauseBtn.className = 'btn btn-outline-success';
                     } else {
                         connectToActivityStream();
                         icon.className = 'fas fa-pause';
-                        text.textContent = 'Pause Stream';
+                        text.textContent = 'Пауза';
                         pauseBtn.className = 'btn btn-outline-primary';
                     }
                 });
@@ -439,18 +729,288 @@
             const applyBtn = document.getElementById('applyFilters');
             if (applyBtn) {
                 applyBtn.addEventListener('click', function() {
-                    const url = new URL(window.location);
-                    
-                    const search = document.getElementById('searchInput').value;
-                    if (search) {
-                        url.searchParams.set('search', search);
-                    } else {
-                        url.searchParams.delete('search');
-                    }
-                    
-                    url.searchParams.set('page', '0');
-                    window.location.href = url.toString();
+                    applyFilters();
                 });
+            }
+            
+            const clearBtn = document.getElementById('clearFilters');
+            if (clearBtn) {
+                clearBtn.addEventListener('click', function() {
+                    clearFilters();
+                });
+            }
+            
+            // Обработчик Enter в поле поиска
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) {
+                searchInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        applyFilters();
+                    }
+                });
+            }
+        }
+        
+        function selectCategory(category) {
+            // ДИАГНОСТИКА: Логирование смены категории
+            console.log('LIVE_FEED_DEBUG: Category selection started', {
+                oldCategory: currentCategory,
+                newCategory: category,
+                timestamp: new Date().toISOString()
+            });
+            
+            currentCategory = category;
+            
+            // Обновить активный фильтр
+            document.querySelectorAll('.category-filter').forEach(filter => {
+                filter.classList.remove('active');
+            });
+            
+            const activeFilter = document.querySelector(`[data-category="${category}"]`);
+            if (activeFilter) {
+                activeFilter.classList.add('active');
+            }
+            
+            // Обновить отображение
+            updateCategoryDisplay();
+            
+            // Сохранить предпочтения
+            savePreferences();
+            
+            // ДИАГНОСТИКА: Логирование перед переподключением SSE
+            console.log('LIVE_FEED_DEBUG: Before SSE reconnection', {
+                category: category,
+                isStreamPaused: isStreamPaused,
+                existingEventSource: !!eventSource,
+                timestamp: new Date().toISOString()
+            });
+            
+            // Переподключиться к потоку с новой категорией
+            if (!isStreamPaused) {
+                connectToActivityStream();
+            }
+            
+            // Очистить буфер активностей
+            activityBuffer = [];
+            const feed = document.getElementById('activityFeed');
+            if (feed) {
+                feed.innerHTML = '<div class="p-3 text-center text-muted" id="loadingMessage"><i class="fas fa-spinner fa-spin"></i> Загрузка данных...</div>';
+            }
+            
+            // ДИАГНОСТИКА: Логирование перед загрузкой исторических данных
+            console.log('LIVE_FEED_DEBUG: Loading historical data', {
+                category: category,
+                timestamp: new Date().toISOString()
+            });
+            
+            // ИСПРАВЛЕНИЕ: Загружаем исторические данные через AJAX вместо перезагрузки страницы
+            loadHistoricalData(category);
+            
+            // Обновляем URL без перезагрузки страницы
+            updateUrlWithoutReload(category);
+        }
+        
+        function applyFilters() {
+            const search = document.getElementById('searchInput').value;
+            
+            // Для поиска используем полную перезагрузку (когда нужны сложные фильтры)
+            if (search && search.trim() !== '') {
+                const url = new URL(window.location);
+                url.searchParams.set('search', search);
+                url.searchParams.set('category', currentCategory);
+                url.searchParams.set('page', '0');
+                window.location.href = url.toString();
+            } else {
+                // Если поиск пустой, просто обновляем данные без перезагрузки
+                loadHistoricalData(currentCategory);
+            }
+        }
+        
+        function clearFilters() {
+            // Сбросить поля формы
+            document.getElementById('searchInput').value = '';
+            
+            // Сбросить категорию без перезагрузки
+            selectCategory('ALL');
+            
+            // Обновить URL без перезагрузки
+            updateUrlWithoutReload('ALL');
+        }
+        
+        /**
+         * Загружает исторические данные по выбранной категории через AJAX
+         */
+        function loadHistoricalData(category) {
+            // Показываем индикатор загрузки
+            showLoadingMessage();
+            
+            const apiUrl = category === 'ALL'
+                ? '/admin/api/activity-logs-by-category'
+                : `/admin/api/activity-logs-by-category?category=${category}`;
+            
+            fetch(apiUrl)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        updateHistoricalActivitiesTable(data.activities);
+                        console.log(`Загружены исторические данные для категории: ${category}, количество записей: ${data.activities ? data.activities.length : 0}`);
+                    } else {
+                        console.error('Ошибка загрузки исторических данных:', data.error);
+                        showErrorMessage('Ошибка загрузки данных: ' + data.error);
+                    }
+                })
+                .catch(error => {
+                    console.error('Ошибка запроса исторических данных:', error);
+                    showErrorMessage('Ошибка сети при загрузке данных: ' + error.message);
+                });
+        }
+        
+        /**
+         * Обновляет таблицу исторических активностей
+         */
+        function updateHistoricalActivitiesTable(activities) {
+            const tableBody = document.querySelector('.table tbody');
+            if (!tableBody) {
+                return;
+            }
+            
+            // Очищаем существующие данные
+            tableBody.innerHTML = '';
+            
+            if (!activities || activities.length === 0) {
+                // Показываем сообщение об отсутствии данных
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">
+                            <i class="fas fa-inbox fa-2x mb-2"></i><br>
+                            Активности для выбранной категории не найдены
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            // Добавляем новые данные
+            activities.forEach(activity => {
+                const row = createHistoricalActivityRow(activity);
+                tableBody.appendChild(row);
+            });
+        }
+        
+        /**
+         * Создает строку для таблицы исторических активностей
+         */
+        function createHistoricalActivityRow(activity) {
+            const row = document.createElement('tr');
+            row.className = `table-${activity.priorityClass || 'secondary'}`;
+            
+            // ИСПРАВЛЕНИЕ: Используем правильные имена полей (snake_case из backend)
+            const logCategory = activity.log_category || activity.logCategory;
+            const actionType = activity.action_type || activity.actionType;
+            const isKeyAction = activity.is_key_action || activity.isKeyAction;
+            const orderId = activity.order_id || activity.orderId;
+            const displayName = activity.display_name || activity.displayName;
+            const actionDescription = activity.action_description || activity.actionDescription;
+            const formattedTimestamp = activity.formatted_timestamp || activity.formattedTimestamp;
+            
+            // Определяем иконку и текст категории
+            let categoryBadge = '';
+            if (logCategory === 'TELEGRAM_BOT') {
+                categoryBadge = '<span class="badge bg-info">🤖 Телеграм Бот</span>';
+            } else if (logCategory === 'APPLICATION') {
+                categoryBadge = '<span class="badge bg-primary">💼 Приложение</span>';
+            } else {
+                categoryBadge = '<span class="badge bg-secondary">📝 Общее</span>';
+            }
+            
+            const keyBadge = isKeyAction ? '<span class="badge bg-warning ms-1">КЛЮЧ</span>' : '';
+            const orderInfo = orderId ? activity.orderDisplayInfo || `Заказ #${orderId}` : '-';
+            const username = activity.username ? `<small class="text-muted">@${activity.username}</small>` : '';
+            
+            row.innerHTML = `
+                <td>
+                    <span class="badge bg-secondary">${formattedTimestamp || 'Недавно'}</span>
+                </td>
+                <td>${categoryBadge}</td>
+                <td>
+                    <div>${displayName || 'Неизвестный пользователь'}</div>
+                    ${username}
+                </td>
+                <td>
+                    <span class="badge bg-primary">${activity.actionDisplayName || actionDescription}</span>
+                    ${keyBadge}
+                </td>
+                <td>${actionDescription || 'Нет описания'}</td>
+                <td>
+                    <span class="${orderId ? '' : 'text-muted'}">${orderInfo}</span>
+                </td>
+            `;
+            
+            return row;
+        }
+        
+        /**
+         * Обновляет URL без перезагрузки страницы
+         */
+        function updateUrlWithoutReload(category) {
+            const url = new URL(window.location);
+            
+            if (category === 'ALL') {
+                url.searchParams.delete('category');
+            } else {
+                url.searchParams.set('category', category);
+            }
+            
+            // Сбрасываем поиск если он есть
+            const search = document.getElementById('searchInput').value;
+            if (!search || search.trim() === '') {
+                url.searchParams.delete('search');
+            }
+            
+            // Сбрасываем пагинацию
+            url.searchParams.delete('page');
+            
+            // Обновляем URL без перезагрузки
+            history.pushState({ category: category }, '', url.toString());
+        }
+        
+        /**
+         * Показывает индикатор загрузки в таблице
+         */
+        function showLoadingMessage() {
+            const tableBody = document.querySelector('.table tbody');
+            if (tableBody) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="text-center text-muted py-4">
+                            <i class="fas fa-spinner fa-spin fa-2x mb-2"></i><br>
+                            Загрузка исторических данных...
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+        
+        /**
+         * Показывает сообщение об ошибке
+         */
+        function showErrorMessage(message) {
+            // Показываем ошибку в таблице
+            const tableBody = document.querySelector('.table tbody');
+            if (tableBody) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="text-center text-danger py-4">
+                            <i class="fas fa-exclamation-triangle fa-2x mb-2"></i><br>
+                            ${message}
+                        </td>
+                    </tr>
+                `;
             }
         }
         
@@ -459,7 +1019,22 @@
                 eventSource.close();
             }
         });
+        
+        // Обработчик для навигации браузера (кнопки назад/вперед)
+        window.addEventListener('popstate', function(event) {
+            if (event.state && event.state.category) {
+                // Восстанавливаем состояние из истории браузера
+                currentCategory = event.state.category;
+                initializeCategoryFilter();
+                connectToActivityStream();
+                loadHistoricalData(currentCategory);
+            }
+        });
+        
+        // Обновление статистики каждые 30 секунд
+        setInterval(function() {
+            loadCategoryStatistics();
+        }, 30000);
     </script>
-</div>
-</body>
+</th:block>
 </html>

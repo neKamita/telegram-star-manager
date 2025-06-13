@@ -30,16 +30,15 @@ public class AdminPerformanceConfig {
     @Bean("adminCacheManager")
     public CacheManager adminCacheManager() {
         log.info("Configuring admin cache manager for performance optimization");
-        
+
         ConcurrentMapCacheManager cacheManager = new ConcurrentMapCacheManager(
-            "admin_performance",
-            "admin_recent_activity"
-        );
+                "admin_performance",
+                "admin_recent_activity");
         cacheManager.setAllowNullValues(false);
-        
-        log.info("Admin cache manager configured with {} cache regions", 
-            cacheManager.getCacheNames().size());
-        
+
+        log.info("Admin cache manager configured with {} cache regions",
+                cacheManager.getCacheNames().size());
+
         return cacheManager;
     }
 
@@ -50,30 +49,30 @@ public class AdminPerformanceConfig {
     @Bean("adminAsyncExecutor")
     public Executor adminAsyncExecutor() {
         log.info("Configuring admin async executor for limited resources");
-        
+
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        
+
         // Minimal thread pool для экономии ресурсов
         executor.setCorePoolSize(1);
         executor.setMaxPoolSize(2);
         executor.setQueueCapacity(10);
         executor.setThreadNamePrefix("AdminAsync-");
-        
+
         // Настройки для быстрой очистки неактивных потоков
         executor.setKeepAliveSeconds(30);
         executor.setAllowCoreThreadTimeOut(true);
-        
+
         // Политика отклонения - выполнять в текущем потоке
         executor.setRejectedExecutionHandler((runnable, executor1) -> {
             log.warn("Admin async task queue full, executing in current thread");
             runnable.run();
         });
-        
+
         executor.initialize();
-        
-        log.info("Admin async executor configured: core={}, max={}, queue={}", 
-            executor.getCorePoolSize(), executor.getMaxPoolSize(), executor.getQueueCapacity());
-        
+
+        log.info("Admin async executor configured: core={}, max={}, queue={}",
+                executor.getCorePoolSize(), executor.getMaxPoolSize(), executor.getQueueCapacity());
+
         return executor;
     }
 
@@ -83,9 +82,9 @@ public class AdminPerformanceConfig {
     @Bean("adminScheduledExecutor")
     public Executor adminScheduledExecutor() {
         log.info("Configuring admin scheduled executor");
-        
+
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-        
+
         // Один поток для scheduled задач
         executor.setCorePoolSize(1);
         executor.setMaxPoolSize(1);
@@ -93,10 +92,42 @@ public class AdminPerformanceConfig {
         executor.setThreadNamePrefix("AdminScheduled-");
         executor.setKeepAliveSeconds(60);
         executor.setAllowCoreThreadTimeOut(true);
-        
+
         executor.initialize();
-        
+
         log.info("Admin scheduled executor configured");
+        return executor;
+    }
+
+    /**
+     * Dedicated thread pool executor для Background Metrics Service
+     * Отдельный от основного async executor для изоляции
+     */
+    @Bean("metricsBackgroundExecutor")
+    public Executor metricsBackgroundExecutor() {
+        log.info("Configuring dedicated metrics background executor");
+
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+
+        // Один dedicated thread для метрик
+        executor.setCorePoolSize(1);
+        executor.setMaxPoolSize(1);
+        executor.setQueueCapacity(3); // Маленькая очередь для метрик
+        executor.setThreadNamePrefix("MetricsBG-");
+
+        // Быстрая очистка для экономии ресурсов
+        executor.setKeepAliveSeconds(30);
+        executor.setAllowCoreThreadTimeOut(true);
+
+        // Политика отклонения - логирование и пропуск
+        executor.setRejectedExecutionHandler((runnable, executor1) -> {
+            log.warn("Background metrics task rejected - queue full, skipping collection cycle");
+            // Пропускаем этот цикл сбора метрик вместо блокировки
+        });
+
+        executor.initialize();
+
+        log.info("Metrics background executor configured: dedicated thread for performance monitoring");
         return executor;
     }
 }

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:fragment="layout (title, content)">
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:fragment="layout (content, scripts)">
 <head th:fragment="head">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -311,8 +311,8 @@
     <!-- Sidebar -->
     <nav class="sidebar">
         <a href="/admin" class="sidebar-brand">
-            <i class="fas fa-flag"></i>
-            <strong>Feature Flags</strong>
+            <i class="fas fa-cogs"></i>
+            <strong>Admin Panel</strong>
         </a>
         
         <ul class="sidebar-nav">
@@ -323,15 +323,15 @@
                 </a>
             </li>
             <li>
-                <a href="/admin/activity-logs" class="nav-link" th:classappend="${#httpServletRequest != null and #strings.contains(#httpServletRequest.requestURI, '/activity-logs')} ? 'active' : ''">
-                    <i class="fas fa-stream"></i>
-                    Activity Logs
+                <a href="/admin/orders" class="nav-link" th:classappend="${#httpServletRequest != null and #strings.contains(#httpServletRequest.requestURI, '/orders')} ? 'active' : ''">
+                    <i class="fas fa-shopping-cart"></i>
+                    Orders
                 </a>
             </li>
             <li>
-                <a href="/admin/feature-flags" class="nav-link" th:classappend="${#httpServletRequest != null and #strings.contains(#httpServletRequest.requestURI, '/feature-flags')} ? 'active' : ''">
-                    <i class="fas fa-toggle-on"></i>
-                    Feature Flags
+                <a href="/admin/activity-logs" class="nav-link" th:classappend="${#httpServletRequest != null and #strings.contains(#httpServletRequest.requestURI, '/activity-logs')} ? 'active' : ''">
+                    <i class="fas fa-stream"></i>
+                    Activity Logs
                 </a>
             </li>
             <li>
@@ -550,7 +550,7 @@
     </script>
     
     <!-- Page-specific scripts -->
-    <th:block th:replace="~{::scripts}">
+    <th:block th:replace="${scripts}">
         <!-- Page scripts will be inserted here -->
     </th:block>
 </body>

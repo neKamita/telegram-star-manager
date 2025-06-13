@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
+<head>
+    <title>Orders Management - Telegram Star Manager</title>
+    <style>
+        .orders-table-container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+        }
+        
+        .filter-card {
+            background: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            border-left: 4px solid var(--primary-color);
+        }
+        
+        .order-status-badge {
+            padding: 0.4rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .status-created { background: rgba(108, 117, 125, 0.1); color: #6c757d; }
+        .status-awaiting_payment { background: rgba(255, 193, 7, 0.1); color: #ffc107; }
+        .status-payment_received { background: rgba(0, 123, 255, 0.1); color: #007bff; }
+        .status-processing { background: rgba(255, 152, 0, 0.1); color: #ff9800; }
+        .status-completed { background: rgba(40, 167, 69, 0.1); color: #28a745; }
+        .status-failed { background: rgba(220, 53, 69, 0.1); color: #dc3545; }
+        .status-cancelled { background: rgba(108, 117, 125, 0.1); color: #6c757d; }
+        .status-refunded { background: rgba(23, 162, 184, 0.1); color: #17a2b8; }
+        
+        .bulk-actions-toolbar {
+            background: rgba(0, 123, 255, 0.05);
+            border: 1px solid rgba(0, 123, 255, 0.1);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            display: none;
+        }
+        
+        .bulk-actions-toolbar.show {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+        
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .action-btn {
+            border: none;
+            border-radius: 6px;
+            padding: 0.375rem 0.75rem;
+            font-size: 0.875rem;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .action-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+        
+        .sortable-header {
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.3s ease;
+        }
+        
+        .sortable-header:hover {
+            background-color: rgba(0, 123, 255, 0.05);
+        }
+        
+        .sort-indicator {
+            margin-left: 0.5rem;
+            opacity: 0.5;
+        }
+        
+        .sort-indicator.active {
+            opacity: 1;
+        }
+        
+        .order-amount {
+            font-weight: 600;
+            color: #28a745;
+        }
+        
+        .discount-badge {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+            color: white;
+            padding: 0.2rem 0.5rem;
+            border-radius: 12px;
+            font-size: 0.7rem;
+            font-weight: 600;
+        }
+        
+        .pagination-container {
+            background: white;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+            border: 1px solid var(--border-color);
+        }
+        
+        .modal-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            border-bottom: none;
+        }
+        
+        .modal-header .btn-close {
+            filter: brightness(0) invert(1);
+        }
+        
+        .date-range-container {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        
+        @media (max-width: 768px) {
+            .date-range-container {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .filter-card {
+                padding: 1rem;
+            }
+            
+            .bulk-actions-toolbar {
+                padding: 0.75rem;
+            }
+        }
+    </style>
+</head>
+<body>
+<div th:fragment="content">
+    
+    <!-- Breadcrumbs -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="/admin" class="text-decoration-none">
+                    <i class="fas fa-tachometer-alt"></i> Dashboard
+                </a>
+            </li>
+            <li class="breadcrumb-item active" aria-current="page">
+                <i class="fas fa-shopping-cart"></i> Управление заказами
+            </li>
+        </ol>
+    </nav>
+    
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="stats-card">
+                <div class="stats-icon text-primary">
+                    <i class="fas fa-shopping-cart"></i>
+                </div>
+                <h3 class="h4 mb-1" th:text="${orderStats?.totalOrders ?: 0}">0</h3>
+                <p class="text-muted mb-0">Всего заказов</p>
+            </div>
+        </div>
+        
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="stats-card">
+                <div class="stats-icon text-success">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <h3 class="h4 mb-1" th:text="${orderStats?.completedOrders ?: 0}">0</h3>
+                <p class="text-muted mb-0">Завершено</p>
+            </div>
+        </div>
+        
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="stats-card">
+                <div class="stats-icon text-warning">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <h3 class="h4 mb-1" th:text="${orderStats?.pendingOrders ?: 0}">0</h3>
+                <p class="text-muted mb-0">В ожидании</p>
+            </div>
+        </div>
+        
+        <div class="col-lg-3 col-md-6 mb-3">
+            <div class="stats-card">
+                <div class="stats-icon text-info">
+                    <i class="fas fa-dollar-sign"></i>
+                </div>
+                <h3 class="h4 mb-1" th:text="${orderStats?.totalRevenue ?: '0.00'}">0.00</h3>
+                <p class="text-muted mb-0">Общий доход</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Filters -->
+    <div class="filter-card">
+        <div class="row">
+            <div class="col-lg-8">
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label for="searchInput" class="form-label">
+                            <i class="fas fa-search me-1"></i>
+                            Поиск
+                        </label>
+                        <input type="text" 
+                               class="form-control" 
+                               id="searchInput" 
+                               placeholder="ID заказа, username..."
+                               th:value="${search}">
+                    </div>
+                    
+                    <div class="col-md-3">
+                        <label for="statusFilter" class="form-label">
+                            <i class="fas fa-filter me-1"></i>
+                            Статус
+                        </label>
+                        <select class="form-select" id="statusFilter">
+                            <option value="">Все статусы</option>
+                            <option th:each="status : ${availableStatuses}" 
+                                    th:value="${status}" 
+                                    th:text="${status}"
+                                    th:selected="${status.toString() == currentStatus}">
+                                Status
+                            </option>
+                        </select>
+                    </div>
+                    
+                    <div class="col-md-5">
+                        <label class="form-label">
+                            <i class="fas fa-calendar me-1"></i>
+                            Диапазон дат
+                        </label>
+                        <div class="date-range-container">
+                            <input type="date" 
+                                   class="form-control" 
+                                   id="startDate" 
+                                   th:value="${startDate}">
+                            <span class="mx-2">—</span>
+                            <input type="date" 
+                                   class="form-control" 
+                                   id="endDate" 
+                                   th:value="${endDate}">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-lg-4">
+                <div class="d-flex flex-column justify-content-end h-100">
+                    <div class="btn-group" role="group">
+                        <button type="button" 
+                                class="btn btn-primary" 
+                                onclick="applyFilters()">
+                            <i class="fas fa-search me-1"></i>
+                            Применить
+                        </button>
+                        <button type="button" 
+                                class="btn btn-outline-secondary" 
+                                onclick="clearFilters()">
+                            <i class="fas fa-times me-1"></i>
+                            Сбросить
+                        </button>
+                        <button type="button" 
+                                class="btn btn-outline-info" 
+                                onclick="refreshData()">
+                            <i class="fas fa-sync-alt me-1"></i>
+                            Обновить
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Bulk Actions Toolbar -->
+    <div class="bulk-actions-toolbar" id="bulkActionsToolbar">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <span class="fw-bold">
+                    <span id="selectedCount">0</span> заказов выбрано
+                </span>
+            </div>
+            <div class="btn-group" role="group">
+                <button type="button" 
+                        class="btn btn-success btn-sm" 
+                        onclick="bulkUpdateStatus('COMPLETED')">
+                    <i class="fas fa-check me-1"></i>
+                    Завершить
+                </button>
+                <button type="button" 
+                        class="btn btn-warning btn-sm" 
+                        onclick="bulkUpdateStatus('PROCESSING')">
+                    <i class="fas fa-cog me-1"></i>
+                    В обработку
+                </button>
+                <button type="button" 
+                        class="btn btn-danger btn-sm" 
+                        onclick="bulkUpdateStatus('CANCELLED')">
+                    <i class="fas fa-ban me-1"></i>
+                    Отменить
+                </button>
+                <button type="button" 
+                        class="btn btn-outline-secondary btn-sm" 
+                        onclick="clearSelection()">
+                    <i class="fas fa-times me-1"></i>
+                    Снять выделение
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Orders Table -->
+    <div class="orders-table-container">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0" id="ordersTable">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width: 50px;">
+                            <input type="checkbox" 
+                                   class="form-check-input" 
+                                   id="selectAll" 
+                                   onchange="toggleSelectAll()">
+                        </th>
+                        <th class="sortable-header" onclick="sortBy('orderId')">
+                            ID заказа
+                            <i class="fas fa-sort sort-indicator" id="sort-orderId"></i>
+                        </th>
+                        <th class="sortable-header" onclick="sortBy('username')">
+                            Пользователь
+                            <i class="fas fa-sort sort-indicator" id="sort-username"></i>
+                        </th>
+                        <th class="sortable-header" onclick="sortBy('starPackageName')">
+                            Пакет
+                            <i class="fas fa-sort sort-indicator" id="sort-starPackageName"></i>
+                        </th>
+                        <th class="sortable-header" onclick="sortBy('finalAmount')">
+                            Сумма
+                            <i class="fas fa-sort sort-indicator" id="sort-finalAmount"></i>
+                        </th>
+                        <th class="sortable-header" onclick="sortBy('status')">
+                            Статус
+                            <i class="fas fa-sort sort-indicator" id="sort-status"></i>
+                        </th>
+                        <th class="sortable-header" onclick="sortBy('createdAt')">
+                            Дата создания
+                            <i class="fas fa-sort sort-indicator" id="sort-createdAt"></i>
+                        </th>
+                        <th style="width: 120px;">Действия</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="order : ${orders?.content}" th:id="'order-row-' + ${order.orderId}">
+                        <td>
+                            <input type="checkbox" 
+                                   class="form-check-input order-checkbox" 
+                                   th:value="${order.orderId}"
+                                   onchange="updateSelectedCount()">
+                        </td>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <span class="fw-bold" th:text="${order.formattedOrderId}">#ORDER123</span>
+                                <span th:if="${order.discountPercentage != null and order.discountPercentage > 0}" 
+                                      class="discount-badge ms-2" 
+                                      th:text="'-' + ${order.discountPercentage} + '%'">
+                                    -10%
+                                </span>
+                            </div>
+                        </td>
+                        <td>
+                            <div>
+                                <div class="fw-medium" th:text="${order.username ?: 'N/A'}">Username</div>
+                                <small class="text-muted" th:text="'ID: ' + ${order.userId}">ID: 123456</small>
+                            </div>
+                        </td>
+                        <td>
+                            <div>
+                                <div th:text="${order.starPackageName}">Package Name</div>
+                                <small class="text-muted">
+                                    <i class="fas fa-star text-warning"></i>
+                                    <span th:text="${order.starCount}">100</span> звезд
+                                </small>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="order-amount" th:text="${order.finalAmount}">$10.00</div>
+                            <small class="text-muted" 
+                                   th:if="${order.originalPrice != order.finalAmount}" 
+                                   th:text="'(' + ${order.originalPrice} + ')'">
+                                ($12.00)
+                            </small>
+                        </td>
+                        <td>
+                            <span th:class="'order-status-badge status-' + ${#strings.toLowerCase(order.status.toString().replace('_', ''))}"
+                                  th:text="${order.statusEmoji} + ' ' + ${order.status}">
+                                ✅ COMPLETED
+                            </span>
+                        </td>
+                        <td>
+                            <div th:text="${#temporals.format(order.createdAt, 'dd.MM.yyyy')}">01.01.2024</div>
+                            <small class="text-muted" th:text="${#temporals.format(order.createdAt, 'HH:mm')}">12:00</small>
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm" role="group">
+                                <button type="button" 
+                                        class="btn btn-outline-primary action-btn" 
+                                        th:onclick="'viewOrder(\'' + ${order.orderId} + '\')'"
+                                        title="Просмотр заказа">
+                                    <i class="fas fa-eye"></i>
+                                </button>
+                                <button type="button" 
+                                        class="btn btn-outline-warning action-btn" 
+                                        th:onclick="'editOrderStatus(\'' + ${order.orderId} + '\', \'' + ${order.status} + '\')'"
+                                        title="Изменить статус">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button type="button" 
+                                        class="btn btn-outline-info action-btn" 
+                                        th:onclick="'editOrderNotes(\'' + ${order.orderId} + '\')'"
+                                        title="Добавить заметку">
+                                    <i class="fas fa-sticky-note"></i>
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                    
+                    <!-- Empty State -->
+                    <tr th:if="${orders == null or orders.content == null or #lists.isEmpty(orders.content)}" 
+                        id="emptyState">
+                        <td colspan="8" class="text-center py-5">
+                            <i class="fas fa-shopping-cart fa-3x text-muted mb-3"></i>
+                            <h5 class="text-muted">Заказы не найдены</h5>
+                            <p class="text-muted">Попробуйте изменить параметры фильтрации</p>
+                            <button type="button" class="btn btn-outline-primary" onclick="clearFilters()">
+                                <i class="fas fa-filter me-1"></i>
+                                Сбросить фильтры
+                            </button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <!-- Pagination -->
+    <div class="pagination-container" th:if="${orders != null and orders.totalPages > 1}">
+        <nav aria-label="Orders pagination">
+            <ul class="pagination justify-content-center mb-0">
+                <li class="page-item" th:classappend="${!orders.hasPrevious()} ? 'disabled'">
+                    <a class="page-link" 
+                       th:href="@{/admin/orders(page=${orders.number - 1}, size=${pageSize}, sortBy=${sortBy}, sortDir=${sortDir}, status=${status}, search=${search}, startDate=${startDate}, endDate=${endDate})}"
+                       th:onclick="${orders.hasPrevious()} ? '' : 'return false;'">
+                        <i class="fas fa-chevron-left"></i>
+                        Предыдущая
+                    </a>
+                </li>
+                
+                <!-- Page Numbers -->
+                <li class="page-item" 
+                    th:each="i : ${#numbers.sequence(T(java.lang.Math).max(0, orders.number - 2), T(java.lang.Math).min(orders.totalPages - 1, orders.number + 2))}"
+                    th:classappend="${i == orders.number} ? 'active'">
+                    <a class="page-link" 
+                       th:href="@{/admin/orders(page=${i}, size=${pageSize}, sortBy=${sortBy}, sortDir=${sortDir}, status=${status}, search=${search}, startDate=${startDate}, endDate=${endDate})}"
+                       th:text="${i + 1}">1</a>
+                </li>
+                
+                <li class="page-item" th:classappend="${!orders.hasNext()} ? 'disabled'">
+                    <a class="page-link" 
+                       th:href="@{/admin/orders(page=${orders.number + 1}, size=${pageSize}, sortBy=${sortBy}, sortDir=${sortDir}, status=${status}, search=${search}, startDate=${startDate}, endDate=${endDate})}"
+                       th:onclick="${orders.hasNext()} ? '' : 'return false;'">
+                        Следующая
+                        <i class="fas fa-chevron-right"></i>
+                    </a>
+                </li>
+            </ul>
+        </nav>
+        
+        <div class="d-flex justify-content-between align-items-center mt-3">
+            <small class="text-muted">
+                Показано <span th:text="${orders.numberOfElements}">0</span> из 
+                <span th:text="${orders.totalElements}">0</span> заказов
+            </small>
+            <div>
+                <label for="pageSizeSelect" class="form-label small mb-0 me-2">Записей на странице:</label>
+                <select class="form-select form-select-sm d-inline-block w-auto" 
+                        id="pageSizeSelect" 
+                        onchange="changePageSize()">
+                    <option value="10" th:selected="${pageSize == 10}">10</option>
+                    <option value="20" th:selected="${pageSize == 20}">20</option>
+                    <option value="50" th:selected="${pageSize == 50}">50</option>
+                    <option value="100" th:selected="${pageSize == 100}">100</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    
+</div>
+
+<!-- Modal: Change Order Status -->
+<div class="modal fade" id="changeStatusModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-edit me-2"></i>
+                    Изменить статус заказа
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="statusChangeForm">
+                    <input type="hidden" id="statusOrderId" name="_csrf" th:value="${_csrf.token}">
+                    
+                    <div class="mb-3">
+                        <label for="newStatus" class="form-label">Новый статус</label>
+                        <select class="form-select" id="newStatus" required>
+                            <option value="">Выберите статус</option>
+                            <option th:each="status : ${availableStatuses}" 
+                                    th:value="${status}" 
+                                    th:text="${status}">
+                                Status
+                            </option>
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="statusChangeReason" class="form-label">Причина изменения</label>
+                        <textarea class="form-control" 
+                                  id="statusChangeReason" 
+                                  rows="3" 
+                                  placeholder="Укажите причину изменения статуса..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    Отмена
+                </button>
+                <button type="button" class="btn btn-primary" onclick="confirmStatusChange()">
+                    <i class="fas fa-save me-1"></i>
+                    Сохранить
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Edit Order Notes -->
+<div class="modal fade" id="editNotesModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-sticky-note me-2"></i>
+                    Заметки к заказу
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="notesEditForm">
+                    <input type="hidden" id="notesOrderId" name="_csrf" th:value="${_csrf.token}">
+                    
+                    <div class="mb-3">
+                        <label for="orderNotes" class="form-label">Заметки</label>
+                        <textarea class="form-control" 
+                                  id="orderNotes" 
+                                  rows="6" 
+                                  placeholder="Добавьте заметки к заказу..."></textarea>
+                        <div class="form-text">
+                            Максимум 2000 символов
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    Отмена
+                </button>
+                <button type="button" class="btn btn-primary" onclick="saveOrderNotes()">
+                    <i class="fas fa-save me-1"></i>
+                    Сохранить заметки
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal: Bulk Status Update Confirmation -->
+<div class="modal fade" id="bulkConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    Подтверждение массового действия
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p id="bulkConfirmText">Вы уверены, что хотите изменить статус выбранных заказов?</p>
+                <div class="alert alert-warning">
+                    <i class="fas fa-info-circle me-2"></i>
+                    Это действие нельзя отменить. Убедитесь, что выбрали правильные заказы.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    Отмена
+                </button>
+                <button type="button" class="btn btn-warning" id="confirmBulkAction">
+                    <i class="fas fa-check me-1"></i>
+                    Подтвердить
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Page Scripts -->
+<th:block th:fragment="scripts">
+    <script>
+        // Global variables
+        let currentSortBy = /*[[${sortBy}]]*/ 'createdAt';
+        let currentSortDir = /*[[${sortDir}]]*/ 'desc';
+        let selectedOrders = new Set();
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeOrdersPage();
+            updateSortIndicators();
+            updateSelectedCount();
+        });
+        
+        function initializeOrdersPage() {
+            console.log('Orders page initialized');
+            
+            // Set current sort indicator
+            updateSortIndicators();
+            
+            // Setup keyboard shortcuts
+            document.addEventListener('keydown', function(e) {
+                if (e.ctrlKey || e.metaKey) {
+                    switch(e.key) {
+                        case 'f':
+                            e.preventDefault();
+                            document.getElementById('searchInput').focus();
+                            break;
+                        case 'r':
+                            e.preventDefault();
+                            refreshData();
+                            break;
+                    }
+                }
+            });
+        }
+        
+        // Filtering functions
+        function applyFilters() {
+            const search = document.getElementById('searchInput').value;
+            const status = document.getElementById('statusFilter').value;
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            
+            const params = new URLSearchParams();
+            params.set('page', '0'); // Reset to first page
+            params.set('size', /*[[${pageSize}]]*/ 20);
+            params.set('sortBy', currentSortBy);
+            params.set('sortDir', currentSortDir);
+            
+            if (search) params.set('search', search);
+            if (status) params.set('status', status);
+            if (startDate) params.set('startDate', startDate);
+            if (endDate) params.set('endDate', endDate);
+            
+            window.location.href = '/admin/orders?' + params.toString();
+        }
+        
+        function clearFilters() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('statusFilter').value = '';
+            document.getElementById('startDate').value = '';
+            document.getElementById('endDate').value = '';
+            
+            const params = new URLSearchParams();
+            params.set('page', '0');
+            params.set('size', /*[[${pageSize}]]*/ 20);
+            params.set('sortBy', 'createdAt');
+            params.set('sortDir', 'desc');
+            
+            window.location.href = '/admin/orders?' + params.toString();
+        }
+        
+        function refreshData() {
+            showToast('Обновление данных...', 'info');
+            window.location.reload();
+        }
+        
+        // Sorting functions
+        function sortBy(field) {
+            let newSortDir = 'asc';
+            
+            if (currentSortBy === field) {
+                newSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
+            }
+            
+            const params = new URLSearchParams(window.location.search);
+            params.set('sortBy', field);
+            params.set('sortDir', newSortDir);
+            params.set('page', '0'); // Reset to first page
+            
+            window.location.href = '/admin/orders?' + params.toString();
+        }
+        
+        function updateSortIndicators() {
+            // Reset all sort indicators
+            document.querySelectorAll('.sort-indicator').forEach(indicator => {
+                indicator.className = 'fas fa-sort sort-indicator';
+            });
+            
+            // Set active sort indicator
+            const activeIndicator = document.getElementById(`sort-${currentSortBy}`);
+            if (activeIndicator) {
+                activeIndicator.className = `fas fa-sort-${currentSortDir === 'asc' ? 'up' : 'down'} sort-indicator active`;
+            }
+        }
+        
+        // Selection functions
+        function toggleSelectAll() {
+            const selectAll = document.getElementById('selectAll');
+            const checkboxes = document.querySelectorAll('.order-checkbox');
+            
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = selectAll.checked;
+                if (selectAll.checked) {
+                    selectedOrders.add(checkbox.value);
+                } else {
+                    selectedOrders.delete(checkbox.value);
+                }
+            });
+            
+            updateSelectedCount();
+        }
+        
+        function updateSelectedCount() {
+            const checkboxes = document.querySelectorAll('.order-checkbox:checked');
+            selectedOrders.clear();
+            
+            checkboxes.forEach(checkbox => {
+                selectedOrders.add(checkbox.value);
+            });
+            
+            const count = selectedOrders.size;
+            document.getElementById('selectedCount').textContent = count;
+            
+            const toolbar = document.getElementById('bulkActionsToolbar');
+            if (count > 0) {
+                toolbar.classList.add('show');
+            } else {
+                toolbar.classList.remove('show');
+            }
+            
+            // Update select all checkbox
+            const selectAll = document.getElementById('selectAll');
+            const totalCheckboxes = document.querySelectorAll('.order-checkbox').length;
+            selectAll.indeterminate = count > 0 && count < totalCheckboxes;
+            selectAll.checked = count === totalCheckboxes && count > 0;
+        }
+        
+        function clearSelection() {
+            selectedOrders.clear();
+            document.querySelectorAll('.order-checkbox').forEach(checkbox => {
+                checkbox.checked = false;
+            });
+            document.getElementById('selectAll').checked = false;
+            updateSelectedCount();
+        }
+        
+        // Order actions
+        function viewOrder(orderId) {
+            window.location.href = `/admin/orders/${orderId}`;
+        }
+        
+        function editOrderStatus(orderId, currentStatus) {
+            document.getElementById('statusOrderId').value = orderId;
+            document.getElementById('newStatus').value = currentStatus;
+            document.getElementById('statusChangeReason').value = '';
+            
+            const modal = new bootstrap.Modal(document.getElementById('changeStatusModal'));
+            modal.show();
+        }
+        
+        function confirmStatusChange() {
+            const orderId = document.getElementById('statusOrderId').value;
+            const newStatus = document.getElementById('newStatus').value;
+            const reason = document.getElementById('statusChangeReason').value;
+            
+            if (!newStatus) {
+                showToast('Пожалуйста, выберите новый статус', 'warning');
+                return;
+            }
+            
+            const data = {
+                status: newStatus,
+                reason: reason
+            };
+            
+            window.AdminGlobals.securedFetch(`/admin/orders/${orderId}/status`, {
+                method: 'POST',
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Статус заказа успешно обновлен', 'success');
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('changeStatusModal'));
+                    modal.hide();
+                    
+                    // Refresh page to show updated status
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    throw new Error(data.message || 'Ошибка обновления статуса');
+                }
+            })
+            .catch(error => {
+                console.error('Error updating order status:', error);
+                showToast('Ошибка обновления статуса: ' + error.message, 'danger');
+            });
+        }
+        
+        function editOrderNotes(orderId) {
+            document.getElementById('notesOrderId').value = orderId;
+            document.getElementById('orderNotes').value = '';
+            
+            const modal = new bootstrap.Modal(document.getElementById('editNotesModal'));
+            modal.show();
+        }
+        
+        function saveOrderNotes() {
+            const orderId = document.getElementById('notesOrderId').value;
+            const notes = document.getElementById('orderNotes').value;
+            
+            const data = {
+                notes: notes
+            };
+            
+            window.AdminGlobals.securedFetch(`/admin/orders/${orderId}/notes`, {
+                method: 'POST',
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('Заметки успешно сохранены', 'success');
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('editNotesModal'));
+                    modal.hide();
+                } else {
+                    throw new Error(data.message || 'Ошибка сохранения заметок');
+                }
+            })
+            .catch(error => {
+                console.error('Error saving order notes:', error);
+                showToast('Ошибка сохранения заметок: ' + error.message, 'danger');
+            });
+        }
+        
+        // Bulk actions
+        function bulkUpdateStatus(newStatus) {
+            if (selectedOrders.size === 0) {
+                showToast('Выберите заказы для изменения статуса', 'warning');
+                return;
+            }
+            
+            const statusTexts = {
+                'COMPLETED': 'завершить',
+                'PROCESSING': 'перевести в обработку',
+                'CANCELLED': 'отменить'
+            };
+            
+            const action = statusTexts[newStatus] || 'изменить статус';
+            document.getElementById('bulkConfirmText').textContent = 
+                `Вы уверены, что хотите ${action} ${selectedOrders.size} заказов?`;
+            
+            const confirmButton = document.getElementById('confirmBulkAction');
+            confirmButton.onclick = () => executeBulkStatusUpdate(newStatus);
+            
+            const modal = new bootstrap.Modal(document.getElementById('bulkConfirmModal'));
+            modal.show();
+        }
+        
+        function executeBulkStatusUpdate(newStatus) {
+            const data = {
+                orderIds: Array.from(selectedOrders),
+                status: newStatus,
+                reason: `Массовое изменение статуса через админ панель`
+            };
+            
+            window.AdminGlobals.securedFetch('/admin/orders/batch/status', {
+                method: 'POST',
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast(`Обновлено заказов: ${data.updatedOrders.length}, ошибок: ${data.failedOrders.length}`, 'success');
+                    const modal = bootstrap.Modal.getInstance(document.getElementById('bulkConfirmModal'));
+                    modal.hide();
+                    
+                    // Clear selection and refresh
+                    clearSelection();
+                    setTimeout(() => window.location.reload(), 1000);
+                } else {
+                    throw new Error(data.message || 'Ошибка массового обновления');
+                }
+            })
+            .catch(error => {
+                console.error('Error in bulk update:', error);
+                showToast('Ошибка массового обновления: ' + error.message, 'danger');
+            });
+        }
+        
+        // Page size change
+        function changePageSize() {
+            const newSize = document.getElementById('pageSizeSelect').value;
+            const params = new URLSearchParams(window.location.search);
+            params.set('size', newSize);
+            params.set('page', '0'); // Reset to first page
+            
+            window.location.href = '/admin/orders?' + params.toString();
+        }
+        
+        // Global refresh function override
+        function refreshData() {
+            showToast('Обновление данных заказов...', 'info');
+            window.location.reload();
+        }
+    </script>
+</th:block>
+</html>

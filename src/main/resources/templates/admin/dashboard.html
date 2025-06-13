@@ -1,31 +1,30 @@
 <!DOCTYPE html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{admin/layout :: head}">
-    <title>Dashboard - Admin Panel</title>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
+<head>
+    <title>Admin Panel - Telegram Star Manager</title>
 </head>
 <body>
-    <div th:replace="~{admin/layout :: body}">
-        <div th:fragment="content">
+<div th:fragment="content">
         
         <!-- Statistics Cards -->
         <div class="row mb-4">
             <div class="col-md-3 mb-3">
                 <div class="stats-card">
                     <div class="stats-icon text-primary">
-                        <i class="fas fa-flag"></i>
+                        <i class="fas fa-shopping-cart"></i>
                     </div>
-                    <h3 class="h4 mb-1" th:text="${totalFlags ?: 0}">0</h3>
-                    <p class="text-muted mb-0">Total Flags</p>
+                    <h3 class="h4 mb-1" th:text="${totalOrders ?: 0}">0</h3>
+                    <p class="text-muted mb-0">Total Orders</p>
                 </div>
             </div>
             
             <div class="col-md-3 mb-3">
                 <div class="stats-card">
                     <div class="stats-icon text-success">
-                        <i class="fas fa-toggle-on"></i>
+                        <i class="fas fa-check-circle"></i>
                     </div>
-                    <h3 class="h4 mb-1" th:text="${activeFlagsCount ?: 0}">0</h3>
-                    <p class="text-muted mb-0">Active Flags</p>
+                    <h3 class="h4 mb-1" th:text="${completedOrdersCount ?: 0}">0</h3>
+                    <p class="text-muted mb-0">Completed Orders</p>
                 </div>
             </div>
             
@@ -69,11 +68,6 @@
                                 Orders (<span id="orderCount" th:text="${combinedActivity?.orderCount ?: 0}">0</span>)
                             </label>
                             
-                            <input type="radio" class="btn-check" name="activityFilter" id="filterFlags">
-                            <label class="btn btn-outline-info" for="filterFlags">
-                                <i class="fas fa-flag me-1"></i>
-                                Flags (<span id="flagCount" th:text="${combinedActivity?.flagCount ?: 0}">0</span>)
-                            </label>
                         </div>
                     </div>
                     <div class="table-responsive">
@@ -94,7 +88,7 @@
                                 <td>
                                     <div class="d-flex align-items-center">
                                         <i th:class="${activity.icon} + ' me-2 ' + (${activity.type == 'ORDER'} ? 'text-success' : 'text-primary')"></i>
-                                        <span class="fw-bold" th:text="${activity.type == 'ORDER' ? 'Purchase' : 'Flag'}">Type</span>
+                                        <span class="fw-bold" th:text="${activity.type == 'ORDER' ? 'Purchase' : 'Activity'}">Type</span>
                                     </div>
                                 </td>
                                 <td>
@@ -114,8 +108,8 @@
                                 <td>
                                     <a th:href="${activity.actionUrl}" 
                                        class="btn btn-sm btn-outline-secondary" 
-                                       th:title="${activity.type == 'ORDER' ? 'View Order' : 'Edit Flag'}">
-                                        <i th:class="${activity.type == 'ORDER' ? 'fas fa-eye' : 'fas fa-edit'}"></i>
+                                       th:title="${activity.type == 'ORDER' ? 'View Order' : 'View Details'}">
+                                        <i th:class="${activity.type == 'ORDER' ? 'fas fa-eye' : 'fas fa-info-circle'}"></i>
                                     </a>
                                 </td>
                             </tr>
@@ -126,10 +120,6 @@
                                     <i class="fas fa-history fa-2x text-muted mb-3"></i>
                                     <p class="text-muted mb-3">No recent activity found</p>
                                     <div>
-                                        <a href="/admin/feature-flags/new" class="btn btn-primary me-2">
-                                            <i class="fas fa-plus me-2"></i>
-                                            Create Flag
-                                        </a>
                                         <a href="/admin/orders" class="btn btn-success">
                                             <i class="fas fa-shopping-cart me-2"></i>
                                             View Orders
@@ -148,11 +138,7 @@
                             </small>
                             <div>
                                 <a href="/admin/orders" class="btn btn-sm btn-outline-success me-2">
-                                    View All Orders
-                                    <i class="fas fa-arrow-right ms-1"></i>
-                                </a>
-                                <a href="/admin/feature-flags" class="btn btn-sm btn-outline-primary">
-                                    View All Flags
+                                    View Orders
                                     <i class="fas fa-arrow-right ms-1"></i>
                                 </a>
                             </div>
@@ -162,6 +148,66 @@
             </div>
             
             <div class="col-lg-4 mb-4">
+                <!-- Recent Orders -->
+                <div class="feature-flag-card mb-4">
+                    <h5 class="mb-3">
+                        <i class="fas fa-shopping-cart text-success me-2"></i>
+                        Recent Orders
+                    </h5>
+                    
+                    <!-- Список последних заказов -->
+                    <div class="orders-list">
+                        <!-- Итерация по recentOrders если есть -->
+                        <div th:if="${recentOrders != null and !#lists.isEmpty(recentOrders)}">
+                            <div th:each="order : ${recentOrders}" class="d-flex align-items-center justify-content-between mb-3 p-2 border rounded">
+                                <div class="flex-grow-1">
+                                    <div class="d-flex align-items-center mb-1">
+                                        <strong class="me-2" th:text="'#' + ${order.orderId}">Order #1</strong>
+                                        <span th:switch="${order.status}" class="badge">
+                                            <span th:case="'COMPLETED'" class="badge bg-success" th:text="${order.status}">COMPLETED</span>
+                                            <span th:case="'PENDING'" class="badge bg-warning" th:text="${order.status}">PENDING</span>
+                                            <span th:case="'FAILED'" class="badge bg-danger" th:text="${order.status}">FAILED</span>
+                                            <span th:case="*" class="badge bg-secondary" th:text="${order.status}">STATUS</span>
+                                        </span>
+                                    </div>
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <small class="text-muted" th:text="${order.starPackageName ?: 'Unknown Package'}">Package</small>
+                                        <div class="text-end">
+                                            <small class="fw-bold" th:text="${order.starCount != null ? order.starCount + ' ⭐' : 'N/A'}">100 ⭐</small>
+                                            <br>
+                                            <small class="text-muted" th:text="${#temporals.format(order.createdAt, 'dd.MM HH:mm')}">01.01 12:00</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Empty state если нет заказов -->
+                        <div th:if="${recentOrders == null or #lists.isEmpty(recentOrders)}" class="text-center py-4">
+                            <i class="fas fa-shopping-cart fa-2x text-muted mb-3"></i>
+                            <p class="text-muted mb-3">No recent orders</p>
+                            <a href="/admin/orders" class="btn btn-sm btn-outline-success">
+                                <i class="fas fa-plus me-1"></i>
+                                View All Orders
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <!-- Статистики заказов -->
+                    <div class="mt-3 pt-3 border-top">
+                        <div class="row text-center">
+                            <div class="col-6">
+                                <h6 class="h6 mb-1" th:text="${orderStats?.totalOrders ?: 0}">0</h6>
+                                <small class="text-muted">Total</small>
+                            </div>
+                            <div class="col-6">
+                                <h6 class="h6 mb-1" th:text="${orderStats?.completedOrders ?: 0}">0</h6>
+                                <small class="text-muted">Completed</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
                 <!-- Quick Actions -->
                 <div class="feature-flag-card">
                     <h5 class="mb-3">
@@ -170,9 +216,14 @@
                     </h5>
                     
                     <div class="d-grid gap-2">
-                        <a href="/admin/feature-flags/new" class="btn btn-primary">
-                            <i class="fas fa-plus me-2"></i>
-                            Create New Flag
+                        <a href="/admin/orders" class="btn btn-primary">
+                            <i class="fas fa-shopping-cart me-2"></i>
+                            View All Orders
+                        </a>
+                        
+                        <a href="/admin/users" class="btn btn-success">
+                            <i class="fas fa-users me-2"></i>
+                            View Users
                         </a>
                         
                         <button class="btn btn-outline-secondary" onclick="refreshCache()">
@@ -234,11 +285,11 @@
                 </div>
             </div>
         </div>
-        </div>
-    </div>
+</div>
     
-    <!-- Page Scripts -->
-    <script th:fragment="scripts">
+<!-- Page Scripts -->
+<th:block th:fragment="scripts">
+    <script>
         // Dashboard Variables
         let refreshInterval;
         let isRefreshing = false;
@@ -259,13 +310,6 @@
 
         // Setup Event Listeners
         function setupEventListeners() {
-            // Toggle Flag Buttons
-            document.querySelectorAll('.toggle-flag-btn').forEach(button => {
-                button.addEventListener('click', function() {
-                    const flagName = this.getAttribute('data-flag-name');
-                    toggleFlag(flagName);
-                });
-            });
 
             // Activity Filter Buttons
             document.querySelectorAll('input[name="activityFilter"]').forEach(radio => {
@@ -406,30 +450,6 @@
             });
         }
 
-        // Toggle Flag
-        function toggleFlag(flagName) {
-            if (!flagName) return;
-
-            fetch(`/admin/api/feature-flags/${flagName}/toggle`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-            })
-            .then(response => {
-                if (response.ok) {
-                    showSuccess(`Flag "${flagName}" toggled successfully`);
-                    // Refresh page after delay to show updated status
-                    setTimeout(() => window.location.reload(), 1000);
-                } else {
-                    throw new Error('Failed to toggle flag');
-                }
-            })
-            .catch(error => {
-                console.error('Error toggling flag:', error);
-                showError(`Failed to toggle flag "${flagName}"`);
-            });
-        }
 
         // Refresh Functions
         function refreshData() {
@@ -485,9 +505,6 @@
                     case 'filterOrders':
                         shouldShow = activityType === 'ORDER';
                         break;
-                    case 'filterFlags':
-                        shouldShow = activityType === 'FEATURE_FLAG';
-                        break;
                 }
 
                 if (shouldShow) {
@@ -508,9 +525,6 @@
                         switch (filterId) {
                             case 'filterOrders':
                                 emptyMessage.textContent = 'No recent orders found';
-                                break;
-                            case 'filterFlags':
-                                emptyMessage.textContent = 'No recent feature flag updates found';
                                 break;
                             default:
                                 emptyMessage.textContent = 'No recent activity found';
@@ -540,5 +554,5 @@
             }
         });
     </script>
-</body>
+</th:block>
 </html>

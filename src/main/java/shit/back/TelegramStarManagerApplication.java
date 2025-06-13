@@ -9,7 +9,10 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableAsync
 @EnableScheduling
 public class TelegramStarManagerApplication {
+
     public static void main(String[] args) {
+        System.out.println("🚀 ДИАГНОСТИКА SSE: Starting TelegramStarManager with @EnableAsync and @EnableScheduling");
         SpringApplication.run(TelegramStarManagerApplication.class, args);
+        System.out.println("✅ ДИАГНОСТИКА SSE: TelegramStarManager started successfully");
     }
 }

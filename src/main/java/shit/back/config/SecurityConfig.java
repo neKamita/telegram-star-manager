@@ -44,10 +44,7 @@ public class SecurityConfig {
                     
                     // Health checks и monitoring - публичные endpoints
                     "/actuator/health",
-                    "/actuator/info",
-                    
-                    // REST API endpoints для внешних интеграций
-                    "/api/feature-flags/check/**"
+                    "/actuator/info"
                 )
             )
             
@@ -74,9 +71,6 @@ public class SecurityConfig {
                 // Telegram webhook - КРИТИЧЕСКИ ВАЖНО для бота!
                 .requestMatchers("/webhook/telegram").permitAll()
                 .requestMatchers("/webhook/**").permitAll()
-                
-                // Feature flags endpoints - требуют аутентификации
-                .requestMatchers("/api/feature-flags/**").authenticated()
                 
                 // API эндпоинты требуют аутентификации
                 .requestMatchers("/api/**").authenticated()

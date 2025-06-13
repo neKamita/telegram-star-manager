@@ -53,39 +53,74 @@ public class TelegramBotConfig {
     
     @PostConstruct
     public void registerBots() {
+        String activeProfiles = System.getProperty("spring.profiles.active", "default");
+        boolean isProduction = activeProfiles.contains("production");
+        
         log.info("🔄 TelegramBotConfig.registerBots() вызван");
-        log.info("📋 Доступные профили: {}", System.getProperty("spring.profiles.active"));
+        log.info("📋 Активные профили: {}", activeProfiles);
+        log.info("🎯 Режим работы: {}", isProduction ? "PRODUCTION (Webhook)" : "DEVELOPMENT (Polling)");
         
         try {
-            // Register long polling bot for development
-            if (telegramBotService != null) {
-                log.info("🤖 Development mode: Using TelegramBotService (Long Polling)");
-                TelegramBotsApi api = telegramBotsApiForDevelopment();
-                if (api != null) {
-                    api.registerBot(telegramBotService);
-                    log.info("✅ TelegramBotService зарегистрирован для development");
+            if (!isProduction) {
+                // Development/staging mode - используем polling
+                if (telegramBotService != null) {
+                    log.info("🤖 Development mode: Регистрация TelegramBotService (Long Polling)");
+                    TelegramBotsApi api = telegramBotsApiForDevelopment();
+                    if (api != null) {
+                        try {
+                            api.registerBot(telegramBotService);
+                            telegramBotService.markAsRegistered();
+                            log.info("✅ TelegramBotService успешно зарегистрирован для development");
+                        } catch (TelegramApiException e) {
+                            telegramBotService.markRegistrationFailed(e.getMessage());
+                            log.error("❌ Ошибка регистрации TelegramBotService: {}", e.getMessage());
+                            
+                            if (e.getMessage().contains("can't use getUpdates method while webhook is active")) {
+                                log.error("💡 РЕШЕНИЕ: Webhook все еще активен! TelegramBotService попытается его удалить автоматически");
+                                log.error("💡 Если проблема сохраняется, вручную удалите webhook через Bot API");
+                            }
+                        }
+                    } else {
+                        log.error("❌ Не удалось создать TelegramBotsApi для development");
+                    }
+                } else {
+                    log.warn("⚠️ TelegramBotService не найден для development режима!");
+                    log.warn("💡 Проверьте, что профиль не содержит 'production'");
                 }
+                
+                // Предупреждаем, если webhook сервис активен в dev режиме
+                if (telegramWebhookBotService != null) {
+                    log.warn("⚠️ TelegramWebhookBotService активен в development режиме!");
+                    log.warn("💡 Убедитесь, что профиль настроен корректно");
+                }
+                
             } else {
-                log.info("❌ TelegramBotService не найден (нормально для production)");
-            }
-            
-            // Webhook bot for production - does NOT need registration in TelegramBotsApi
-            if (telegramWebhookBotService != null) {
-                log.info("🤖 Production mode: Using TelegramWebhookBotService (Webhook)");
-                log.info("📌 Webhook bots работают независимо от TelegramBotsApi");
-                log.info("🌐 Webhook URL: {}", telegramWebhookBotService.getBotPath());
-                log.info("👤 Bot Username: {}", telegramWebhookBotService.getBotUsername());
-                log.info("✅ TelegramWebhookBotService готов к приему webhook запросов");
-            } else {
-                log.error("❌ TelegramWebhookBotService НЕ НАЙДЕН! Проверьте профиль и конфигурацию");
-                log.error("🔍 Текущий профиль: {}", System.getProperty("spring.profiles.active"));
+                // Production mode - используем webhook
+                if (telegramWebhookBotService != null) {
+                    log.info("🤖 Production mode: TelegramWebhookBotService активен");
+                    log.info("📌 Webhook bots работают независимо от TelegramBotsApi");
+                    log.info("🌐 Webhook URL: {}", telegramWebhookBotService.getBotPath());
+                    log.info("👤 Bot Username: {}", telegramWebhookBotService.getBotUsername());
+                    log.info("✅ TelegramWebhookBotService готов к приему webhook запросов");
+                } else {
+                    log.error("❌ TelegramWebhookBotService НЕ НАЙДЕН в production режиме!");
+                    log.error("🔍 Проверьте настройки профиля 'production'");
+                }
+                
+                // Предупреждаем, если polling сервис активен в prod режиме
+                if (telegramBotService != null) {
+                    log.warn("⚠️ TelegramBotService активен в production режиме!");
+                    log.warn("💡 В production должен использоваться только webhook");
+                }
             }
             
         } catch (Exception e) {
-            log.error("💥 Ошибка при регистрации ботов: {}", e.getMessage(), e);
-            // В production не падаем, webhook может работать независимо
-            if (telegramWebhookBotService != null) {
-                log.warn("🔄 Продолжаем работу с webhook без регистрации в API");
+            log.error("💥 Критическая ошибка при регистрации ботов: {}", e.getMessage(), e);
+            
+            if (isProduction && telegramWebhookBotService != null) {
+                log.warn("🔄 В production режиме продолжаем работу с webhook");
+            } else {
+                log.error("💥 Не удалось настроить бота для текущего режима");
             }
         }
         

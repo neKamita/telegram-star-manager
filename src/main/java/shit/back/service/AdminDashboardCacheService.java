@@ -100,86 +100,102 @@ public class AdminDashboardCacheService {
     }
 
     /**
-     * Кэшированный счетчик пользователей - оптимизирован для быстрого ответа
+     * ОПТИМИЗИРОВАННЫЙ метод получения всех счетчиков пользователей одним запросом
+     * Решает проблему N+1 Query - вместо 3 отдельных запросов делает 1 батч-запрос
      */
-    private long getTotalUsersCountCached() {
-        CachedData cached = cache.get("total_users_count");
+    private UserCountsBatch getUserCountsBatch() {
+        CachedData cached = cache.get("users_counts_batch");
         if (cached != null && !cached.isExpired()) {
-            return (Long) cached.data;
+            return (UserCountsBatch) cached.data;
         }
 
         try {
-            log.debug("Fetching total users count from service");
-            // Используем асинхронный вызов с timeout для быстрого ответа
-            CompletableFuture<Long> future = CompletableFuture.supplyAsync(() -> {
+            log.debug("Fetching ALL user counts in single batch request");
+            
+            // Используем BATCH запрос вместо множественных отдельных запросов
+            CompletableFuture<UserCountsBatch> future = CompletableFuture.supplyAsync(() -> {
                 try {
-                    return adminDashboardService.getDashboardOverview().getTotalUsersCount();
+                    // ОДИН запрос вместо трех - ключевая оптимизация
+                    AdminDashboardService.DashboardOverview overview = 
+                        adminDashboardService.getDashboardOverview();
+                    
+                    return new UserCountsBatch(
+                        overview.getTotalUsersCount(),
+                        overview.getActiveUsersCount(), 
+                        overview.getOnlineUsersCount()
+                    );
                 } catch (Exception e) {
-                    log.warn("Async total users count failed: {}", e.getMessage());
-                    return 0L;
+                    log.warn("Batch user counts failed: {}", e.getMessage());
+                    return new UserCountsBatch(0L, 0L, 0L);
                 }
             });
             
-            // Ждем максимум 3 секунды
-            long count = future.get(3, java.util.concurrent.TimeUnit.SECONDS);
-            putWithSizeLimit("total_users_count", new CachedData(count));
-            return count;
+            // Timeout для быстрого ответа
+            UserCountsBatch batch = future.get(5, java.util.concurrent.TimeUnit.SECONDS);
+            
+            // Кэшируем батч результат
+            putWithSizeLimit("users_counts_batch", new CachedData(batch));
+            
+            // Также кэшируем отдельные счетчики для обратной совместимости
+            putWithSizeLimit("total_users_count", new CachedData(batch.totalUsers));
+            putWithSizeLimit("active_users_count", new CachedData(batch.activeUsers));
+            putWithSizeLimit("online_users_count", new CachedData(batch.onlineUsers));
+            
+            return batch;
         } catch (Exception e) {
-            log.warn("Error getting total users count, using fallback: {}", e.getMessage());
-            // Fallback - возвращаем приблизительное значение из кэша или 0
-            return getFallbackCount("total_users_count", 0L);
+            log.warn("Error getting batch user counts, using fallback: {}", e.getMessage());
+            return getFallbackUserCountsBatch();
         }
+    }
+
+    /**
+     * Оптимизированные отдельные методы - используют батч результат
+     */
+    private long getTotalUsersCountCached() {
+        UserCountsBatch batch = getUserCountsBatch();
+        return batch.totalUsers;
     }
 
     private long getActiveUsersCountCached() {
-        CachedData cached = cache.get("active_users_count");
-        if (cached != null && !cached.isExpired()) {
-            return (Long) cached.data;
-        }
-
-        try {
-            log.debug("Fetching active users count from service");
-            CompletableFuture<Long> future = CompletableFuture.supplyAsync(() -> {
-                try {
-                    return adminDashboardService.getDashboardOverview().getActiveUsersCount();
-                } catch (Exception e) {
-                    log.warn("Async active users count failed: {}", e.getMessage());
-                    return 0L;
-                }
-            });
-            
-            long count = future.get(3, java.util.concurrent.TimeUnit.SECONDS);
-            putWithSizeLimit("active_users_count", new CachedData(count));
-            return count;
-        } catch (Exception e) {
-            log.warn("Error getting active users count, using fallback: {}", e.getMessage());
-            return getFallbackCount("active_users_count", 0L);
-        }
+        UserCountsBatch batch = getUserCountsBatch();
+        return batch.activeUsers;
     }
 
     private long getOnlineUsersCountCached() {
-        CachedData cached = cache.get("online_users_count");
-        if (cached != null && !cached.isExpired()) {
-            return (Long) cached.data;
-        }
+        UserCountsBatch batch = getUserCountsBatch();
+        return batch.onlineUsers;
+    }
 
-        try {
-            log.debug("Fetching online users count from service");
-            CompletableFuture<Long> future = CompletableFuture.supplyAsync(() -> {
-                try {
-                    return adminDashboardService.getDashboardOverview().getOnlineUsersCount();
-                } catch (Exception e) {
-                    log.warn("Async online users count failed: {}", e.getMessage());
-                    return 0L;
-                }
-            });
-            
-            long count = future.get(3, java.util.concurrent.TimeUnit.SECONDS);
-            putWithSizeLimit("online_users_count", new CachedData(count));
-            return count;
-        } catch (Exception e) {
-            log.warn("Error getting online users count, using fallback: {}", e.getMessage());
-            return getFallbackCount("online_users_count", 0L);
+    /**
+     * Fallback метод для получения батч счетчиков из старого кэша
+     */
+    private UserCountsBatch getFallbackUserCountsBatch() {
+        CachedData cached = cache.get("users_counts_batch");
+        if (cached != null) {
+            log.debug("Using stale batch cache data");
+            return (UserCountsBatch) cached.data;
+        }
+        
+        // Пытаемся получить из отдельных кэшей
+        long total = getFallbackCount("total_users_count", 0L);
+        long active = getFallbackCount("active_users_count", 0L);
+        long online = getFallbackCount("online_users_count", 0L);
+        
+        return new UserCountsBatch(total, active, online);
+    }
+
+    /**
+     * Внутренний класс для батч результатов счетчиков пользователей
+     */
+    private static class UserCountsBatch {
+        final long totalUsers;
+        final long activeUsers;
+        final long onlineUsers;
+
+        UserCountsBatch(long totalUsers, long activeUsers, long onlineUsers) {
+            this.totalUsers = totalUsers;
+            this.activeUsers = activeUsers;
+            this.onlineUsers = onlineUsers;
         }
     }
 

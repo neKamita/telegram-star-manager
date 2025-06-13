@@ -23,57 +23,56 @@ import java.util.Optional;
 @Service
 @Transactional
 public class UserSessionEnhancedService {
-    
+
     @Autowired
     private UserSessionJpaRepository sessionRepository;
-    
+
     /**
      * Create or update user session
      */
     public UserSessionEntity createOrUpdateSession(UserSession userSession) {
         log.info("Creating/updating session for user {}", userSession.getUserId());
-        
+
         Optional<UserSessionEntity> existingOpt = sessionRepository.findByUserId(userSession.getUserId());
-        
+
         UserSessionEntity entity;
         if (existingOpt.isPresent()) {
             entity = existingOpt.get();
             entity.setUsername(userSession.getUsername());
             entity.setFirstName(userSession.getFirstName());
             entity.setLastName(userSession.getLastName());
-            
+
             // Convert UserSession.SessionState to UserSessionEntity.SessionState
             if (userSession.getState() != null) {
                 entity.setState(convertSessionState(userSession.getState()));
             }
-            
+
             if (userSession.getOrderId() != null) {
                 entity.setCurrentOrderId(userSession.getOrderId());
             }
-            
+
             entity.updateActivity();
         } else {
             entity = new UserSessionEntity(
                     userSession.getUserId(),
                     userSession.getUsername(),
                     userSession.getFirstName(),
-                    userSession.getLastName()
-            );
-            
+                    userSession.getLastName());
+
             if (userSession.getState() != null) {
                 entity.setState(convertSessionState(userSession.getState()));
             }
-            
+
             if (userSession.getOrderId() != null) {
                 entity.setCurrentOrderId(userSession.getOrderId());
             }
         }
-        
+
         UserSessionEntity saved = sessionRepository.save(entity);
         log.info("Session for user {} saved with ID: {}", userSession.getUserId(), saved.getId());
         return saved;
     }
-    
+
     /**
      * Convert UserSession.SessionState to UserSessionEntity.SessionState
      */
@@ -85,9 +84,13 @@ public class UserSessionEnhancedService {
             case AWAITING_PAYMENT -> UserSessionEntity.SessionState.AWAITING_PAYMENT;
             case PAYMENT_PROCESSING -> UserSessionEntity.SessionState.PAYMENT_PROCESSING;
             case COMPLETED -> UserSessionEntity.SessionState.COMPLETED;
+            case TOPPING_UP_BALANCE -> UserSessionEntity.SessionState.TOPPING_UP_BALANCE;
+            case SELECTING_PAYMENT_TYPE -> UserSessionEntity.SessionState.SELECTING_PAYMENT_TYPE;
+            case BALANCE_PAYMENT_PROCESSING -> UserSessionEntity.SessionState.BALANCE_PAYMENT_PROCESSING;
+            case MIXED_PAYMENT_PROCESSING -> UserSessionEntity.SessionState.MIXED_PAYMENT_PROCESSING;
         };
     }
-    
+
     /**
      * Get session by user ID
      */
@@ -95,7 +98,7 @@ public class UserSessionEnhancedService {
     public Optional<UserSessionEntity> getSessionByUserId(Long userId) {
         return sessionRepository.findByUserId(userId);
     }
-    
+
     /**
      * Get all active sessions
      */
@@ -103,7 +106,7 @@ public class UserSessionEnhancedService {
     public List<UserSessionEntity> getActiveSessions() {
         return sessionRepository.findByIsActiveTrueOrderByLastActivityDesc();
     }
-    
+
     /**
      * Get recent active sessions
      */
@@ -112,7 +115,7 @@ public class UserSessionEnhancedService {
         LocalDateTime since = LocalDateTime.now().minusHours(hours);
         return sessionRepository.findSessionsActiveSince(since);
     }
-    
+
     /**
      * Get online users (active in last 5 minutes)
      */
@@ -121,7 +124,7 @@ public class UserSessionEnhancedService {
         LocalDateTime cutoff = LocalDateTime.now().minusMinutes(5);
         return sessionRepository.findOnlineUsers(cutoff);
     }
-    
+
     /**
      * Get sessions by current state
      */
@@ -129,7 +132,7 @@ public class UserSessionEnhancedService {
     public List<UserSessionEntity> getSessionsByState(UserSessionEntity.SessionState state) {
         return sessionRepository.findByStateOrderByLastActivityDesc(state);
     }
-    
+
     /**
      * Get paginated sessions
      */
@@ -137,7 +140,7 @@ public class UserSessionEnhancedService {
     public Page<UserSessionEntity> getSessions(Pageable pageable) {
         return sessionRepository.findAll(pageable);
     }
-    
+
     /**
      * Search sessions
      */
@@ -145,7 +148,7 @@ public class UserSessionEnhancedService {
     public Page<UserSessionEntity> searchSessions(String searchTerm, Pageable pageable) {
         return sessionRepository.searchUsers(searchTerm, pageable);
     }
-    
+
     /**
      * Get top active users
      */
@@ -153,7 +156,7 @@ public class UserSessionEnhancedService {
     public List<UserSessionEntity> getTopActiveUsers(int limit) {
         return sessionRepository.findTopActiveUsers(PageRequest.of(0, limit));
     }
-    
+
     /**
      * Update user activity
      */
@@ -164,7 +167,7 @@ public class UserSessionEnhancedService {
             log.debug("Updated activity for user {}", userId);
         }
     }
-    
+
     /**
      * Deactivate expired sessions
      */
@@ -177,7 +180,7 @@ public class UserSessionEnhancedService {
         }
         return deactivated;
     }
-    
+
     /**
      * Get new users
      */
@@ -186,7 +189,7 @@ public class UserSessionEnhancedService {
         LocalDateTime since = LocalDateTime.now().minusDays(days);
         return sessionRepository.findNewUsers(since);
     }
-    
+
     /**
      * Get users with pending orders
      */
@@ -194,7 +197,7 @@ public class UserSessionEnhancedService {
     public List<UserSessionEntity> getUsersWithPendingOrders() {
         return sessionRepository.findByCurrentOrderIdIsNotNull();
     }
-    
+
     /**
      * Get VIP users
      */
@@ -202,7 +205,7 @@ public class UserSessionEnhancedService {
     public List<UserSessionEntity> getVipUsers(Integer minOrders, Long minStars) {
         return sessionRepository.findVipUsers(minOrders, minStars);
     }
-    
+
     /**
      * Get users stuck in state
      */
@@ -211,9 +214,9 @@ public class UserSessionEnhancedService {
         LocalDateTime cutoff = LocalDateTime.now().minusHours(hours);
         return sessionRepository.findUsersStuckInState(state, cutoff);
     }
-    
+
     // Statistics methods
-    
+
     /**
      * Get total users count
      */
@@ -221,7 +224,7 @@ public class UserSessionEnhancedService {
     public long getTotalUsersCount() {
         return sessionRepository.count();
     }
-    
+
     /**
      * Get active users count (active in last 24 hours)
      */
@@ -230,7 +233,7 @@ public class UserSessionEnhancedService {
         LocalDateTime cutoff = LocalDateTime.now().minusHours(24);
         return sessionRepository.countByIsActiveTrueAndLastActivityAfter(cutoff);
     }
-    
+
     /**
      * Get online users count
      */
@@ -239,7 +242,7 @@ public class UserSessionEnhancedService {
         LocalDateTime cutoff = LocalDateTime.now().minusMinutes(5);
         return sessionRepository.countByIsActiveTrueAndLastActivityAfter(cutoff);
     }
-    
+
     /**
      * Get new users count for period
      */
@@ -248,7 +251,7 @@ public class UserSessionEnhancedService {
         LocalDateTime since = LocalDateTime.now().minusDays(days);
         return sessionRepository.countByCreatedAtAfter(since);
     }
-    
+
     /**
      * Get users with pending orders count
      */
@@ -256,14 +259,14 @@ public class UserSessionEnhancedService {
     public long getUsersWithPendingOrdersCount() {
         return sessionRepository.countUsersWithPendingOrders();
     }
-    
+
     /**
      * Get users by language statistics
      */
     @Transactional(readOnly = true)
     public List<LanguageStats> getUsersByLanguage() {
         List<Object[]> results = sessionRepository.getLanguageDistribution();
-        
+
         return results.stream()
                 .map(row -> LanguageStats.builder()
                         .languageCode((String) row[0])
@@ -271,7 +274,7 @@ public class UserSessionEnhancedService {
                         .build())
                 .toList();
     }
-    
+
     /**
      * Get daily active users statistics
      */
@@ -279,7 +282,7 @@ public class UserSessionEnhancedService {
     public List<DailyActiveUsers> getDailyActiveUsers(int days) {
         LocalDateTime fromDate = LocalDateTime.now().minusDays(days);
         List<Object[]> results = sessionRepository.getDailyActiveUsers(fromDate);
-        
+
         return results.stream()
                 .map(row -> DailyActiveUsers.builder()
                         .date((java.sql.Date) row[0])
@@ -287,14 +290,14 @@ public class UserSessionEnhancedService {
                         .build())
                 .toList();
     }
-    
+
     /**
      * Get active session statistics by state
      */
     @Transactional(readOnly = true)
     public List<SessionStateStats> getActiveSessionStatistics() {
         List<Object[]> results = sessionRepository.getActiveSessionStatistics();
-        
+
         return results.stream()
                 .map(row -> SessionStateStats.builder()
                         .state((UserSessionEntity.SessionState) row[0])
@@ -302,7 +305,7 @@ public class UserSessionEnhancedService {
                         .build())
                 .toList();
     }
-    
+
     /**
      * Get average user activity
      */
@@ -321,7 +324,7 @@ public class UserSessionEnhancedService {
                 .averageStarsPurchased(0.0)
                 .build();
     }
-    
+
     /**
      * Get average session duration
      */
@@ -330,14 +333,14 @@ public class UserSessionEnhancedService {
         Double duration = sessionRepository.getAverageSessionDurationHours();
         return duration != null ? duration : 0.0;
     }
-    
+
     /**
      * Get user session statistics
      */
     @Transactional(readOnly = true)
     public UserSessionStatistics getUserSessionStatistics() {
         UserActivityAverages averages = getAverageUserActivity();
-        
+
         return UserSessionStatistics.builder()
                 .totalUsers(getTotalUsersCount())
                 .activeUsers(getActiveUsersCount())
@@ -352,7 +355,7 @@ public class UserSessionEnhancedService {
                 .averageSessionDurationHours(getAverageSessionDurationHours())
                 .build();
     }
-    
+
     /**
      * Scheduled task for automatic cleanup of expired sessions
      * Runs every hour to maintain database cleanliness
@@ -369,9 +372,9 @@ public class UserSessionEnhancedService {
             log.error("Error during scheduled session cleanup", e);
         }
     }
-    
+
     // Data transfer objects
-    
+
     @lombok.Data
     @lombok.Builder
     public static class UserSessionStatistics {
@@ -387,28 +390,28 @@ public class UserSessionEnhancedService {
         private Double averageStarsPerUser;
         private Double averageSessionDurationHours;
     }
-    
+
     @lombok.Data
     @lombok.Builder
     public static class LanguageStats {
         private String languageCode;
         private Long userCount;
     }
-    
+
     @lombok.Data
     @lombok.Builder
     public static class DailyActiveUsers {
         private java.sql.Date date;
         private Long activeUsers;
     }
-    
+
     @lombok.Data
     @lombok.Builder
     public static class SessionStateStats {
         private UserSessionEntity.SessionState state;
         private Long count;
     }
-    
+
     @lombok.Data
     @lombok.Builder
     public static class UserActivityAverages {

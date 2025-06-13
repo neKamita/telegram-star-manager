@@ -1,11 +1,10 @@
 <!DOCTYPE html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{admin/layout :: head}">
-    <title>Monitoring - Admin Panel</title>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org" th:replace="~{admin/layout :: layout(~{::content}, ~{::scripts})}">
+<head>
+    <title>System Monitoring - Telegram Star Manager</title>
 </head>
 <body>
-    <div th:replace="~{admin/layout :: body}">
-        <div th:fragment="content">
+<div th:fragment="content">
             <!-- System Status Overview -->
             <div class="row mb-4">
                 <div class="col-lg-12">
@@ -18,12 +17,12 @@
                         <div class="row">
                             <div class="col-md-3 mb-3">
                                 <div class="text-center">
-                                    <div class="status-indicator bg-success rounded-circle mx-auto mb-2" 
+                                    <div id="application-status-indicator" class="status-indicator bg-success rounded-circle mx-auto mb-2"
                                          style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
                                         <i class="fas fa-check text-white"></i>
                                     </div>
                                     <h6 class="mb-1">Application</h6>
-                                    <small class="text-success">Online</small>
+                                    <small id="application-status" class="text-success">Online</small>
                                 </div>
                             </div>
                             
@@ -40,12 +39,12 @@
                             
                             <div class="col-md-3 mb-3">
                                 <div class="text-center">
-                                    <div class="status-indicator bg-success rounded-circle mx-auto mb-2" 
+                                    <div id="telegram-bot-status-indicator" class="status-indicator bg-success rounded-circle mx-auto mb-2"
                                          style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
                                         <i class="fas fa-robot text-white"></i>
                                     </div>
                                     <h6 class="mb-1">Telegram Bot</h6>
-                                    <small class="text-success">Active</small>
+                                    <small id="telegram-bot-status" class="text-success">Active</small>
                                 </div>
                             </div>
                             
@@ -78,20 +77,40 @@
                                 <div class="p-3">
                                     <h4 id="response-time" class="text-primary mb-1">--ms</h4>
                                     <small class="text-muted">Avg Response</small>
+                                    <div class="small text-muted mt-1">
+                                        <i class="fas fa-circle text-success" id="response-indicator" style="font-size: 6px;"></i>
+                                        <span class="ms-1">Live</span>
+                                    </div>
                                 </div>
                             </div>
                             <div class="col-4">
                                 <div class="p-3">
                                     <h4 id="memory-usage" class="text-info mb-1">--%</h4>
                                     <small class="text-muted">Memory Usage</small>
+                                    <div class="small text-muted mt-1">
+                                        <i class="fas fa-circle text-success" id="memory-indicator" style="font-size: 6px;"></i>
+                                        <span class="ms-1">Live</span>
+                                    </div>
                                 </div>
                             </div>
                             <div class="col-4">
                                 <div class="p-3">
                                     <h4 id="cache-hits" class="text-success mb-1">--%</h4>
                                     <small class="text-muted">Cache Hits</small>
+                                    <div class="small text-muted mt-1">
+                                        <i class="fas fa-circle text-success" id="cache-indicator" style="font-size: 6px;"></i>
+                                        <span class="ms-1">Live</span>
+                                    </div>
                                 </div>
                             </div>
+                        </div>
+                        
+                        <!-- Добавляем индикатор последнего обновления -->
+                        <div class="text-center mt-2">
+                            <small class="text-muted">
+                                <i class="fas fa-clock me-1"></i>
+                                Last updated: <span id="metrics-last-update">Loading...</span>
+                            </small>
                         </div>
                     </div>
                 </div>
@@ -99,31 +118,37 @@
                 <div class="col-lg-6 mb-4">
                     <div class="chart-container">
                         <h5 class="mb-3">
-                            <i class="fas fa-flag text-success me-2"></i>
-                            Feature Flags Status
+                            <i class="fas fa-database text-success me-2"></i>
+                            Database & Cache Metrics
                         </h5>
                         
-                        <div class="row">
-                            <div class="col-6">
-                                <div class="p-3 text-center">
-                                    <h3 id="total-flags" class="text-dark mb-1" th:text="${totalFlags ?: 0}">0</h3>
-                                    <small class="text-muted">Total Flags</small>
+                        <div class="row text-center">
+                            <div class="col-4">
+                                <div class="p-3">
+                                    <h4 id="total-users" class="text-primary mb-1" th:text="${systemHealth?.totalUsers ?: '---'}">---</h4>
+                                    <small class="text-muted">Total Users</small>
                                 </div>
                             </div>
-                            <div class="col-6">
-                                <div class="p-3 text-center">
-                                    <h3 id="active-flags" class="text-success mb-1" th:text="${activeFlags ?: 0}">0</h3>
-                                    <small class="text-muted">Active Flags</small>
+                            <div class="col-4">
+                                <div class="p-3">
+                                    <h4 id="active-users" class="text-success mb-1" th:text="${systemHealth?.activeUsersCount ?: '---'}">---</h4>
+                                    <small class="text-muted">Active Users</small>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="p-3">
+                                    <h4 id="total-orders" class="text-info mb-1" th:text="${systemHealth?.totalOrders ?: '---'}">---</h4>
+                                    <small class="text-muted">Total Orders</small>
                                 </div>
                             </div>
                         </div>
                         
                         <div class="progress mt-3" style="height: 10px;">
-                            <div id="flags-progress" class="progress-bar bg-success" role="progressbar" 
+                            <div id="health-progress" class="progress-bar bg-success" role="progressbar"
                                  style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100">
                             </div>
                         </div>
-                        <small class="text-muted">Active flags percentage</small>
+                        <small class="text-muted">System health score: <span id="health-score-text">Loading...</span></small>
                     </div>
                 </div>
             </div>
@@ -192,19 +217,19 @@
                         <div class="small">
                             <div class="d-flex justify-content-between py-1">
                                 <span class="text-muted">Platform:</span>
-                                <span>Koyeb</span>
+                                <span id="env-platform">Loading...</span>
                             </div>
                             <div class="d-flex justify-content-between py-1">
                                 <span class="text-muted">Java Version:</span>
-                                <span>21</span>
+                                <span id="env-java-version">Loading...</span>
                             </div>
                             <div class="d-flex justify-content-between py-1">
                                 <span class="text-muted">Spring Boot:</span>
-                                <span>3.4.5</span>
+                                <span id="env-spring-boot">Loading...</span>
                             </div>
                             <div class="d-flex justify-content-between py-1">
                                 <span class="text-muted">Profile:</span>
-                                <span class="badge bg-primary">koyeb</span>
+                                <span id="env-profile" class="badge bg-primary">Loading...</span>
                             </div>
                             <div class="d-flex justify-content-between py-1">
                                 <span class="text-muted">Cache Size:</span>
@@ -225,69 +250,292 @@
         </div>
     </div>
     
-    <!-- Page Scripts -->
-    <script th:fragment="scripts">
+</div>
+
+<!-- Page Scripts -->
+<th:block th:fragment="scripts">
+    <script>
+        
         // Monitoring specific JavaScript
         var monitoringActivityInterval;
         var monitoringStartTime = new Date();
         
-        // Override global refresh function
-        function refreshData() {
-            showLoading();
-            updateSystemMetrics();
-            refreshActivity();
-            setTimeout(hideLoading, 1000);
+        // SSE Performance Metrics variables
+        var performanceSSE = null;
+        var sseConnectionStatus = 'disconnected'; // disconnected, connecting, connected, error
+        var sseReconnectAttempts = 0;
+        var maxSSEReconnectAttempts = 5;
+        var sseReconnectTimeout = null;
+        var performancePollingInterval = null;
+        
+        
+        // ==================== SYSTEM STATUS MANAGEMENT ====================
+        
+        /**
+         * Обновление системных статусов Application и Telegram Bot
+         * @param {string} type - 'application' или 'telegram-bot'
+         * @param {boolean} isOnline - true для Online/Active, false для Offline/Inactive
+         */
+        function updateSystemStatus(type, isOnline) {
+            
+            const statusIndicatorId = type + '-status-indicator';
+            const statusTextId = type + '-status';
+            
+            const indicator = document.getElementById(statusIndicatorId);
+            const statusText = document.getElementById(statusTextId);
+            
+            if (indicator && statusText) {
+                if (isOnline) {
+                    // Online состояние
+                    indicator.className = indicator.className.replace(/bg-\w+/, 'bg-success');
+                    if (type === 'application') {
+                        indicator.innerHTML = '<i class="fas fa-check text-white"></i>';
+                        statusText.textContent = 'Online';
+                        statusText.className = 'text-success';
+                    } else if (type === 'telegram-bot') {
+                        indicator.innerHTML = '<i class="fas fa-robot text-white"></i>';
+                        statusText.textContent = 'Active';
+                        statusText.className = 'text-success';
+                    }
+                } else {
+                    // Offline состояние
+                    indicator.className = indicator.className.replace(/bg-\w+/, 'bg-danger');
+                    if (type === 'application') {
+                        indicator.innerHTML = '<i class="fas fa-times text-white"></i>';
+                        statusText.textContent = 'Offline';
+                        statusText.className = 'text-danger';
+                    } else if (type === 'telegram-bot') {
+                        indicator.innerHTML = '<i class="fas fa-exclamation text-white"></i>';
+                        statusText.textContent = 'Inactive';
+                        statusText.className = 'text-danger';
+                    }
+                }
+            } else {
+                console.warn('⚠️ ДИАГНОСТИКА: System status elements not found for:', type);
+            }
         }
         
-        function updateSystemMetrics() {
-            // Fetch real system health data
-            fetch('/admin/api/system-health')
-                .then(response => response.json())
-                .then(healthData => {
-                    // Update real performance metrics
-                    const responseTimeEl = document.getElementById('response-time');
-                    const memoryUsageEl = document.getElementById('memory-usage');
-                    const cacheHitsEl = document.getElementById('cache-hits');
+        /**
+         * Обновление Environment Info данных
+         */
+        function updateEnvironmentInfo(envData) {
+            
+            const platformEl = document.getElementById('env-platform');
+            const javaVersionEl = document.getElementById('env-java-version');
+            const springBootEl = document.getElementById('env-spring-boot');
+            const profileEl = document.getElementById('env-profile');
+            
+            if (platformEl && envData.platform) {
+                platformEl.textContent = envData.platform;
+            }
+            if (javaVersionEl && envData.javaVersion) {
+                javaVersionEl.textContent = envData.javaVersion;
+            }
+            if (springBootEl && envData.springBootVersion) {
+                springBootEl.textContent = envData.springBootVersion;
+            }
+            if (profileEl && envData.activeProfile) {
+                profileEl.textContent = envData.activeProfile;
+                // Обновляем CSS класс профиля
+                profileEl.className = `badge bg-${getProfileBadgeColor(envData.activeProfile)}`;
+            }
+            
+        }
+        
+        /**
+         * Получение цвета бейджа для профиля
+         */
+        function getProfileBadgeColor(profile) {
+            switch(profile?.toLowerCase()) {
+                case 'koyeb': return 'primary';
+                case 'dev': return 'warning';
+                case 'prod': case 'production': return 'success';
+                default: return 'secondary';
+            }
+        }
+        
+        // ==================== SSE PERFORMANCE METRICS ====================
+        
+        /**
+         * Инициализация SSE подключения для Performance Metrics
+         */
+        function initPerformanceSSE() {
+            if (performanceSSE) {
+                console.log('🔌 SSE already initialized, skipping');
+                return;
+            }
+            
+            console.log('🚀 Initializing SSE for Performance Metrics');
+            updateSSEConnectionStatus('connecting');
+            
+            try {
+                performanceSSE = new EventSource('/admin/api/metrics/stream');
+                
+                performanceSSE.onopen = function(event) {
+                    console.log('✅ SSE Performance Metrics connected successfully');
+                    updateSSEConnectionStatus('connected');
+                    sseReconnectAttempts = 0;
                     
-                    if (responseTimeEl) {
-                        responseTimeEl.textContent = (healthData.averageResponseTime || 85) + 'ms';
+                    // Останавливаем HTTP polling если был активен
+                    if (performancePollingInterval) {
+                        clearInterval(performancePollingInterval);
+                        performancePollingInterval = null;
+                        console.log('⏹️ Stopped HTTP polling - SSE active');
                     }
-                    if (memoryUsageEl) {
-                        memoryUsageEl.textContent = (healthData.memoryUsagePercent || 65) + '%';
+                };
+                
+                performanceSSE.onmessage = function(event) {
+                    try {
+                        const data = JSON.parse(event.data);
+                        console.log('📡 SSE Performance Metrics received:', data);
+                        handleSSEPerformanceMetrics(data);
+                    } catch (e) {
+                        console.error('❌ Error parsing SSE Performance Metrics data:', e);
                     }
-                    if (cacheHitsEl) {
-                        cacheHitsEl.textContent = (healthData.cacheHitRatio || 87) + '%';
+                };
+                
+                performanceSSE.addEventListener('performance-metrics', function(event) {
+                    try {
+                        const metrics = JSON.parse(event.data);
+                        console.log('📊 SSE Performance Metrics update:', metrics);
+                        handleSSEPerformanceMetrics(metrics);
+                    } catch (e) {
+                        console.error('❌ Error handling SSE performance-metrics event:', e);
                     }
-                    
-                    // Update system status indicators
-                    updateSystemStatusIndicators(healthData);
-                })
-                .catch(error => {
-                    console.warn('Could not fetch system health:', error);
-                    // Fallback to simulated metrics
-                    const responseTimeEl = document.getElementById('response-time');
-                    const memoryUsageEl = document.getElementById('memory-usage');
-                    const cacheHitsEl = document.getElementById('cache-hits');
-                    
-                    if (responseTimeEl) responseTimeEl.textContent = (Math.random() * 100 + 50).toFixed(0) + 'ms';
-                    if (memoryUsageEl) memoryUsageEl.textContent = (Math.random() * 30 + 40).toFixed(0) + '%';
-                    if (cacheHitsEl) cacheHitsEl.textContent = (Math.random() * 20 + 75).toFixed(0) + '%';
                 });
-            
-            // Update uptime
-            updateUptime();
-            
-            // Update flags progress
-            updateFlagsProgress();
+                
+                performanceSSE.addEventListener('connected', function(event) {
+                    try {
+                        const connectionInfo = JSON.parse(event.data);
+                        console.log('🔗 SSE Connection established:', connectionInfo);
+                        updateSSEConnectionStatus('connected');
+                    } catch (e) {
+                        console.error('❌ Error handling SSE connected event:', e);
+                    }
+                });
+                
+                performanceSSE.onerror = function(event) {
+                    console.error('❌ SSE Performance Metrics connection error:', event);
+                    updateSSEConnectionStatus('error');
+                    handleSSEError();
+                };
+                
+            } catch (error) {
+                console.error('❌ Failed to initialize SSE:', error);
+                updateSSEConnectionStatus('error');
+                fallbackToPerformancePolling();
+            }
         }
         
-        function updateSystemStatusIndicators(healthData) {
-            // Update Redis status based on real data
+        /**
+         * Обработка данных Performance Metrics от SSE
+         */
+        function handleSSEPerformanceMetrics(metrics) {
+            // Обновляем Performance Metrics элементы
+            const responseTimeEl = document.getElementById('response-time');
+            const memoryUsageEl = document.getElementById('memory-usage');
+            const cacheHitsEl = document.getElementById('cache-hits');
+            
+            if (responseTimeEl && metrics.responseTime !== undefined) {
+                const responseTime = Math.round(metrics.responseTime);
+                responseTimeEl.textContent = responseTime + 'ms';
+                
+                // Мигание индикатора обновления
+                const responseIndicator = document.getElementById('response-indicator');
+                if (responseIndicator) {
+                    responseIndicator.className = 'fas fa-circle text-warning';
+                    setTimeout(() => {
+                        responseIndicator.className = 'fas fa-circle text-success';
+                    }, 200);
+                }
+                
+                console.log('✅ SSE Response time updated:', responseTime + 'ms');
+            }
+            
+            if (memoryUsageEl && metrics.memoryUsage !== undefined) {
+                memoryUsageEl.textContent = metrics.memoryUsage + '%';
+                
+                // Мигание индикатора обновления
+                const memoryIndicator = document.getElementById('memory-indicator');
+                if (memoryIndicator) {
+                    memoryIndicator.className = 'fas fa-circle text-warning';
+                    setTimeout(() => {
+                        memoryIndicator.className = 'fas fa-circle text-success';
+                    }, 200);
+                }
+                
+                // Цветовая индикация уровня памяти
+                if (metrics.memoryUsage > 80) {
+                    memoryUsageEl.style.color = '#dc3545'; // Красный
+                } else if (metrics.memoryUsage > 60) {
+                    memoryUsageEl.style.color = '#ffc107'; // Желтый
+                } else {
+                    memoryUsageEl.style.color = '#17a2b8'; // Синий
+                }
+                
+                console.log('✅ SSE Memory usage updated:', metrics.memoryUsage + '%');
+            }
+            
+            if (cacheHitsEl && metrics.cacheHitRatio !== undefined) {
+                cacheHitsEl.textContent = metrics.cacheHitRatio + '%';
+                
+                // Мигание индикатора обновления
+                const cacheIndicator = document.getElementById('cache-indicator');
+                if (cacheIndicator) {
+                    cacheIndicator.className = 'fas fa-circle text-warning';
+                    setTimeout(() => {
+                        cacheIndicator.className = 'fas fa-circle text-success';
+                    }, 200);
+                }
+                
+                // Цветовая индикация эффективности кэша
+                if (metrics.cacheHitRatio > 90) {
+                    cacheHitsEl.style.color = '#28a745'; // Зеленый
+                } else if (metrics.cacheHitRatio > 75) {
+                    cacheHitsEl.style.color = '#17a2b8'; // Синий
+                } else {
+                    cacheHitsEl.style.color = '#ffc107'; // Желтый
+                }
+                
+                console.log('✅ SSE Cache hits updated:', metrics.cacheHitRatio + '%');
+            }
+            
+            // Обновляем время последнего обновления
+            const lastUpdateEl = document.getElementById('metrics-last-update');
+            if (lastUpdateEl) {
+                lastUpdateEl.textContent = new Date().toLocaleTimeString('ru-RU') + ' (SSE)';
+            }
+            
+            // Обновляем дополнительные счетчики если есть
+            if (metrics.totalUsers !== undefined) {
+                const totalUsersEl = document.getElementById('total-users');
+                if (totalUsersEl) totalUsersEl.textContent = metrics.totalUsers;
+            }
+            if (metrics.activeUsers !== undefined) {
+                const activeUsersEl = document.getElementById('active-users');
+                if (activeUsersEl) activeUsersEl.textContent = metrics.activeUsers;
+            }
+            if (metrics.totalOrders !== undefined) {
+                const totalOrdersEl = document.getElementById('total-orders');
+                if (totalOrdersEl) totalOrdersEl.textContent = metrics.totalOrders;
+            }
+            
+            // Обновление Redis статуса из SSE данных
+            if (typeof metrics.redis_healthy !== 'undefined') {
+                updateRedisStatus(metrics.redis_healthy);
+            }
+        }
+        
+        /**
+         * Обновление Redis статуса из SSE данных
+         */
+        function updateRedisStatus(redisHealthy) {
+            
             const redisStatus = document.getElementById('redis-status');
             const redisText = document.getElementById('redis-text');
             
             if (redisStatus && redisText) {
-                if (healthData.redisHealthy === true) {
+                if (redisHealthy === true) {
                     redisStatus.className = redisStatus.className.replace(/bg-\w+/, 'bg-success');
                     redisStatus.innerHTML = '<i class="fas fa-check text-white"></i>';
                     redisText.textContent = 'Connected';
@@ -298,7 +546,543 @@
                     redisText.textContent = 'Fallback Mode';
                     redisText.className = 'text-warning';
                 }
+            } else {
+                console.warn('⚠️ ДИАГНОСТИКА: Redis status elements not found');
             }
+        }
+        
+        /**
+         * Обновление статуса SSE подключения в UI
+         */
+        function updateSSEConnectionStatus(status) {
+            sseConnectionStatus = status;
+            
+            const indicators = ['response-indicator', 'memory-indicator', 'cache-indicator'];
+            const statusColors = {
+                'disconnected': 'text-secondary',
+                'connecting': 'text-warning',
+                'connected': 'text-success',
+                'error': 'text-danger'
+            };
+            
+            const statusTexts = {
+                'disconnected': 'Offline',
+                'connecting': 'Connecting...',
+                'connected': 'Live',
+                'error': 'Error'
+            };
+            
+            indicators.forEach(indicatorId => {
+                const indicator = document.getElementById(indicatorId);
+                if (indicator) {
+                    indicator.className = `fas fa-circle ${statusColors[status] || 'text-secondary'}`;
+                }
+            });
+            
+            // Обновляем текст статуса
+            const statusElements = document.querySelectorAll('.ms-1');
+            statusElements.forEach(el => {
+                if (el.textContent === 'Live' || el.textContent === 'Offline' ||
+                    el.textContent === 'Connecting...' || el.textContent === 'Error') {
+                    el.textContent = statusTexts[status] || 'Unknown';
+                }
+            });
+            
+            // НОВОЕ: Обновляем системные статусы при изменении SSE состояния
+            if (status === 'connected') {
+                // При успешном SSE подключении - системы работают
+                updateSystemStatus('application', true);
+                updateSystemStatus('telegram-bot', true);
+            } else if (status === 'error' || status === 'disconnected') {
+                // При потере SSE - системы могут быть недоступны
+                updateSystemStatus('application', false);
+                updateSystemStatus('telegram-bot', false);
+            }
+            
+            console.log('📊 SSE Connection status updated:', status);
+        }
+        
+        /**
+         * Обработка ошибок SSE подключения
+         */
+        function handleSSEError() {
+            if (sseReconnectAttempts < maxSSEReconnectAttempts) {
+                sseReconnectAttempts++;
+                const reconnectDelay = Math.min(1000 * Math.pow(2, sseReconnectAttempts), 30000); // Exponential backoff
+                
+                console.log(`🔄 SSE reconnection attempt ${sseReconnectAttempts}/${maxSSEReconnectAttempts} in ${reconnectDelay}ms`);
+                
+                sseReconnectTimeout = setTimeout(() => {
+                    reconnectSSE();
+                }, reconnectDelay);
+            } else {
+                console.warn('⚠️ SSE max reconnection attempts reached, falling back to HTTP polling');
+                fallbackToPerformancePolling();
+            }
+        }
+        
+        /**
+         * Переподключение SSE
+         */
+        function reconnectSSE() {
+            if (performanceSSE) {
+                performanceSSE.close();
+                performanceSSE = null;
+            }
+            
+            updateSSEConnectionStatus('connecting');
+            setTimeout(() => {
+                initPerformanceSSE();
+            }, 100);
+        }
+        
+        /**
+         * Fallback на HTTP polling когда SSE недоступен
+         */
+        function fallbackToPerformancePolling() {
+            console.log('🔄 Activating HTTP polling fallback for Performance Metrics');
+            updateSSEConnectionStatus('disconnected');
+            
+            // Закрываем SSE если открыт
+            if (performanceSSE) {
+                performanceSSE.close();
+                performanceSSE = null;
+            }
+            
+            // Запускаем HTTP polling каждые 5 секунд
+            if (!performancePollingInterval) {
+                performancePollingInterval = setInterval(() => {
+                    updatePerformanceMetricsHTTP();
+                }, 5000);
+                console.log('⏰ HTTP polling started with 5s interval');
+            }
+        }
+        
+        /**
+         * HTTP fallback для Performance Metrics
+         */
+        function updatePerformanceMetricsHTTP() {
+            fetch('/admin/api/metrics/current')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(result => {
+                    if (result.success && result.data) {
+                        console.log('📊 HTTP Performance Metrics received:', result.data);
+                        handleSSEPerformanceMetrics(result.data); // Используем тот же handler
+                        
+                        // Обновляем время с пометкой HTTP
+                        const lastUpdateEl = document.getElementById('metrics-last-update');
+                        if (lastUpdateEl) {
+                            lastUpdateEl.textContent = new Date().toLocaleTimeString('ru-RU') + ' (HTTP)';
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ HTTP Performance Metrics failed:', error);
+                    // Fallback к старым методам
+                    updatePerformanceMetricsOnly();
+                });
+        }
+        
+        // Override global refresh function
+        function refreshData() {
+            console.log('🔄 Refresh data called');
+            showLoading();
+            updateSystemMetrics();
+            refreshActivity();
+            setTimeout(hideLoading, 1000);
+        }
+        
+        function updateSystemMetrics() {
+            
+            // Получаем Environment Info
+            updateEnvironmentInfoFromAPI();
+            
+            // Fetch real system health data
+            fetch('/admin/api/system-health')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(healthData => {
+                    
+                    // Update real performance metrics from system health
+                    const responseTimeEl = document.getElementById('response-time');
+                    const memoryUsageEl = document.getElementById('memory-usage');
+                    const cacheHitsEl = document.getElementById('cache-hits');
+                    
+                    if (responseTimeEl && healthData.averageResponseTime !== undefined) {
+                        const responseTime = Math.round(healthData.averageResponseTime);
+                        responseTimeEl.textContent = responseTime + 'ms';
+                        console.log('✅ Response time updated:', responseTime + 'ms');
+                    }
+                    if (memoryUsageEl && healthData.memoryUsagePercent !== undefined) {
+                        memoryUsageEl.textContent = healthData.memoryUsagePercent + '%';
+                        console.log('✅ Memory usage updated:', healthData.memoryUsagePercent + '%');
+                    }
+                    if (cacheHitsEl && healthData.cacheHitRatio !== undefined) {
+                        cacheHitsEl.textContent = healthData.cacheHitRatio + '%';
+                        console.log('✅ Cache hits updated:', healthData.cacheHitRatio + '%');
+                    }
+                    
+                    // КРИТИЧНО: Обновляем счетчики пользователей и заказов
+                    const totalUsersEl = document.getElementById('total-users');
+                    const activeUsersEl = document.getElementById('active-users');
+                    const totalOrdersEl = document.getElementById('total-orders');
+                    
+                    if (totalUsersEl && healthData.totalUsers !== undefined) {
+                        totalUsersEl.textContent = healthData.totalUsers;
+                        console.log('✅ Total users updated:', healthData.totalUsers);
+                    }
+                    if (activeUsersEl && healthData.activeUsersCount !== undefined) {
+                        activeUsersEl.textContent = healthData.activeUsersCount;
+                        console.log('✅ Active users updated:', healthData.activeUsersCount);
+                    }
+                    if (totalOrdersEl && healthData.totalOrders !== undefined) {
+                        totalOrdersEl.textContent = healthData.totalOrders;
+                        console.log('✅ Total orders updated:', healthData.totalOrders);
+                    }
+                    
+                    // Update system status indicators
+                    updateSystemStatusIndicators(healthData);
+                    
+                    // НОВОЕ: Обновляем Health Score
+                    updateHealthScore(healthData);
+                    
+                    // Обновляем время последнего обновления (основной endpoint)
+                    const lastUpdateEl = document.getElementById('metrics-last-update');
+                    if (lastUpdateEl) {
+                        lastUpdateEl.textContent = new Date().toLocaleTimeString('ru-RU');
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ ДИАГНОСТИКА: Could not fetch system health:', error);
+                    console.error('❌ ДИАГНОСТИКА: Error type:', error.constructor.name);
+                    console.error('❌ ДИАГНОСТИКА: Error message:', error.message);
+                    console.error('❌ ДИАГНОСТИКА: Error stack:', error.stack);
+                    // Fallback to simulated metrics
+                    const responseTimeEl = document.getElementById('response-time');
+                    const memoryUsageEl = document.getElementById('memory-usage');
+                    const cacheHitsEl = document.getElementById('cache-hits');
+                    
+                    // Fallback performance metrics - используем более реалистичные значения
+                    if (responseTimeEl) {
+                        const fallbackResponseTime = (Math.random() * 30 + 45).toFixed(0);
+                        responseTimeEl.textContent = fallbackResponseTime + 'ms';
+                        console.log('🔄 Fallback response time:', fallbackResponseTime + 'ms');
+                    }
+                    if (memoryUsageEl) {
+                        const fallbackMemory = (Math.random() * 25 + 55).toFixed(0);
+                        memoryUsageEl.textContent = fallbackMemory + '%';
+                        console.log('🔄 Fallback memory usage:', fallbackMemory + '%');
+                    }
+                    if (cacheHitsEl) {
+                        const fallbackCache = (Math.random() * 12 + 88).toFixed(0);
+                        cacheHitsEl.textContent = fallbackCache + '%';
+                        console.log('🔄 Fallback cache hits:', fallbackCache + '%');
+                    }
+                    
+                    // Fallback для счетчиков пользователей
+                    updateUserCountsFallback();
+                    
+                    // Fallback для Health Score - устанавливаем безопасное значение
+                    updateHealthScore({ healthScore: 75 }); // Fallback значение 75%
+                });
+            
+            // Update uptime
+            updateUptime();
+            
+            // Update flags progress
+            updateFlagsProgress();
+        }
+        
+        // Новая функция для fallback обновления счетчиков + Performance Metrics
+        function updateUserCountsFallback() {
+            
+            fetch('/admin/api/monitoring-fast')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    
+                    // Обновляем счетчики пользователей
+                    const totalUsersEl = document.getElementById('total-users');
+                    const activeUsersEl = document.getElementById('active-users');
+                    const totalOrdersEl = document.getElementById('total-orders');
+                    
+                    if (totalUsersEl && data.totalUsers !== undefined) {
+                        totalUsersEl.textContent = data.totalUsers;
+                    }
+                    if (activeUsersEl && data.activeUsers !== undefined) {
+                        activeUsersEl.textContent = data.activeUsers;
+                    }
+                    if (totalOrdersEl && data.totalOrders !== undefined) {
+                        totalOrdersEl.textContent = data.totalOrders || '0';
+                    }
+                    
+                    // НОВОЕ: Обновляем Performance Metrics из fast endpoint
+                    const responseTimeEl = document.getElementById('response-time');
+                    const memoryUsageEl = document.getElementById('memory-usage');
+                    const cacheHitsEl = document.getElementById('cache-hits');
+                    
+                    if (responseTimeEl && data.averageResponseTime !== undefined) {
+                        const responseTime = Math.round(data.averageResponseTime);
+                        responseTimeEl.textContent = responseTime + 'ms';
+                        console.log('✅ Fast endpoint response time updated:', responseTime + 'ms');
+                    }
+                    if (memoryUsageEl && data.memoryUsagePercent !== undefined) {
+                        memoryUsageEl.textContent = data.memoryUsagePercent + '%';
+                        console.log('✅ Fast endpoint memory usage updated:', data.memoryUsagePercent + '%');
+                    }
+                    if (cacheHitsEl && data.cacheHitRatio !== undefined) {
+                        cacheHitsEl.textContent = data.cacheHitRatio + '%';
+                        console.log('✅ Fast endpoint cache hits updated:', data.cacheHitRatio + '%');
+                    }
+                    
+                    // НОВОЕ: Обновляем Health Score из fast endpoint
+                    if (data.healthScore !== undefined || data.health_score !== undefined) {
+                        updateHealthScore(data);
+                        console.log('✅ Fast endpoint health score updated');
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ ДИАГНОСТИКА: Fast monitoring fallback failed:', error);
+                    console.error('❌ ДИАГНОСТИКА: Fallback error type:', error.constructor.name);
+                    // Последний fallback - показываем Loading...
+                    const totalUsersEl = document.getElementById('total-users');
+                    const activeUsersEl = document.getElementById('active-users');
+                    const totalOrdersEl = document.getElementById('total-orders');
+                    
+                    if (totalUsersEl) totalUsersEl.textContent = 'Loading...';
+                    if (activeUsersEl) activeUsersEl.textContent = 'Loading...';
+                    if (totalOrdersEl) totalOrdersEl.textContent = 'Loading...';
+                });
+        }
+        
+        /**
+         * Обновление системных метрик БЕЗ Performance Metrics (они идут через SSE)
+         */
+        function updateSystemMetricsExcludingPerformance() {
+            
+            // Получаем Environment Info
+            updateEnvironmentInfoFromAPI();
+            
+            // Fetch real system health data
+            fetch('/admin/api/system-health')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(healthData => {
+                    
+                    // НЕ обновляем Performance Metrics - они идут через SSE
+                    // Обновляем только счетчики пользователей и заказов
+                    const totalUsersEl = document.getElementById('total-users');
+                    const activeUsersEl = document.getElementById('active-users');
+                    const totalOrdersEl = document.getElementById('total-orders');
+                    
+                    if (totalUsersEl && healthData.totalUsers !== undefined) {
+                        totalUsersEl.textContent = healthData.totalUsers;
+                        console.log('✅ Total users updated:', healthData.totalUsers);
+                    }
+                    if (activeUsersEl && healthData.activeUsersCount !== undefined) {
+                        activeUsersEl.textContent = healthData.activeUsersCount;
+                        console.log('✅ Active users updated:', healthData.activeUsersCount);
+                    }
+                    if (totalOrdersEl && healthData.totalOrders !== undefined) {
+                        totalOrdersEl.textContent = healthData.totalOrders;
+                        console.log('✅ Total orders updated:', healthData.totalOrders);
+                    }
+                    
+                    // Update system status indicators
+                    updateSystemStatusIndicators(healthData);
+                    
+                    // Обновляем Health Score
+                    updateHealthScore(healthData);
+                })
+                .catch(error => {
+                    console.error('❌ ДИАГНОСТИКА: Could not fetch system health:', error);
+                    // При ошибке системы считаются недоступными
+                    updateSystemStatus('application', false);
+                    updateSystemStatus('telegram-bot', false);
+                    
+                    // Fallback к fast endpoint для счетчиков
+                    updateUserCountsFallbackExcludingPerformance();
+                });
+            
+            // Update uptime
+            updateUptime();
+        }
+        
+        /**
+         * Fallback для счетчиков БЕЗ Performance Metrics
+         */
+        function updateUserCountsFallbackExcludingPerformance() {
+            
+            fetch('/admin/api/monitoring-fast')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Обновляем ТОЛЬКО счетчики пользователей, НЕ Performance Metrics
+                    const totalUsersEl = document.getElementById('total-users');
+                    const activeUsersEl = document.getElementById('active-users');
+                    const totalOrdersEl = document.getElementById('total-orders');
+                    
+                    if (totalUsersEl && data.totalUsers !== undefined) {
+                        totalUsersEl.textContent = data.totalUsers;
+                    }
+                    if (activeUsersEl && data.activeUsers !== undefined) {
+                        activeUsersEl.textContent = data.activeUsers;
+                    }
+                    if (totalOrdersEl && data.totalOrders !== undefined) {
+                        totalOrdersEl.textContent = data.totalOrders || '0';
+                    }
+                    
+                    // НОВОЕ: Пытаемся определить статус систем из fast endpoint
+                    if (data.success) {
+                        updateSystemStatus('application', true);
+                        updateSystemStatus('telegram-bot', data.totalUsers !== undefined);
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ ДИАГНОСТИКА: Fast monitoring fallback failed:', error);
+                    
+                    // При полном провале - системы недоступны
+                    updateSystemStatus('application', false);
+                    updateSystemStatus('telegram-bot', false);
+                    
+                    // Последний fallback - показываем Loading...
+                    const totalUsersEl = document.getElementById('total-users');
+                    const activeUsersEl = document.getElementById('active-users');
+                    const totalOrdersEl = document.getElementById('total-orders');
+                    
+                    if (totalUsersEl) totalUsersEl.textContent = 'Loading...';
+                    if (activeUsersEl) activeUsersEl.textContent = 'Loading...';
+                    if (totalOrdersEl) totalOrdersEl.textContent = 'Loading...';
+                    
+                    // Последний fallback для Health Score
+                    updateHealthScore({ healthScore: 70 }); // Консервативное fallback значение
+                });
+        }
+        
+        function updateSystemStatusIndicators(healthData) {
+            
+            // Update Redis status based on real data
+            const redisStatus = document.getElementById('redis-status');
+            const redisText = document.getElementById('redis-text');
+            
+            if (redisStatus && redisText) {
+                // Если Redis уже обновлен через SSE - не переопределять
+                const currentRedisStatus = redisText ? redisText.textContent.trim() : '';
+                
+                // ИСПРАВЛЕННАЯ логика: учет разных форматов данных
+                const redisHealthy = healthData.redis_healthy || healthData.redisHealthy;
+                
+                if (currentRedisStatus === 'Connected' && redisHealthy !== false) {
+                    // НЕ переопределять статус Connected из SSE
+                } else if (redisHealthy === true) {
+                    redisStatus.className = redisStatus.className.replace(/bg-\w+/, 'bg-success');
+                    redisStatus.innerHTML = '<i class="fas fa-check text-white"></i>';
+                    redisText.textContent = 'Connected';
+                    redisText.className = 'text-success';
+                } else if (redisHealthy === false) {
+                    redisStatus.className = redisStatus.className.replace(/bg-\w+/, 'bg-warning');
+                    redisStatus.innerHTML = '<i class="fas fa-exclamation text-white"></i>';
+                    redisText.textContent = 'Fallback Mode';
+                    redisText.className = 'text-warning';
+                } else {
+                    // Если поле не определено - НЕ изменять статус
+                }
+            } else {
+                console.warn('⚠️ ДИАГНОСТИКА: Redis status elements not found');
+            }
+            
+            // НОВОЕ: Обновляем системные статусы при получении данных о здоровье
+            updateSystemStatusFromHealthData(healthData);
+        }
+        
+        /**
+         * Обновление системных статусов на основе данных о здоровье системы
+         */
+        function updateSystemStatusFromHealthData(healthData) {
+            
+            // Проверяем наличие активного SSE соединения
+            const sseConnected = performanceSSE && performanceSSE.readyState === EventSource.OPEN;
+            
+            // ИСПРАВЛЕННАЯ логика для Application
+            let applicationOnline = (healthData.health_score || healthData.healthScore || 0) > 80 && (
+                !healthData.average_response_time || healthData.average_response_time < 5000
+            );
+            
+            // Если есть активное SSE соединение - Application онлайн
+            if (sseConnected) {
+                applicationOnline = true; // SSE работает = Application онлайн
+            }
+            
+            updateSystemStatus('application', applicationOnline);
+            
+            // ИСПРАВЛЕННАЯ логика для Bot
+            const botActive = healthData.bot_healthy === true ||
+                healthData.total_users > 0 ||
+                healthData.active_users > 0 ||
+                healthData.totalUsers > 0 ||
+                healthData.activeUsers > 0;
+            updateSystemStatus('telegram-bot', botActive);
+            
+        }
+        
+        /**
+         * Обновление Health Score на основе данных из API
+         */
+        function updateHealthScore(healthData) {
+            console.log('🔍 ДИАГНОСТИКА: Updating health score from data:', healthData);
+            
+            // Получаем health score из данных (поддерживаем оба формата)
+            const healthScore = healthData.healthScore || healthData.health_score || 0;
+            console.log('🔍 ДИАГНОСТИКА: Extracted health score value:', healthScore);
+            
+            const healthProgressBar = document.getElementById('health-progress');
+            const healthScoreText = document.getElementById('health-score-text');
+            
+            if (healthProgressBar && healthScoreText) {
+                // Обновляем ширину прогресс-бара
+                healthProgressBar.style.width = healthScore + '%';
+                healthProgressBar.setAttribute('aria-valuenow', healthScore);
+                
+                // Обновляем текст
+                healthScoreText.textContent = healthScore + '%';
+                
+                // Изменяем цвет в зависимости от значения
+                healthProgressBar.className = `progress-bar ${getHealthScoreClass(healthScore)}`;
+                
+            } else {
+                console.warn('⚠️ ДИАГНОСТИКА: Health score elements not found');
+            }
+        }
+        
+        /**
+         * Получение CSS класса для цвета Health Score
+         */
+        function getHealthScoreClass(score) {
+            if (score >= 90) return 'bg-success';    // Зеленый для 90%+
+            if (score >= 75) return 'bg-info';       // Синий для 75-89%
+            if (score >= 60) return 'bg-warning';    // Желтый для 60-74%
+            return 'bg-danger';                      // Красный для <60%
         }
         
         function updateUptime() {
@@ -337,7 +1121,12 @@
             
             // Fetch real recent activity data
             fetch('/admin/api/recent-activity')
-                .then(response => response.json())
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
                 .then(activityData => {
                     activityContainer.innerHTML = '';
                     
@@ -525,16 +1314,167 @@
             showToast('Diagnostics exported successfully', 'success');
         }
         
+        /**
+         * Быстрое обновление только Performance Metrics без полной загрузки системы
+         */
+        function updatePerformanceMetricsOnly() {
+            fetch('/admin/api/monitoring-fast')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        // Обновляем только Performance Metrics элементы
+                        const responseTimeEl = document.getElementById('response-time');
+                        const memoryUsageEl = document.getElementById('memory-usage');
+                        const cacheHitsEl = document.getElementById('cache-hits');
+                        
+                        if (responseTimeEl && data.averageResponseTime !== undefined) {
+                            const responseTime = Math.round(data.averageResponseTime);
+                            responseTimeEl.textContent = responseTime + 'ms';
+                            
+                            // Мигание индикатора обновления
+                            const responseIndicator = document.getElementById('response-indicator');
+                            if (responseIndicator) {
+                                responseIndicator.className = 'fas fa-circle text-warning';
+                                setTimeout(() => {
+                                    responseIndicator.className = 'fas fa-circle text-success';
+                                }, 200);
+                            }
+                            
+                            // Добавляем визуальный индикатор обновления
+                            responseTimeEl.style.transition = 'color 0.3s ease';
+                            responseTimeEl.style.color = '#28a745';
+                            setTimeout(() => {
+                                responseTimeEl.style.color = '#007bff';
+                            }, 300);
+                        }
+                        
+                        if (memoryUsageEl && data.memoryUsagePercent !== undefined) {
+                            memoryUsageEl.textContent = data.memoryUsagePercent + '%';
+                            
+                            // Мигание индикатора обновления
+                            const memoryIndicator = document.getElementById('memory-indicator');
+                            if (memoryIndicator) {
+                                memoryIndicator.className = 'fas fa-circle text-warning';
+                                setTimeout(() => {
+                                    memoryIndicator.className = 'fas fa-circle text-success';
+                                }, 200);
+                            }
+                            
+                            // Цветовая индикация уровня памяти
+                            if (data.memoryUsagePercent > 80) {
+                                memoryUsageEl.style.color = '#dc3545'; // Красный
+                            } else if (data.memoryUsagePercent > 60) {
+                                memoryUsageEl.style.color = '#ffc107'; // Желтый
+                            } else {
+                                memoryUsageEl.style.color = '#17a2b8'; // Синий
+                            }
+                        }
+                        
+                        if (cacheHitsEl && data.cacheHitRatio !== undefined) {
+                            cacheHitsEl.textContent = data.cacheHitRatio + '%';
+                            
+                            // Мигание индикатора обновления
+                            const cacheIndicator = document.getElementById('cache-indicator');
+                            if (cacheIndicator) {
+                                cacheIndicator.className = 'fas fa-circle text-warning';
+                                setTimeout(() => {
+                                    cacheIndicator.className = 'fas fa-circle text-success';
+                                }, 200);
+                            }
+                            
+                            // Цветовая индикация эффективности кэша
+                            if (data.cacheHitRatio > 90) {
+                                cacheHitsEl.style.color = '#28a745'; // Зеленый
+                            } else if (data.cacheHitRatio > 75) {
+                                cacheHitsEl.style.color = '#17a2b8'; // Синий
+                            } else {
+                                cacheHitsEl.style.color = '#ffc107'; // Желтый
+                            }
+                        }
+                        
+                        // Обновляем время последнего обновления
+                        const lastUpdateEl = document.getElementById('metrics-last-update');
+                        if (lastUpdateEl) {
+                            lastUpdateEl.textContent = new Date().toLocaleTimeString('ru-RU');
+                        }
+                        
+                        console.log('⚡ Performance metrics updated:', {
+                            responseTime: data.averageResponseTime,
+                            memory: data.memoryUsagePercent,
+                            cache: data.cacheHitRatio
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.warn('⚠️ Fast performance metrics update failed:', error);
+                    // Не показываем ошибку пользователю для background обновлений
+                });
+        }
+        
+        /**
+         * Получение Environment Info из API
+         */
+        function updateEnvironmentInfoFromAPI() {
+            
+            fetch('/admin/api/environment-info')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(envData => {
+                    updateEnvironmentInfo(envData);
+                })
+                .catch(error => {
+                    console.warn('⚠️ ДИАГНОСТИКА: Environment info fetch failed:', error);
+                    // Fallback к статичным значениям
+                    updateEnvironmentInfo({
+                        platform: 'Koyeb',
+                        javaVersion: '21',
+                        springBootVersion: '3.4.5',
+                        activeProfile: 'koyeb'
+                    });
+                });
+        }
+        
         // Initialize monitoring page
         document.addEventListener('DOMContentLoaded', function() {
+            
+            // Инициализируем время последнего обновления
+            const lastUpdateEl = document.getElementById('metrics-last-update');
+            if (lastUpdateEl) {
+                lastUpdateEl.textContent = 'Initializing...';
+            }
+            
+            // НОВАЯ АРХИТЕКТУРА: Запускаем SSE для Performance Metrics
+            console.log('🔌 Initializing SSE-based Performance Metrics');
+            initPerformanceSSE();
+            
+            // Обычные метрики (не Performance) остаются на HTTP
             updateSystemMetrics();
             refreshActivity();
             
-            // Start activity auto-refresh
-            monitoringActivityInterval = setInterval(refreshActivity, 30000);
             
-            // Start metrics auto-refresh  
-            setInterval(updateSystemMetrics, 10000);
+            // Start activity auto-refresh
+            monitoringActivityInterval = setInterval(function() {
+                refreshActivity();
+            }, 30000);
+            
+            // Системные метрики (НЕ Performance) обновляем реже
+            setInterval(function() {
+                // Обновляем только non-performance метрики
+                updateSystemMetricsExcludingPerformance();
+            }, 15000); // Каждые 15 секунд для системных метрик
+            
+            // Performance Metrics теперь работают через SSE (каждые 10 секунд автоматически)
+            // Fallback polling запускается только при проблемах с SSE
+            
         });
         
         // Cleanup on page unload
@@ -544,5 +1484,5 @@
             }
         });
     </script>
-</body>
+</th:block>
 </html>

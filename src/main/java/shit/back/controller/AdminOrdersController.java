@@ -2,6 +2,7 @@ package shit.back.controller;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import shit.back.config.SecurityProperties;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -51,6 +52,9 @@ public class AdminOrdersController {
 
     @Autowired
     private SecurityValidator securityValidator;
+
+    @Autowired
+    private SecurityProperties securityProperties;
 
     // ==================== ОСНОВНЫЕ СТРАНИЦЫ ====================
 
@@ -569,38 +573,75 @@ public class AdminOrdersController {
     }
 
     /**
-     * Простая проверка администраторского доступа
-     * В реальном проекте здесь должна быть проверка JWT токена, сессии или API
-     * ключа
+     * Безопасная проверка администраторского доступа через API ключ
+     * Использует криптографически стойкое сравнение для предотвращения timing
+     * attacks
      */
     private boolean isValidAdminRequest(HttpServletRequest request) {
-        // TODO: Реализовать полноценную аутентификацию
-        // Пока что простая проверка на наличие заголовка или параметра
-
-        // Проверяем наличие заголовка авторизации
-        String authHeader = request.getHeader("Authorization");
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            // В реальном проекте здесь валидация JWT токена
-            log.debug("Admin request with auth header from IP: {}", request.getRemoteAddr());
-            return true;
-        }
-
-        // Проверяем сессию (если используется Spring Security)
-        String sessionId = request.getSession(false) != null ? request.getSession().getId() : null;
-        if (sessionId != null) {
-            log.debug("Admin request with session from IP: {}", request.getRemoteAddr());
-            return true;
-        }
-
-        // Временная проверка для разработки - доступ с localhost
         String remoteAddr = request.getRemoteAddr();
-        if ("127.0.0.1".equals(remoteAddr) || "::1".equals(remoteAddr) || "localhost".equals(remoteAddr)) {
-            log.debug("Admin request from localhost: {}", remoteAddr);
-            return true;
+
+        try {
+            // Получаем API ключ из конфигурации
+            String expectedApiKey = securityProperties.getApi().getKey();
+
+            // Проверяем, что API ключ настроен
+            if (expectedApiKey == null || expectedApiKey.trim().isEmpty()) {
+                log.error("Admin API key is not configured. Set API_SECRET_KEY environment variable");
+                return false;
+            }
+
+            // Получаем API ключ из заголовка запроса
+            String providedApiKey = request.getHeader("X-Admin-API-Key");
+
+            // Проверяем наличие ключа в запросе
+            if (providedApiKey == null || providedApiKey.trim().isEmpty()) {
+                log.warn("Admin access attempt without API key from IP: {}", remoteAddr);
+                return false;
+            }
+
+            // Используем constant-time сравнение для предотвращения timing attacks
+            boolean isValid = constantTimeEquals(expectedApiKey, providedApiKey);
+
+            if (isValid) {
+                log.debug("Valid admin API key provided from IP: {}", remoteAddr);
+                return true;
+            } else {
+                log.warn("Invalid admin API key provided from IP: {}", remoteAddr);
+                return false;
+            }
+
+        } catch (Exception e) {
+            log.error("Error during admin authentication from IP: {}", remoteAddr, e);
+            return false;
+        }
+    }
+
+    /**
+     * Constant-time сравнение строк для предотвращения timing attacks
+     */
+    private boolean constantTimeEquals(String expected, String provided) {
+        if (expected == null || provided == null) {
+            return false;
         }
 
-        log.warn("Unauthorized admin access attempt from IP: {}", remoteAddr);
-        return false;
+        byte[] expectedBytes = expected.getBytes();
+        byte[] providedBytes = provided.getBytes();
+
+        // Если длины не совпадают, всё равно выполняем полное сравнение
+        // для поддержания constant-time
+        int expectedLength = expectedBytes.length;
+        int providedLength = providedBytes.length;
+        int maxLength = Math.max(expectedLength, providedLength);
+
+        int result = expectedLength ^ providedLength;
+
+        for (int i = 0; i < maxLength; i++) {
+            byte expectedByte = (i < expectedLength) ? expectedBytes[i] : 0;
+            byte providedByte = (i < providedLength) ? providedBytes[i] : 0;
+            result |= expectedByte ^ providedByte;
+        }
+
+        return result == 0;
     }
 
     // ==================== DTO КЛАССЫ ====================

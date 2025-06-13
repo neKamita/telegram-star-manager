@@ -2,6 +2,7 @@ package shit.back.controller;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -12,6 +13,12 @@ import shit.back.service.PaymentService;
 import shit.back.security.SecurityValidator;
 
 import jakarta.servlet.http.HttpServletRequest;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+import java.nio.charset.StandardCharsets;
+import java.security.InvalidKeyException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -36,6 +43,9 @@ public class PaymentCallbackController {
 
     @Autowired
     private SecurityValidator securityValidator;
+
+    @Value("${TON_WEBHOOK_SECRET:}")
+    private String tonWebhookSecret;
 
     /**
      * Callback от TON Wallet
@@ -336,10 +346,132 @@ public class PaymentCallbackController {
 
     // ===== МЕТОДЫ ВЕРИФИКАЦИИ ПОДПИСЕЙ =====
 
+    /**
+     * Верификация HMAC-SHA256 подписи для TON платежей
+     *
+     * @param params  параметры callback'а от TON
+     * @param headers заголовки HTTP запроса
+     * @return true если подпись корректна, false в противном случае
+     */
     private boolean verifyTonSignature(Map<String, String> params, Map<String, String> headers) {
-        // TODO: Реальная верификация подписи TON
-        log.info("🚧 TON: Верификация подписи (заглушка)");
-        return true; // Заглушка
+        try {
+            // Получаем секретный ключ из переменных окружения
+            if (tonWebhookSecret == null || tonWebhookSecret.trim().isEmpty()) {
+                log.error("🔒 TON webhook secret не настроен в переменных окружения");
+                return false;
+            }
+
+            // Извлекаем подпись из заголовков
+            String providedSignature = headers.get("x-signature");
+            if (providedSignature == null) {
+                providedSignature = headers.get("X-Signature");
+            }
+            if (providedSignature == null) {
+                providedSignature = headers.get("signature");
+            }
+
+            if (providedSignature == null || providedSignature.trim().isEmpty()) {
+                log.warn("⚠️ TON callback: Отсутствует подпись в заголовках");
+                return false;
+            }
+
+            // Удаляем префикс "sha256=" если присутствует
+            if (providedSignature.startsWith("sha256=")) {
+                providedSignature = providedSignature.substring(7);
+            }
+
+            // Строим строку для подписи из параметров
+            String signatureString = buildTonSignatureString(params);
+            log.debug("🔍 TON signature string: {}", signatureString);
+
+            // Вычисляем HMAC-SHA256
+            String computedSignature = computeHmacSha256(signatureString, tonWebhookSecret.trim());
+
+            // Безопасное сравнение подписей (constant-time)
+            boolean isValid = constantTimeEquals(providedSignature, computedSignature);
+
+            if (isValid) {
+                log.info("✅ TON webhook signature успешно верифицирована для платежа: {}",
+                        params.get("payment_id"));
+            } else {
+                log.warn("❌ TON webhook signature не прошла верификацию. Payment ID: {}, " +
+                        "Expected: {}, Provided: {}",
+                        params.get("payment_id"), computedSignature, providedSignature);
+            }
+
+            return isValid;
+
+        } catch (Exception e) {
+            log.error("💥 Ошибка при верификации TON подписи для платежа {}: {}",
+                    params.get("payment_id"), e.getMessage(), e);
+            return false;
+        }
+    }
+
+    /**
+     * Строит строку для подписи из параметров TON callback'а
+     * согласно спецификации TON Wallet API
+     */
+    private String buildTonSignatureString(Map<String, String> params) {
+        // Сортируем параметры по ключу и объединяем в строку
+        // Формат: key1=value1&key2=value2&...
+        return params.entrySet()
+                .stream()
+                .filter(entry -> entry.getKey() != null && entry.getValue() != null)
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> entry.getKey() + "=" + entry.getValue())
+                .collect(Collectors.joining("&"));
+    }
+
+    /**
+     * Вычисляет HMAC-SHA256 подпись
+     *
+     * @param data данные для подписи
+     * @param key  секретный ключ
+     * @return HEX представление HMAC-SHA256
+     */
+    private String computeHmacSha256(String data, String key) throws NoSuchAlgorithmException, InvalidKeyException {
+        Mac mac = Mac.getInstance("HmacSHA256");
+        SecretKeySpec keySpec = new SecretKeySpec(key.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
+        mac.init(keySpec);
+
+        byte[] hmacBytes = mac.doFinal(data.getBytes(StandardCharsets.UTF_8));
+
+        // Конвертируем в HEX
+        StringBuilder hexString = new StringBuilder();
+        for (byte b : hmacBytes) {
+            String hex = Integer.toHexString(0xff & b);
+            if (hex.length() == 1) {
+                hexString.append('0');
+            }
+            hexString.append(hex);
+        }
+
+        return hexString.toString();
+    }
+
+    /**
+     * Безопасное сравнение строк для предотвращения timing attacks
+     *
+     * @param a первая строка
+     * @param b вторая строка
+     * @return true если строки идентичны
+     */
+    private boolean constantTimeEquals(String a, String b) {
+        if (a == null || b == null) {
+            return a == b;
+        }
+
+        if (a.length() != b.length()) {
+            return false;
+        }
+
+        int result = 0;
+        for (int i = 0; i < a.length(); i++) {
+            result |= a.charAt(i) ^ b.charAt(i);
+        }
+
+        return result == 0;
     }
 
     private boolean verifyYooKassaSignature(Map<String, String> params, Map<String, String> headers) {

@@ -2,6 +2,7 @@ package shit.back.config;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -24,74 +25,92 @@ import java.util.List;
 @EnableWebSecurity
 @EnableConfigurationProperties(SecurityProperties.class)
 public class SecurityConfig {
-    
+
     @Autowired
     private SecurityProperties securityProperties;
-    
+
+    @Value("${test.payment.enabled:false}")
+    private boolean testPaymentEnabled;
+
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http, ApiKeyAuthFilter apiKeyAuthFilter) throws Exception {
-        log.info("Configuring security filter chain. API Security enabled: {}", securityProperties.getApi().isEnabled());
-        
+        log.info("Configuring security filter chain. API Security enabled: {}",
+                securityProperties.getApi().isEnabled());
+
         http
-            // Настраиваем CSRF защиту
-            .csrf(csrf -> csrf
-                .csrfTokenRepository(org.springframework.security.web.csrf.CookieCsrfTokenRepository.withHttpOnlyFalse())
-                .ignoringRequestMatchers(
-                    // Telegram Bot API - не нужен CSRF
-                    "/api/bot/**",
-                    "/webhook/telegram",  // Исправлен путь для webhook
-                    "/webhook/**",        // Разрешаем все webhook пути
-                    
-                    // Health checks и monitoring - публичные endpoints
-                    "/actuator/health",
-                    "/actuator/info"
-                )
-            )
-            
-            // Настраиваем CORS
-            .cors(cors -> {
-                if (securityProperties.getCors().isEnabled()) {
-                    cors.configurationSource(corsConfigurationSource());
-                } else {
-                    cors.disable();
-                }
-            })
-            
-            // Stateless сессии
-            .sessionManagement(session -> 
-                session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            
-            // Настройка авторизации
-            .authorizeHttpRequests(authz -> authz
-                // Публичные эндпоинты
-                .requestMatchers("/api/bot/health").permitAll()
-                .requestMatchers("/actuator/health").permitAll()
-                .requestMatchers("/actuator/info").permitAll()
-                
-                // Telegram webhook - КРИТИЧЕСКИ ВАЖНО для бота!
-                .requestMatchers("/webhook/telegram").permitAll()
-                .requestMatchers("/webhook/**").permitAll()
-                
-                // API эндпоинты требуют аутентификации
-                .requestMatchers("/api/**").authenticated()
-                
-                // Все остальные запросы разрешены
-                .anyRequest().permitAll()
-            );
-        
+                // Настраиваем CSRF защиту
+                .csrf(csrf -> {
+                    var matchers = csrf
+                            .csrfTokenRepository(
+                                    org.springframework.security.web.csrf.CookieCsrfTokenRepository.withHttpOnlyFalse())
+                            .ignoringRequestMatchers(
+                                    // Telegram Bot API - не нужен CSRF
+                                    "/api/bot/**",
+                                    "/webhook/telegram", // Исправлен путь для webhook
+                                    "/webhook/**", // Разрешаем все webhook пути
+
+                                    // Health checks и monitoring - публичные endpoints
+                                    "/actuator/health",
+                                    "/actuator/info");
+
+                    // Тестовые endpoints исключаем из CSRF если включен тестовый режим
+                    if (testPaymentEnabled) {
+                        log.info("🧪 TEST MODE: Исключаем тестовые payment endpoints из CSRF защиты");
+                        matchers.ignoringRequestMatchers("/api/payment/callback/test/**");
+                    }
+                })
+
+                // Настраиваем CORS
+                .cors(cors -> {
+                    if (securityProperties.getCors().isEnabled()) {
+                        cors.configurationSource(corsConfigurationSource());
+                    } else {
+                        cors.disable();
+                    }
+                })
+
+                // Stateless сессии
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
+                // Настройка авторизации
+                .authorizeHttpRequests(authz -> {
+                    authz
+                            // Публичные эндпоинты
+                            .requestMatchers("/api/bot/health").permitAll()
+                            .requestMatchers("/actuator/health").permitAll()
+                            .requestMatchers("/actuator/info").permitAll()
+
+                            // Telegram webhook - КРИТИЧЕСКИ ВАЖНО для бота!
+                            .requestMatchers("/webhook/telegram").permitAll()
+                            .requestMatchers("/webhook/**").permitAll();
+
+                    // Тестовые endpoints только в dev режиме (если включен тестовый режим)
+                    if (testPaymentEnabled) {
+                        log.info("🧪 TEST MODE: Разрешен доступ к тестовым payment endpoints без API ключа");
+                        authz.requestMatchers("/api/payment/callback/test/**").permitAll();
+                    }
+
+                    authz
+                            // API эндпоинты требуют аутентификации
+                            .requestMatchers("/api/**").authenticated()
+
+                            // Все остальные запросы разрешены
+                            .anyRequest().permitAll();
+                });
+
         // Добавляем фильтр API ключей если включен
         if (securityProperties.getApi().isEnabled()) {
             http.addFilterBefore(apiKeyAuthFilter, UsernamePasswordAuthenticationFilter.class);
             log.info("API Key authentication filter enabled");
         }
-        
+
         return http.build();
     }
-    
+
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        
+
         // Разрешенные origins
         List<String> allowedOrigins = securityProperties.getCors().getAllowedOrigins();
         if (allowedOrigins != null && !allowedOrigins.isEmpty()) {
@@ -99,24 +118,24 @@ public class SecurityConfig {
         } else {
             configuration.addAllowedOrigin("*");
         }
-        
+
         // Разрешенные методы
         configuration.setAllowedMethods(securityProperties.getCors().getAllowedMethods());
-        
+
         // Разрешенные заголовки
         configuration.setAllowedHeaders(securityProperties.getCors().getAllowedHeaders());
-        
+
         // Разрешаем credentials
         configuration.setAllowCredentials(true);
-        
+
         // Время кеширования preflight запросов
         configuration.setMaxAge(securityProperties.getCors().getMaxAge());
-        
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/**", configuration);
-        
+
         log.info("CORS configuration applied for origins: {}", allowedOrigins);
-        
+
         return source;
     }
 }

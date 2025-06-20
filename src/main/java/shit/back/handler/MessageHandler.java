@@ -8,14 +8,11 @@ import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.api.objects.User;
 import shit.back.entity.BalanceTransactionEntity;
 import shit.back.entity.UserBalanceEntity;
-import shit.back.exception.BalanceException;
-import shit.back.exception.InsufficientBalanceException;
 import shit.back.model.UserSession;
 import shit.back.model.Order;
 import shit.back.service.BalanceService;
-import shit.back.service.BalanceTransactionService;
 import shit.back.service.PriceService;
-import shit.back.service.UserSessionService;
+import shit.back.service.UserSessionUnifiedService;
 import shit.back.utils.MessageUtils;
 
 import java.util.List;
@@ -26,7 +23,7 @@ import java.util.Optional;
 public class MessageHandler {
 
     @Autowired
-    private UserSessionService userSessionService;
+    private UserSessionUnifiedService userSessionService;
 
     @Autowired
     private PriceService priceService;
@@ -35,8 +32,6 @@ public class MessageHandler {
     @Autowired
     private BalanceService balanceService;
 
-    @Autowired
-    private BalanceTransactionService balanceTransactionService;
 
     public SendMessage handleMessage(Message message) {
         String text = message.getText();

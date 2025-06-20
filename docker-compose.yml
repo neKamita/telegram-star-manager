@@ -1,45 +1,67 @@
+# ============================================
+# БАЗОВАЯ КОНФИГУРАЦИЯ DOCKER COMPOSE
+# TelegramStarManager - основные сервисы
+# ============================================
+
 version: '3.8'
 
+networks:
+  telegram-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  app_logs:
+    driver: local
+
 services:
-  telegram-star-manager:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: telegram-star-manager
-    ports:
-      - "8080:8080"
-    environment:
-      # Override these in .env file or environment
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-your_bot_token_here}
-      - TELEGRAM_BOT_USERNAME=${TELEGRAM_BOT_USERNAME:-YourBotUsername}
-      - API_KEY=${API_KEY:-your_api_key_here}
-      - SERVER_PORT=${SERVER_PORT:-8080}
-      - ENVIRONMENT=${ENVIRONMENT:-production}
-      - LOGGING_LEVEL=${LOGGING_LEVEL:-INFO}
-    env_file:
-      - .env
+  # ============================================
+  # POSTGRESQL DATABASE
+  # ============================================
+  postgres:
+    image: postgres:15-alpine
+    container_name: telegram-star-postgres
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/api/ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
+    environment:
+      POSTGRES_DB: ${DATABASE_NAME:-telegram_star_db}
+      POSTGRES_USER: ${DATABASE_USERNAME:-telegram_user}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
+    ports:
+      - "${DATABASE_PORT:-5432}:5432"
     volumes:
-      # Optional: Mount logs directory
-      - ./logs:/app/logs
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - telegram-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USERNAME:-telegram_user} -d ${DATABASE_NAME:-telegram_star_db}"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
-  # Optional: Redis for session storage and caching
+  # ============================================
+  # REDIS CACHE
+  # ============================================
   redis:
     image: redis:7-alpine
-    container_name: telegram-redis
+    container_name: telegram-star-redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
     environment:
-      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - telegram-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
     command: >
       sh -c "
         if [ -n '$$REDIS_PASSWORD' ]; then
@@ -48,44 +70,73 @@ services:
           redis-server
         fi
       "
-    volumes:
-      - redis-data:/data
-    networks:
-      - telegram-network
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 30s
-      timeout: 3s
-      retries: 3
 
-  # Optional: PostgreSQL for persistent data
-  postgres:
-    image: postgres:15-alpine
-    container_name: telegram-postgres
+  # ============================================
+  # TELEGRAM BOT APPLICATION
+  # ============================================
+  telegram-star-manager:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: telegram-star-app
     restart: unless-stopped
-    ports:
-      - "5432:5432"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
-      - POSTGRES_DB=${DATABASE_NAME:-telegram_star_manager}
-      - POSTGRES_USER=${DATABASE_USERNAME:-telegram_user}
-      - POSTGRES_PASSWORD=${DATABASE_PASSWORD}
+      # Основные настройки
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-production,postgresql}
+      SERVER_PORT: 8080
+      
+      # База данных
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${DATABASE_NAME:-telegram_star_db}
+      DATABASE_USERNAME: ${DATABASE_USERNAME:-telegram_user}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD}
+      
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      
+      # Telegram Bot
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
+      TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME}
+      TELEGRAM_WEBHOOK_URL: ${TELEGRAM_WEBHOOK_URL:-}
+      
+      # Безопасность
+      API_SECRET_KEY: ${API_SECRET_KEY}
+      
+      # Логирование
+      LOGGING_LEVEL: ${LOGGING_LEVEL:-INFO}
+      
+      # JVM настройки
+      JAVA_OPTS: ${JAVA_OPTS:--Xms256m -Xmx512m -XX:+UseG1GC}
+    
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    
     volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - app_logs:/app/logs
+    
     networks:
       - telegram-network
+    
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USERNAME:-telegram_user}"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/ping"]
       interval: 30s
-      timeout: 5s
+      timeout: 10s
       retries: 3
-
-volumes:
-  redis-data:
-    driver: local
-  postgres-data:
-    driver: local
-
-networks:
-  telegram-network:
-    driver: bridge
+      start_period: 60s
+    
+    env_file:
+      - .env
+    
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"

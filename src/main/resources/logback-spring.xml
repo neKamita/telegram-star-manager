@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+    
+    <!-- Определение паттернов - стандартные Logback паттерны без Spring Boot специфики -->
+    <property name="CONSOLE_LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level --- [%thread] %-40.40logger{39} : %msg%n%ex"/>
+    <property name="FILE_LOG_PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level --- [%thread] %-40.40logger{39} : %msg%n%ex"/>
+
+    <!-- Console Appender -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>${CONSOLE_LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- File Appender для общих логов -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>logs/spring-boot-application.log</file>
+        <encoder>
+            <pattern>${FILE_LOG_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>logs/spring-boot-application.%d{yyyy-MM-dd}.%i.log.gz</fileNamePattern>
+            <maxFileSize>100MB</maxFileSize>
+            <maxHistory>60</maxHistory>
+            <totalSizeCap>20GB</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <!-- System Log Capture Appender для захвата важных логов -->
+    <appender name="SYSTEM_LOG_CAPTURE" class="shit.back.config.SystemLogAppender">
+        <!-- Фильтр для исключения debug и trace логов -->
+        <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
+            <level>INFO</level>
+        </filter>
+    </appender>
+
+    <!-- Специфичные настройки для Spring Framework -->
+    <logger name="org.springframework.web.servlet.DispatcherServlet" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+        <appender-ref ref="SYSTEM_LOG_CAPTURE"/>
+    </logger>
+
+    <!-- Настройки для наших сервисов -->
+    <logger name="shit.back.service.BackgroundMetricsService" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+        <appender-ref ref="SYSTEM_LOG_CAPTURE"/>
+    </logger>
+
+    <logger name="shit.back.service.AdminDashboardService" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+        <appender-ref ref="SYSTEM_LOG_CAPTURE"/>
+    </logger>
+
+    <!-- Hibernate SQL логи (только для важных операций) -->
+    <logger name="org.hibernate.SQL" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+        <appender-ref ref="SYSTEM_LOG_CAPTURE"/>
+    </logger>
+
+    <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="WARN" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </logger>
+
+    <!-- Настройки для всех логгеров нашего приложения -->
+    <logger name="shit.back" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+        <appender-ref ref="SYSTEM_LOG_CAPTURE"/>
+    </logger>
+
+    <!-- Исключаем наши собственные сервисы логирования из захвата -->
+    <logger name="shit.back.service.SystemLogCaptureService" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </logger>
+
+    <logger name="shit.back.service.UserActivityLogService" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </logger>
+
+    <logger name="shit.back.config.SystemLogAppender" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+    </logger>
+
+    <!-- Профиль для разработки -->
+    <springProfile name="dev">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="FILE"/>
+            <appender-ref ref="SYSTEM_LOG_CAPTURE"/>
+        </root>
+        
+        <!-- В dev режиме показываем SQL запросы -->
+        <logger name="org.hibernate.SQL" level="DEBUG"/>
+        <logger name="org.hibernate.type.descriptor.sql.BasicBinder" level="TRACE"/>
+    </springProfile>
+
+    <!-- Профиль для продакшена -->
+    <springProfile name="prod,koyeb">
+        <root level="WARN">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="FILE"/>
+            <appender-ref ref="SYSTEM_LOG_CAPTURE"/>
+        </root>
+        
+        <!-- В продакшене только ERROR и WARN от Hibernate -->
+        <logger name="org.hibernate" level="WARN"/>
+        <logger name="org.springframework" level="WARN"/>
+    </springProfile>
+
+    <!-- Профиль по умолчанию -->
+    <springProfile name="!dev &amp;&amp; !prod &amp;&amp; !koyeb">
+        <root level="INFO">
+            <appender-ref ref="CONSOLE"/>
+            <appender-ref ref="FILE"/>
+            <appender-ref ref="SYSTEM_LOG_CAPTURE"/>
+        </root>
+    </springProfile>
+
+</configuration>

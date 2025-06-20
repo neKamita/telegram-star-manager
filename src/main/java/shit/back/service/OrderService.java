@@ -17,6 +17,13 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.*;
 
+import shit.back.dto.order.OrderStatistics;
+import shit.back.dto.order.CustomerStats;
+import shit.back.dto.order.DailyStats;
+import shit.back.dto.order.PackageStats;
+import shit.back.dto.order.BatchUpdateResult;
+import shit.back.dto.order.OrderMetrics;
+
 /**
  * Service for managing orders and order-related operations
  */
@@ -35,8 +42,6 @@ public class OrderService {
     @Autowired
     private BalanceService balanceService;
 
-    @Autowired
-    private BalanceValidationService balanceValidationService;
 
     /**
      * Create a new order with balance check integration
@@ -475,47 +480,6 @@ public class OrderService {
                 .toList();
     }
 
-    // Data transfer objects
-
-    @lombok.Data
-    @lombok.Builder
-    public static class OrderStatistics {
-        private long totalOrders;
-        private long completedOrders;
-        private long pendingOrders;
-        private long failedOrders;
-        private BigDecimal totalRevenue;
-        private BigDecimal todayRevenue;
-        private BigDecimal monthRevenue;
-        private BigDecimal averageOrderValue;
-        private Double conversionRate;
-    }
-
-    @lombok.Data
-    @lombok.Builder
-    public static class CustomerStats {
-        private Long userId;
-        private String username;
-        private Long orderCount;
-        private BigDecimal totalSpent;
-    }
-
-    @lombok.Data
-    @lombok.Builder
-    public static class DailyStats {
-        private java.sql.Date date;
-        private Long orderCount;
-        private BigDecimal revenue;
-    }
-
-    @lombok.Data
-    @lombok.Builder
-    public static class PackageStats {
-        private String packageName;
-        private Long orderCount;
-        private BigDecimal totalRevenue;
-    }
-
     // ==================== ДОПОЛНИТЕЛЬНЫЕ МЕТОДЫ ДЛЯ АДМИН-ПАНЕЛИ
     // ====================
 
@@ -877,37 +841,6 @@ public class OrderService {
                         && order.getStarPackageName().toLowerCase().contains(lowerSearchText))
                 ||
                 (order.getNotes() != null && order.getNotes().toLowerCase().contains(lowerSearchText));
-    }
-
-    // ==================== ДОПОЛНИТЕЛЬНЫЕ DTO КЛАССЫ ====================
-
-    /**
-     * Результат массового обновления
-     */
-    @lombok.Data
-    @lombok.AllArgsConstructor
-    public static class BatchUpdateResult {
-        private int successCount;
-        private int failureCount;
-        private List<String> successfulOrderIds;
-        private List<String> failureReasons;
-    }
-
-    /**
-     * Метрики заказов за период
-     */
-    @lombok.Data
-    @lombok.Builder
-    public static class OrderMetrics {
-        private LocalDateTime periodStart;
-        private LocalDateTime periodEnd;
-        private long totalOrders;
-        private long completedOrders;
-        private long pendingOrders;
-        private long failedOrders;
-        private BigDecimal totalRevenue;
-        private BigDecimal averageOrderValue;
-        private double conversionRate;
     }
 
     // ==================== МЕТОДЫ ИНТЕГРАЦИИ С БАЛАНСОМ ====================

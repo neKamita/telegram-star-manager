@@ -130,7 +130,15 @@ public class UserActivityLogEntity {
         STATE_CHANGED("🔄", "Изменил состояние", false, LogCategory.APPLICATION),
         SESSION_EXPIRED("⏰", "Сессия истекла", false, LogCategory.APPLICATION),
         PACKAGE_VIEWED("👀", "Просмотрел пакет", false, LogCategory.APPLICATION),
-        HELP_REQUESTED("❓", "Запросил помощь", false, LogCategory.APPLICATION);
+        HELP_REQUESTED("❓", "Запросил помощь", false, LogCategory.APPLICATION),
+
+        // Новые системные ActionType для backend логов
+        SYSTEM_INFO("ℹ️", "Системная информация", false, LogCategory.APPLICATION),
+        SYSTEM_WARNING("⚠️", "Системное предупреждение", true, LogCategory.APPLICATION),
+        SYSTEM_ERROR("🚨", "Системная ошибка", true, LogCategory.APPLICATION),
+        DATABASE_QUERY("🗄️", "Запрос к БД", false, LogCategory.APPLICATION),
+        API_REQUEST("🌐", "API запрос", false, LogCategory.APPLICATION),
+        BACKGROUND_TASK("⚙️", "Фоновая задача", false, LogCategory.APPLICATION);
 
         private final String emoji;
         private final String description;

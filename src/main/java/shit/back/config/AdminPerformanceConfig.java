@@ -1,6 +1,7 @@
 package shit.back.config;
 
-import lombok.extern.slf4j.Slf4j;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.cache.concurrent.ConcurrentMapCacheManager;
@@ -9,6 +10,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
+import org.springframework.scheduling.TaskScheduler;
 
 import java.util.concurrent.Executor;
 
@@ -16,12 +19,13 @@ import java.util.concurrent.Executor;
  * Configuration for admin dashboard performance optimization
  * Optimized for Koyeb's limited resources (0.1 vCPU, 512MB RAM)
  */
-@Slf4j
 @Configuration
 @EnableCaching
 @EnableAsync
 @EnableScheduling
 public class AdminPerformanceConfig {
+
+    private static final Logger log = LoggerFactory.getLogger(AdminPerformanceConfig.class);
 
     /**
      * Cache manager for admin dashboard data
@@ -129,5 +133,26 @@ public class AdminPerformanceConfig {
 
         log.info("Metrics background executor configured: dedicated thread for performance monitoring");
         return executor;
+    }
+
+    /**
+     * Task Scheduler для отложенных задач (включая тестовые платежи)
+     */
+    @Bean("taskScheduler")
+    public TaskScheduler taskScheduler() {
+        log.info("Configuring task scheduler for delayed operations");
+
+        ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+
+        // Минимальный пул для scheduled задач
+        scheduler.setPoolSize(2);
+        scheduler.setThreadNamePrefix("TaskScheduler-");
+        scheduler.setWaitForTasksToCompleteOnShutdown(true);
+        scheduler.setAwaitTerminationSeconds(10);
+
+        scheduler.initialize();
+
+        log.info("Task scheduler configured with pool size: {}", scheduler.getPoolSize());
+        return scheduler;
     }
 }

@@ -5,7 +5,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import shit.back.service.TelegramBotService;
-import shit.back.service.UserSessionService;
+import shit.back.service.UserSessionUnifiedService;
 import shit.back.service.PriceService;
 import shit.back.model.StarPackage;
 
@@ -17,16 +17,16 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/bot")
 public class BotController {
-    
+
     @Autowired
     private TelegramBotService telegramBotService;
-    
+
     @Autowired
-    private UserSessionService userSessionService;
-    
+    private UserSessionUnifiedService userSessionService;
+
     @Autowired
     private PriceService priceService;
-    
+
     @GetMapping("/status")
     public ResponseEntity<Map<String, Object>> getBotStatus() {
         Map<String, Object> status = new HashMap<>();
@@ -34,22 +34,22 @@ public class BotController {
         status.put("activeSessions", userSessionService.getActiveSessionsCount());
         status.put("totalOrders", userSessionService.getTotalOrdersCount());
         status.put("status", "running");
-        
+
         return ResponseEntity.ok(status);
     }
-    
+
     @GetMapping("/prices")
     public ResponseEntity<List<StarPackage>> getPrices() {
         return ResponseEntity.ok(priceService.getAllPackages());
     }
-    
+
     @PostMapping("/send-message")
     public ResponseEntity<Map<String, String>> sendMessage(
             @RequestParam Long chatId,
             @RequestParam String message) {
-        
+
         Map<String, String> response = new HashMap<>();
-        
+
         // Check if bot is registered before attempting to send message
         if (!telegramBotService.isBotRegistered()) {
             log.warn("Attempt to send message while bot is not registered");
@@ -58,7 +58,7 @@ public class BotController {
             response.put("botStatus", telegramBotService.getBotStatus());
             return ResponseEntity.badRequest().body(response);
         }
-        
+
         try {
             telegramBotService.sendMessage(chatId, message);
             response.put("status", "success");
@@ -72,7 +72,7 @@ public class BotController {
             return ResponseEntity.badRequest().body(response);
         }
     }
-    
+
     @PostMapping("/cleanup-sessions")
     public ResponseEntity<Map<String, String>> cleanupSessions() {
         try {
@@ -88,7 +88,7 @@ public class BotController {
             return ResponseEntity.badRequest().body(response);
         }
     }
-    
+
     @GetMapping("/health")
     public ResponseEntity<Map<String, String>> health() {
         Map<String, String> health = new HashMap<>();

@@ -277,6 +277,28 @@ public class UserActivityLogService {
     }
 
     /**
+     * Логировать системную активность с дополнительными деталями
+     */
+    @Async
+    public void logSystemActivityWithDetails(String description, ActionType actionType, String details) {
+        try {
+            UserActivityLogEntity activity = new UserActivityLogEntity(
+                    0L, "SYSTEM", actionType, description)
+                    .withLogCategory(LogCategory.APPLICATION)
+                    .withDetails(details);
+
+            UserActivityLogEntity saved = activityLogRepository.save(activity);
+
+            addToRecentActivities(saved);
+            broadcastActivity(saved);
+
+            log.debug("Logged system activity with details: {}", actionType);
+        } catch (Exception e) {
+            log.error("Error logging system activity with details: {}", e.getMessage(), e);
+        }
+    }
+
+    /**
      * Универсальный метод логирования с указанием категории
      */
     @Async
@@ -789,7 +811,7 @@ public class UserActivityLogService {
                         Collectors.counting()));
 
         return packageCounts.entrySet().stream()
-                .max(Map.Entry.comparingByValue())
+                .max(Map.Entry.comparingByValue())  
                 .map(entry -> entry.getKey() + "⭐ Package")
                 .orElse("N/A");
     }

@@ -3,13 +3,15 @@ package shit.back.service;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import shit.back.annotation.Auditable;
 import shit.back.entity.OrderEntity;
 import shit.back.entity.StarPackageEntity;
 import shit.back.entity.UserSessionEntity;
+import shit.back.model.UserCountsBatchResult;
+import shit.back.dto.order.OrderStatistics;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -19,7 +21,20 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Service that aggregates data for the admin dashboard
+ * Основной сервис админской панели
+ * РЕФАКТОРИНГ Week 3-4: Разделение God Classes
+ * 
+ * Теперь делегирует специализированные задачи:
+ * - AdminAnalyticsService - аналитика и метрики
+ * - AdminMaintenanceService - обслуживание системы
+ * 
+ * Сохраняет только:
+ * - Агрегацию основных данных дашборда
+ * - Интеграцию между сервисами
+ * - Простые операции с данными
+ * 
+ * @author TelegramStarManager
+ * @since Week 3-4 Refactoring - God Class Split
  */
 @Slf4j
 @Service
@@ -33,30 +48,57 @@ public class AdminDashboardService {
     private StarPackageService starPackageService;
 
     @Autowired
-    private UserSessionEnhancedService userSessionService;
+    private UserSessionUnifiedService userSessionService;
+
+    // === НОВЫЕ РАЗДЕЛЕННЫЕ СЕРВИСЫ (Week 3-4) ===
+    @Autowired
+    private AdminAnalyticsService adminAnalyticsService;
+
+    @Autowired
+    private AdminMaintenanceService adminMaintenanceService;
 
     /**
-     * Get comprehensive dashboard overview
+     * Получение общего обзора дашборда
+     * ОПТИМИЗИРОВАНО: использует batch query
      */
+    @Auditable(description = "Получение обзора административной панели", auditType = Auditable.AuditType.ADMIN)
     public DashboardOverview getDashboardOverview() {
-        log.info("Generating dashboard overview");
+        long startTime = System.currentTimeMillis();
+        log.info("📊 ДАШБОРД: Генерация обзора дашборда - НАЧАЛО");
 
-        // Get order statistics
-        OrderService.OrderStatistics orderStats = orderService.getOrderStatistics();
+        // Получение статистики заказов
+        long orderStatsStart = System.currentTimeMillis();
+        OrderStatistics orderStats = orderService.getOrderStatistics();
+        long orderStatsTime = System.currentTimeMillis() - orderStatsStart;
+        log.info("📦 ДАШБОРД: Order statistics took {}ms", orderStatsTime);
 
-        // Get package statistics
+        // Получение статистики пакетов
+        long packageStatsStart = System.currentTimeMillis();
         StarPackageService.PackageStatistics packageStats = starPackageService.getPackageStatistics();
+        long packageStatsTime = System.currentTimeMillis() - packageStatsStart;
+        log.info("⭐ ДАШБОРД: Package statistics took {}ms", packageStatsTime);
 
-        // Get user session statistics
-        UserSessionEnhancedService.UserSessionStatistics userStats = userSessionService.getUserSessionStatistics();
+        // Получение статистики пользователей
+        long userStatsStart = System.currentTimeMillis();
+        UserSessionUnifiedService.UserSessionStatistics userStats = userSessionService.getUserSessionStatistics();
+        long userStatsTime = System.currentTimeMillis() - userStatsStart;
+        log.info("👥 ДАШБОРД: User session statistics took {}ms", userStatsTime);
 
-        // Get direct user counts for easy frontend access
-        long totalUsersCount = userSessionService.getTotalUsersCount();
-        long activeUsersCount = userSessionService.getActiveUsersCount();
-        long onlineUsersCount = userSessionService.getOnlineUsersCount();
+        // Получение прямых счетчиков пользователей - OPTIMIZED BATCH QUERY
+        long userCountsStart = System.currentTimeMillis();
+        UserCountsBatchResult userCounts = userSessionService.getUserCountsBatch();
+        long totalUsersCount = userCounts.totalUsers();
+        long activeUsersCount = userCounts.activeUsers();
+        long onlineUsersCount = userCounts.onlineUsers();
+        long userCountsTime = System.currentTimeMillis() - userCountsStart;
 
-        log.info("Dashboard user counts - Total: {}, Active: {}, Online: {}",
-                totalUsersCount, activeUsersCount, onlineUsersCount);
+        log.info(
+                "✅ ОПТИМИЗАЦИЯ N+1 РЕШЕНА: SINGLE BATCH QUERY took {}ms instead of 3 separate queries! Total={}, Active={}, Online={}",
+                userCountsTime, totalUsersCount, activeUsersCount, onlineUsersCount);
+
+        long totalTime = System.currentTimeMillis() - startTime;
+        log.warn("📊 ДАШБОРД: Dashboard overview TOTAL time {}ms (order:{}ms, package:{}ms, user:{}ms, counts:{}ms)",
+                totalTime, orderStatsTime, packageStatsTime, userStatsTime, userCountsTime);
 
         return DashboardOverview.builder()
                 .orderStatistics(orderStats)
@@ -70,41 +112,55 @@ public class AdminDashboardService {
     }
 
     /**
-     * Get recent activity summary
+     * Получение недавней активности
      */
+    @Auditable(description = "Получение недавней активности", auditType = Auditable.AuditType.ADMIN)
     public RecentActivity getRecentActivity() {
-        log.info("Getting recent activity");
+        long startTime = System.currentTimeMillis();
+        log.info("📈 ДАШБОРД: Получение недавней активности - НАЧАЛО");
 
+        long recentOrdersStart = System.currentTimeMillis();
         List<OrderEntity> recentOrders = orderService.getRecentOrders(7); // Last 7 days
-        List<UserSessionEntity> recentUsers = userSessionService.getNewUsers(7); // Last 7 days
+        long recentOrdersTime = System.currentTimeMillis() - recentOrdersStart;
+
+        long recentUsersStart = System.currentTimeMillis();
+        long recentUsersCount = userSessionService.getNewUsersCount(7); // Last 7 days
+        long recentUsersTime = System.currentTimeMillis() - recentUsersStart;
+
+        long onlineUsersStart = System.currentTimeMillis();
         List<UserSessionEntity> onlineUsers = userSessionService.getOnlineUsers();
+        long onlineUsersTime = System.currentTimeMillis() - onlineUsersStart;
+
+        long todaysOrdersStart = System.currentTimeMillis();
         List<OrderEntity> todaysOrders = orderService.getTodaysOrders();
+        long todaysOrdersTime = System.currentTimeMillis() - todaysOrdersStart;
+
+        long totalTime = System.currentTimeMillis() - startTime;
+        log.info("📈 ДАШБОРД: Recent activity TOTAL time {}ms (recent:{}ms, users:{}ms, online:{}ms, today:{}ms)",
+                totalTime, recentOrdersTime, recentUsersTime, onlineUsersTime, todaysOrdersTime);
 
         return RecentActivity.builder()
                 .recentOrders(recentOrders.stream().limit(10).toList())
-                .newUsers(recentUsers.stream().limit(10).toList())
+                .newUsers(java.util.Collections.emptyList())
                 .onlineUsers(onlineUsers.stream().limit(10).toList())
                 .todaysOrders(todaysOrders)
                 .totalRecentOrders(recentOrders.size())
-                .totalNewUsers(recentUsers.size())
+                .totalNewUsers((int) recentUsersCount)
                 .totalOnlineUsers(onlineUsers.size())
                 .totalTodaysOrders(todaysOrders.size())
                 .build();
     }
 
     /**
-     * Get combined recent activity (Feature Flags removed - only orders now)
+     * Получение комбинированной недавней активности
      */
     public CombinedRecentActivity getCombinedRecentActivity() {
-        log.info("Getting combined recent activity (orders only)");
+        log.info("📊 ДАШБОРД: Получение комбинированной недавней активности (только заказы)");
 
-        // Получаем последние заказы
         List<OrderEntity> recentOrders = orderService.getRecentOrders(30); // Last 30 days
-
-        // Создаем список активностей только из заказов
         List<ActivityItem> allActivities = new ArrayList<>();
 
-        // Добавляем заказы
+        // Добавляем заказы в активности
         for (OrderEntity order : recentOrders) {
             ActivityItem item = ActivityItem.builder()
                     .type("ORDER")
@@ -125,170 +181,76 @@ public class AdminDashboardService {
             allActivities.add(item);
         }
 
-        // Сортируем по времени (новые сначала) и ограничиваем до 20
+        // Сортируем по времени и ограничиваем
         List<ActivityItem> sortedActivities = allActivities.stream()
                 .sorted((a, b) -> b.getTimestamp().compareTo(a.getTimestamp()))
                 .limit(20)
                 .collect(Collectors.toList());
 
-        // Подсчитываем статистику (только заказы)
-        long orderCount = sortedActivities.size();
-
         return CombinedRecentActivity.builder()
                 .activities(sortedActivities)
                 .totalActivities(sortedActivities.size())
-                .orderCount((int) orderCount)
+                .orderCount(sortedActivities.size())
                 .flagCount(0) // Feature Flags удалены
                 .lastUpdated(LocalDateTime.now())
                 .build();
     }
 
+    // === ДЕЛЕГАЦИЯ К НОВЫМ СЕРВИСАМ (Week 3-4) ===
+
     /**
-     * Get performance metrics
+     * Получение метрик производительности
+     * ДЕЛЕГИРУЕТ к AdminAnalyticsService
      */
-    public PerformanceMetrics getPerformanceMetrics() {
-        log.info("Calculating performance metrics");
-
-        // Revenue metrics
-        BigDecimal todayRevenue = orderService.getTodayRevenue();
-        BigDecimal monthRevenue = orderService.getMonthRevenue();
-        BigDecimal totalRevenue = orderService.getTotalRevenue();
-
-        // Conversion metrics
-        long totalOrders = orderService.getTotalOrdersCount();
-        long completedOrders = orderService.getCompletedOrdersCount();
-        double orderConversionRate = totalOrders > 0 ? (double) completedOrders / totalOrders * 100 : 0;
-
-        // User engagement metrics
-        long totalUsers = userSessionService.getTotalUsersCount();
-        long activeUsers = userSessionService.getActiveUsersCount();
-        long onlineUsers = userSessionService.getOnlineUsersCount();
-
-        double userEngagementRate = totalUsers > 0 ? (double) activeUsers / totalUsers * 100 : 0;
-
-        return PerformanceMetrics.builder()
-                .todayRevenue(todayRevenue)
-                .monthRevenue(monthRevenue)
-                .totalRevenue(totalRevenue)
-                .totalOrders(totalOrders)
-                .completedOrders(completedOrders)
-                .orderConversionRate(orderConversionRate)
-                .totalUsers(totalUsers)
-                .activeUsers(activeUsers)
-                .onlineUsers(onlineUsers)
-                .userEngagementRate(userEngagementRate)
-                .averageOrderValue(orderService.getAverageOrderValue())
-                .build();
+    @Auditable(description = "Получение метрик производительности", auditType = Auditable.AuditType.ADMIN)
+    public shit.back.dto.monitoring.PerformanceMetrics getPerformanceMetrics() {
+        log.info("📊 ДАШБОРД: Делегация получения метрик производительности к AdminAnalyticsService");
+        return adminAnalyticsService.getPerformanceMetrics();
     }
 
     /**
-     * Get top performers
+     * Получение топ-исполнителей
+     * ДЕЛЕГИРУЕТ к AdminAnalyticsService
      */
-    public TopPerformers getTopPerformers() {
-        log.info("Getting top performers");
-
-        List<OrderService.CustomerStats> topCustomers = orderService.getTopCustomers(10);
-        List<StarPackageEntity> topPackages = starPackageService.getTopSellingPackages(10);
-        List<UserSessionEntity> topActiveUsers = userSessionService.getTopActiveUsers(10);
-        List<StarPackageEntity> bestValuePackages = starPackageService.getBestValuePackages(5);
-
-        return TopPerformers.builder()
-                .topCustomers(topCustomers)
-                .topSellingPackages(topPackages)
-                .mostActiveUsers(topActiveUsers)
-                .bestValuePackages(bestValuePackages)
-                .build();
+    public AdminAnalyticsService.TopPerformers getTopPerformers() {
+        log.info("🏆 ДАШБОРД: Делегация получения топ-исполнителей к AdminAnalyticsService");
+        return adminAnalyticsService.getTopPerformers();
     }
 
     /**
-     * Get analytics data for charts
+     * Получение аналитических данных
+     * ДЕЛЕГИРУЕТ к AdminAnalyticsService
      */
-    public AnalyticsData getAnalyticsData(int days) {
-        log.info("Getting analytics data for {} days", days);
-
-        List<OrderService.DailyStats> dailyRevenue = orderService.getDailyStatistics(days);
-        List<UserSessionEnhancedService.DailyActiveUsers> dailyActiveUsers = userSessionService
-                .getDailyActiveUsers(days);
-        List<UserSessionEnhancedService.LanguageStats> languageStats = userSessionService.getUsersByLanguage();
-        List<StarPackageService.PackageTypeSales> packageTypeSales = starPackageService.getSalesByPackageType();
-
-        return AnalyticsData.builder()
-                .dailyRevenue(dailyRevenue)
-                .dailyActiveUsers(dailyActiveUsers)
-                .languageDistribution(languageStats)
-                .packageTypeSales(packageTypeSales)
-                .build();
+    public AdminAnalyticsService.AnalyticsData getAnalyticsData(int days) {
+        log.info("📈 ДАШБОРД: Делегация получения аналитических данных к AdminAnalyticsService");
+        return adminAnalyticsService.getAnalyticsData(days);
     }
 
     /**
-     * Get system health indicators
+     * Получение здоровья системы
+     * ДЕЛЕГИРУЕТ к AdminMaintenanceService
      */
-    public SystemHealth getSystemHealth() {
-        log.info("Checking system health");
-
-        // Check for stuck users
-        List<UserSessionEntity> stuckUsers = userSessionService.getUsersStuckInState(
-                UserSessionEntity.SessionState.AWAITING_PAYMENT, 24);
-
-        // Check for pending orders
-        List<UserSessionEntity> usersWithPendingOrders = userSessionService.getUsersWithPendingOrders();
-
-        // Check for packages without sales
-        List<StarPackageEntity> packagesWithoutSales = starPackageService.getPackagesWithoutSales();
-
-        // Get user counts
-        long onlineUsersCount = userSessionService.getOnlineUsersCount();
-        long activeUsersCount = userSessionService.getActiveUsersCount();
-        long totalUsersCount = userSessionService.getTotalUsersCount();
-
-        // Get order counts
-        long totalOrdersCount = orderService.getTotalOrdersCount();
-
-        // Calculate health score
-        int healthScore = calculateHealthScore(stuckUsers.size(), usersWithPendingOrders.size(),
-                packagesWithoutSales.size());
-
-        log.info(
-                "🔍 ДИАГНОСТИКА: Health Score calculation - stuck users: {}, pending orders: {}, packages without sales: {}, final score: {}",
-                stuckUsers.size(), usersWithPendingOrders.size(), packagesWithoutSales.size(), healthScore);
-
-        // Simulate system health checks (in a real system, these would be actual
-        // checks)
-        boolean redisHealthy = true; // Would check Redis connection
-        boolean botHealthy = true; // Would check Telegram bot status
-        boolean cacheHealthy = true; // Would check cache status
-
-        // Simulate performance metrics
-        Double averageResponseTime = 85.0 + (Math.random() * 30); // 85-115ms
-        Integer memoryUsagePercent = 60 + (int) (Math.random() * 20); // 60-80%
-        Integer cacheHitRatio = 85 + (int) (Math.random() * 10); // 85-95%
-
-        return SystemHealth.builder()
-                .healthScore(healthScore)
-                .stuckUsersCount(stuckUsers.size())
-                .pendingOrdersCount(usersWithPendingOrders.size())
-                .packagesWithoutSalesCount(packagesWithoutSales.size())
-                .stuckUsers(stuckUsers.stream().limit(5).toList())
-                .usersWithPendingOrders(usersWithPendingOrders.stream().limit(5).toList())
-                .packagesWithoutSales(packagesWithoutSales.stream().limit(5).toList())
-                .lastChecked(LocalDateTime.now())
-                // Additional frontend fields
-                .redisHealthy(redisHealthy)
-                .botHealthy(botHealthy)
-                .cacheHealthy(cacheHealthy)
-                .onlineUsersCount(onlineUsersCount)
-                .activeUsersCount(activeUsersCount)
-                .averageResponseTime(averageResponseTime)
-                .memoryUsagePercent(memoryUsagePercent)
-                .cacheHitRatio(cacheHitRatio)
-                // Critical fields for monitoring.html template
-                .totalUsers(totalUsersCount)
-                .totalOrders(totalOrdersCount)
-                .build();
+    @Auditable(description = "Проверка здоровья системы", auditType = Auditable.AuditType.ADMIN)
+    public shit.back.dto.monitoring.SystemHealth getSystemHealth() {
+        log.info("🔧 ДАШБОРД: Делегация проверки здоровья системы к AdminMaintenanceService");
+        return adminMaintenanceService.getSystemHealth();
     }
 
     /**
-     * Get paginated orders with search
+     * Выполнение обслуживания
+     * ДЕЛЕГИРУЕТ к AdminMaintenanceService
+     */
+    @Auditable(description = "Выполнение системного обслуживания", auditType = Auditable.AuditType.CRITICAL)
+    @Transactional
+    public AdminMaintenanceService.MaintenanceResult performMaintenance() {
+        log.info("🔧 ДАШБОРД: Делегация выполнения обслуживания к AdminMaintenanceService");
+        return adminMaintenanceService.performMaintenance();
+    }
+
+    // === ПРОСТЫЕ ОПЕРАЦИИ С ДАННЫМИ ===
+
+    /**
+     * Получение заказов с поиском
      */
     public Page<OrderEntity> getOrdersWithSearch(String searchTerm, Pageable pageable) {
         if (searchTerm != null && !searchTerm.trim().isEmpty()) {
@@ -298,7 +260,7 @@ public class AdminDashboardService {
     }
 
     /**
-     * Get paginated users with search
+     * Получение пользователей с поиском
      */
     public Page<UserSessionEntity> getUsersWithSearch(String searchTerm, Pageable pageable) {
         if (searchTerm != null && !searchTerm.trim().isEmpty()) {
@@ -308,54 +270,23 @@ public class AdminDashboardService {
     }
 
     /**
-     * Get paginated packages
+     * Получение пакетов с пагинацией
      */
     public Page<StarPackageEntity> getPackages(Pageable pageable) {
         return starPackageService.getPackages(pageable);
     }
 
-    /**
-     * Perform maintenance tasks
-     */
-    @Transactional
-    public MaintenanceResult performMaintenance() {
-        log.info("Performing system maintenance");
-
-        int deactivatedSessions = userSessionService.deactivateExpiredSessions(24);
-        int deactivatedPackages = starPackageService.deactivateExpiredPackages();
-
-        MaintenanceResult result = MaintenanceResult.builder()
-                .deactivatedSessions(deactivatedSessions)
-                .deactivatedPackages(deactivatedPackages)
-                .maintenanceTime(LocalDateTime.now())
-                .build();
-
-        log.info("Maintenance completed: {}", result);
-        return result;
-    }
-
-    private int calculateHealthScore(int stuckUsers, int pendingOrders, int packagesWithoutSales) {
-        int score = 100;
-
-        // Deduct points for issues
-        score -= stuckUsers * 2;
-        score -= pendingOrders;
-        score -= packagesWithoutSales;
-
-        return Math.max(0, Math.min(100, score));
-    }
-
-    // Data transfer objects
+    // Data Transfer Objects (сохранены для backward compatibility)
 
     @lombok.Data
     @lombok.Builder
     public static class DashboardOverview {
-        private OrderService.OrderStatistics orderStatistics;
+        private OrderStatistics orderStatistics;
         private StarPackageService.PackageStatistics packageStatistics;
-        private UserSessionEnhancedService.UserSessionStatistics userStatistics;
+        private UserSessionUnifiedService.UserSessionStatistics userStatistics;
         private LocalDateTime lastUpdated;
 
-        // Direct user counts for easy access
+        // Прямые счетчики пользователей для удобного доступа
         private long totalUsersCount;
         private long activeUsersCount;
         private long onlineUsersCount;
@@ -372,75 +303,6 @@ public class AdminDashboardService {
         private int totalNewUsers;
         private int totalOnlineUsers;
         private int totalTodaysOrders;
-    }
-
-    @lombok.Data
-    @lombok.Builder
-    public static class PerformanceMetrics {
-        private BigDecimal todayRevenue;
-        private BigDecimal monthRevenue;
-        private BigDecimal totalRevenue;
-        private long totalOrders;
-        private long completedOrders;
-        private double orderConversionRate;
-        private long totalUsers;
-        private long activeUsers;
-        private long onlineUsers;
-        private double userEngagementRate;
-        private BigDecimal averageOrderValue;
-    }
-
-    @lombok.Data
-    @lombok.Builder
-    public static class TopPerformers {
-        private List<OrderService.CustomerStats> topCustomers;
-        private List<StarPackageEntity> topSellingPackages;
-        private List<UserSessionEntity> mostActiveUsers;
-        private List<StarPackageEntity> bestValuePackages;
-    }
-
-    @lombok.Data
-    @lombok.Builder
-    public static class AnalyticsData {
-        private List<OrderService.DailyStats> dailyRevenue;
-        private List<UserSessionEnhancedService.DailyActiveUsers> dailyActiveUsers;
-        private List<UserSessionEnhancedService.LanguageStats> languageDistribution;
-        private List<StarPackageService.PackageTypeSales> packageTypeSales;
-    }
-
-    @lombok.Data
-    @lombok.Builder
-    public static class SystemHealth {
-        private int healthScore;
-        private int stuckUsersCount;
-        private int pendingOrdersCount;
-        private int packagesWithoutSalesCount;
-        private List<UserSessionEntity> stuckUsers;
-        private List<UserSessionEntity> usersWithPendingOrders;
-        private List<StarPackageEntity> packagesWithoutSales;
-        private LocalDateTime lastChecked;
-
-        // Additional fields for frontend
-        private boolean redisHealthy;
-        private boolean botHealthy;
-        private boolean cacheHealthy;
-        private long onlineUsersCount;
-        private long activeUsersCount;
-        private Double averageResponseTime;
-        private Integer memoryUsagePercent;
-        private Integer cacheHitRatio;
-
-        // Critical missing fields for monitoring.html template
-        private long totalUsers;
-        private long totalOrders;
-    }
-
-    @lombok.Data
-    @lombok.Builder
-    public static class MaintenanceResult {
-        private int deactivatedSessions;
-        private int deactivatedPackages;
-        private LocalDateTime maintenanceTime;
     }
 
     @lombok.Data
@@ -466,4 +328,5 @@ public class AdminDashboardService {
         private String actionUrl; // Ссылка для просмотра
         private Map<String, String> metadata; // Дополнительные данные
     }
+
 }

@@ -72,6 +72,9 @@ public class SecurityProperties {
                 allowedCallbackPrefixes.add("topup_yookassa_");
                 allowedCallbackPrefixes.add("topup_qiwi_");
                 allowedCallbackPrefixes.add("topup_sberpay_");
+
+                // === ТЕСТОВЫЕ CALLBACK'Ы ===
+                allowedCallbackPrefixes.add("test_payment_");
             }
             return allowedCallbackPrefixes;
         }

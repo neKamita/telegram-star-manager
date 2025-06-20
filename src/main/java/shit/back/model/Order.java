@@ -20,7 +20,27 @@ public class Order {
     private String paymentAddress;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-    
+
+    public String getOrderId() {
+        return orderId;
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public StarPackage getStarPackage() {
+        return starPackage;
+    }
+
+    public BigDecimal getAmount() {
+        return amount;
+    }
+
     public enum OrderStatus {
         CREATED,
         AWAITING_PAYMENT,
@@ -30,7 +50,7 @@ public class Order {
         FAILED,
         CANCELLED
     }
-    
+
     public Order(Long userId, String username, StarPackage starPackage) {
         this.orderId = UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         this.userId = userId;
@@ -41,16 +61,16 @@ public class Order {
         this.createdAt = LocalDateTime.now();
         this.updatedAt = LocalDateTime.now();
     }
-    
+
     public void updateStatus(OrderStatus newStatus) {
         this.status = newStatus;
         this.updatedAt = LocalDateTime.now();
     }
-    
+
     public String getFormattedOrderId() {
         return "#" + orderId;
     }
-    
+
     public String getStatusEmoji() {
         return switch (status) {
             case CREATED -> "🆕";

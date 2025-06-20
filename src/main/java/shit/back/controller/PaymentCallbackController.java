@@ -10,6 +10,7 @@ import shit.back.config.PaymentConfigurationProperties;
 import shit.back.entity.PaymentEntity;
 import shit.back.entity.PaymentStatus;
 import shit.back.service.PaymentService;
+import shit.back.service.TestPaymentService;
 import shit.back.security.SecurityValidator;
 
 import jakarta.servlet.http.HttpServletRequest;
@@ -43,6 +44,9 @@ public class PaymentCallbackController {
 
     @Autowired
     private SecurityValidator securityValidator;
+
+    @Autowired(required = false)
+    private TestPaymentService testPaymentService;
 
     @Value("${TON_WEBHOOK_SECRET:}")
     private String tonWebhookSecret;
@@ -506,5 +510,69 @@ public class PaymentCallbackController {
         response.put("success", false);
         response.put("error", message);
         return ResponseEntity.status(status).body(response);
+    }
+
+    // ===== ТЕСТОВЫЕ ENDPOINTS =====
+
+    /**
+     * Тестовый endpoint для немедленного завершения платежа (только в dev режиме)
+     */
+    @PostMapping("/test/complete/{paymentId}")
+    public ResponseEntity<Map<String, Object>> completeTestPayment(@PathVariable String paymentId) {
+        log.info("🧪 ТЕСТ: Запрос на немедленное завершение тестового платежа: {}", paymentId);
+
+        // Проверяем, что тестовый сервис доступен
+        if (testPaymentService == null || !testPaymentService.isTestModeEnabled()) {
+            return createErrorResponse("Тестовый режим недоступен", HttpStatus.BAD_REQUEST);
+        }
+
+        try {
+            // Валидация payment ID
+            if (paymentId == null || paymentId.trim().isEmpty() || paymentId.length() > 50) {
+                return createErrorResponse("Некорректный ID платежа", HttpStatus.BAD_REQUEST);
+            }
+
+            boolean success = testPaymentService.completeTestPaymentImmediately(paymentId);
+
+            if (success) {
+                log.info("✅ ТЕСТ: Тестовый платеж {} успешно завершен", paymentId);
+                Map<String, Object> response = new HashMap<>();
+                response.put("success", true);
+                response.put("message", "Тестовый платеж успешно завершен");
+                response.put("payment_id", paymentId);
+                return ResponseEntity.ok(response);
+            } else {
+                log.warn("❌ ТЕСТ: Не удалось завершить тестовый платеж: {}", paymentId);
+                return createErrorResponse("Не удалось завершить тестовый платеж", HttpStatus.BAD_REQUEST);
+            }
+
+        } catch (Exception e) {
+            log.error("💥 ТЕСТ: Ошибка при завершении тестового платежа {}: {}", paymentId, e.getMessage(), e);
+            return createErrorResponse("Внутренняя ошибка сервера", HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Получение конфигурации тестового режима
+     */
+    @GetMapping("/test/config")
+    public ResponseEntity<Map<String, Object>> getTestConfiguration() {
+        if (testPaymentService == null || !testPaymentService.isTestModeEnabled()) {
+            return createErrorResponse("Тестовый режим недоступен", HttpStatus.BAD_REQUEST);
+        }
+
+        try {
+            Map<String, Object> config = testPaymentService.getTestModeConfiguration();
+            log.info("🧪 ТЕСТ: Запрос конфигурации тестового режима");
+
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("config", config);
+            return ResponseEntity.ok(response);
+
+        } catch (Exception e) {
+            log.error("💥 ТЕСТ: Ошибка при получении конфигурации: {}", e.getMessage(), e);
+            return createErrorResponse("Внутренняя ошибка сервера", HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 }

@@ -5,10 +5,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import shit.back.config.PaymentConfigurationProperties;
+import shit.back.config.SystemConfigurationProperties;
 import shit.back.entity.PaymentEntity;
 import shit.back.entity.PaymentStatus;
 import shit.back.entity.UserBalanceEntity;
 import shit.back.repository.PaymentJpaRepository;
+import shit.back.service.payment.PaymentStrategyFactory;
+import shit.back.service.payment.PaymentStrategy;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -16,7 +19,8 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
- * Сервис для обработки платежей через различные платежные системы
+ * Рефакторенный сервис для обработки платежей ТОЛЬКО через баланс
+ * Использует Strategy Pattern для расширяемости
  */
 @Slf4j
 @Service
@@ -27,6 +31,12 @@ public class PaymentService {
 
     @Autowired
     private PaymentConfigurationProperties paymentConfig;
+
+    @Autowired
+    private SystemConfigurationProperties systemConfig;
+
+    @Autowired
+    private PaymentStrategyFactory paymentStrategyFactory;
 
     @Autowired
     private BalanceService balanceService;
@@ -56,83 +66,81 @@ public class PaymentService {
     }
 
     /**
-     * Обработать платеж и создать ссылку для оплаты
+     * Обработать платеж ТОЛЬКО через баланс (использует Strategy Pattern)
      */
     @Transactional
-    public String processPayment(Long userId, BigDecimal amount, String paymentMethod) {
-        log.info("🔄 Обработка платежа для пользователя {}: сумма={}, метод={}",
-                userId, amount, paymentMethod);
+    public PaymentStrategy.PaymentResult processPayment(Long userId, BigDecimal amount, String description) {
+        log.info("🔄 Обработка БАЛАНСОВОГО платежа для пользователя {}: сумма={}",
+                userId, amount);
 
         try {
-            validatePaymentData(userId, amount, paymentMethod);
+            validatePaymentData(userId, amount, "BALANCE");
 
-            // Создаем платеж
-            PaymentEntity payment = createPayment(userId, amount, paymentMethod, null, "Пополнение баланса");
+            // Получаем предпочтительную стратегию (BALANCE)
+            PaymentStrategy strategy = paymentStrategyFactory.getPreferredStrategy();
 
-            // Создаем ссылку для оплаты в зависимости от метода
-            String paymentUrl = createPaymentLink(payment);
+            // Обрабатываем платеж через стратегию
+            PaymentStrategy.PaymentResult result = strategy.processPayment(userId, amount, description);
 
-            if (paymentUrl != null) {
-                payment.setPaymentUrl(paymentUrl);
-                payment.updateStatus(PaymentStatus.PENDING);
-                paymentRepository.save(payment);
-
-                log.info("✅ Ссылка для оплаты создана: {}", paymentUrl);
-                return paymentUrl;
+            if (result.success()) {
+                log.info("✅ Балансовый платеж успешно обработан для пользователя {}: {}",
+                        userId, result.paymentId());
             } else {
-                payment.updateStatus(PaymentStatus.FAILED, "Не удалось создать ссылку для оплаты");
-                paymentRepository.save(payment);
-                throw new RuntimeException("Не удалось создать ссылку для оплаты");
+                log.warn("❌ Балансовый платеж не удался для пользователя {}: {}",
+                        userId, result.errorMessage());
             }
 
+            return result;
+
         } catch (Exception e) {
-            log.error("❌ Ошибка при обработке платежа для пользователя {}: {}", userId, e.getMessage(), e);
-            throw new RuntimeException("Ошибка при обработке платежа: " + e.getMessage());
+            log.error("❌ Ошибка при обработке балансового платежа для пользователя {}: {}",
+                    userId, e.getMessage(), e);
+            return PaymentStrategy.PaymentResult.failure(
+                    "Ошибка при обработке платежа: " + e.getMessage(),
+                    Map.of("errorCode", "PROCESSING_ERROR", "errorDetails", e.getMessage()));
         }
     }
 
     /**
-     * Создать ссылку для оплаты
+     * Проверить доступность балансового платежа для пользователя
      */
-    public String createPaymentLink(BigDecimal amount, String paymentMethod) {
-        log.info("🔗 Создание ссылки для оплаты: сумма={}, метод={}", amount, paymentMethod);
+    public boolean checkBalancePaymentAvailability(Long userId, BigDecimal amount) {
+        log.debug("Проверка доступности балансового платежа для пользователя {}: сумма={}", userId, amount);
 
-        validatePaymentMethod(paymentMethod);
-
-        // Создаем временный платеж для генерации ссылки
-        String paymentId = generatePaymentId();
-        PaymentEntity tempPayment = new PaymentEntity(paymentId, null, amount, "USD", paymentMethod);
-
-        return createPaymentLink(tempPayment);
-    }
-
-    /**
-     * Создать ссылку для оплаты на основе существующего платежа
-     */
-    private String createPaymentLink(PaymentEntity payment) {
-        String paymentMethod = payment.getPaymentMethod().toLowerCase();
-
-        switch (paymentMethod) {
-            case "ton":
-                return createTonPaymentLink(payment);
-            case "yookassa":
-                return createYooKassaPaymentLink(payment);
-            case "qiwi":
-                return createQiwiPaymentLink(payment);
-            case "sberpay":
-                return createSberPayPaymentLink(payment);
-            default:
-                log.warn("⚠️ Неподдерживаемый метод оплаты: {}", paymentMethod);
-                return null;
+        try {
+            PaymentStrategy strategy = paymentStrategyFactory.getPreferredStrategy();
+            if (strategy instanceof shit.back.service.payment.BalancePaymentStrategy balanceStrategy) {
+                return balanceStrategy.isAvailableForUser(userId, amount);
+            }
+            return false;
+        } catch (Exception e) {
+            log.error("Ошибка при проверке доступности балансового платежа: {}", e.getMessage());
+            return false;
         }
     }
 
     /**
-     * Верифицировать callback от платежной системы
+     * Получить информацию о доступных методах платежа (ТОЛЬКО BALANCE)
+     */
+    public List<PaymentStrategy.PaymentMethodInfo> getAvailablePaymentMethods() {
+        log.debug("Получение доступных методов платежа");
+        return paymentStrategyFactory.getAllPaymentMethodsInfo();
+    }
+
+    /**
+     * Получить статистику по стратегиям платежей
+     */
+    public Map<String, Object> getPaymentStrategiesStatistics() {
+        return paymentStrategyFactory.getStrategyStatistics();
+    }
+
+    /**
+     * Верифицировать callback ТОЛЬКО для балансовых платежей (используует Strategy
+     * Pattern)
      */
     @Transactional
     public boolean verifyPaymentCallback(String paymentId, Map<String, String> params) {
-        log.info("🔍 Верификация callback для платежа: {}", paymentId);
+        log.info("🔍 Верификация callback для БАЛАНСОВОГО платежа: {}", paymentId);
 
         try {
             Optional<PaymentEntity> paymentOpt = paymentRepository.findByPaymentId(paymentId);
@@ -142,31 +150,15 @@ public class PaymentService {
             }
 
             PaymentEntity payment = paymentOpt.get();
-            String paymentMethod = payment.getPaymentMethod().toLowerCase();
 
-            boolean isValid = false;
-            switch (paymentMethod) {
-                case "ton":
-                    isValid = verifyTonCallback(payment, params);
-                    break;
-                case "yookassa":
-                    isValid = verifyYooKassaCallback(payment, params);
-                    break;
-                case "qiwi":
-                    isValid = verifyQiwiCallback(payment, params);
-                    break;
-                case "sberpay":
-                    isValid = verifySberPayCallback(payment, params);
-                    break;
-                default:
-                    log.warn("⚠️ Неподдерживаемый метод для верификации: {}", paymentMethod);
-                    return false;
-            }
+            // Используем Strategy Pattern для верификации
+            PaymentStrategy strategy = paymentStrategyFactory.getPreferredStrategy();
+            boolean isValid = strategy.verifyCallback(payment, params);
 
             if (isValid) {
                 // Обновляем статус платежа и пополняем баланс
                 processSuccessfulPayment(payment);
-                log.info("✅ Callback успешно обработан для платежа: {}", paymentId);
+                log.info("✅ Callback успешно обработан для балансового платежа: {}", paymentId);
             } else {
                 payment.updateStatus(PaymentStatus.FAILED, "Неверная подпись callback");
                 paymentRepository.save(payment);
@@ -196,9 +188,10 @@ public class PaymentService {
 
             // Пополняем баланс пользователя
             if (payment.getUserId() != null) {
-                balanceService.deposit(payment.getUserId(), payment.getAmount(),
-                        payment.getPaymentMethod(),
-                        "Пополнение через " + payment.getPaymentMethod() + " (ID: " + payment.getPaymentId() + ")");
+                balanceService.processBalancePayment(
+                        payment.getUserId(),
+                        payment.getPaymentId(),
+                        payment.getAmount());
 
                 log.info("✅ Баланс пользователя {} пополнен на сумму {}",
                         payment.getUserId(), payment.getAmount());
@@ -289,91 +282,6 @@ public class PaymentService {
         }
     }
 
-    // ===== МЕТОДЫ ДЛЯ КОНКРЕТНЫХ ПЛАТЕЖНЫХ СИСТЕМ =====
-
-    private String createTonPaymentLink(PaymentEntity payment) {
-        if (!paymentConfig.getTon().getEnabled()) {
-            log.warn("⚠️ TON Wallet отключен в конфигурации");
-            return null;
-        }
-
-        // TODO: Реальная интеграция с TON Wallet API
-        log.info("🚧 TON Wallet: Создание ссылки для платежа {}", payment.getPaymentId());
-
-        // Заглушка - возвращаем демо-ссылку
-        return String.format("https://wallet.ton.org/pay?amount=%s&payment_id=%s",
-                payment.getAmount(), payment.getPaymentId());
-    }
-
-    private String createYooKassaPaymentLink(PaymentEntity payment) {
-        if (!paymentConfig.getYookassa().getEnabled()) {
-            log.warn("⚠️ YooKassa отключена в конфигурации");
-            return null;
-        }
-
-        // TODO: Реальная интеграция с YooKassa API
-        log.info("🚧 YooKassa: Создание ссылки для платежа {}", payment.getPaymentId());
-
-        // Заглушка - возвращаем демо-ссылку
-        return String.format("https://yookassa.ru/checkout?amount=%s&payment_id=%s",
-                payment.getAmount(), payment.getPaymentId());
-    }
-
-    private String createQiwiPaymentLink(PaymentEntity payment) {
-        if (!paymentConfig.getQiwi().getEnabled()) {
-            log.warn("⚠️ Qiwi отключен в конфигурации");
-            return null;
-        }
-
-        // TODO: Реальная интеграция с Qiwi API
-        log.info("🚧 Qiwi: Создание ссылки для платежа {}", payment.getPaymentId());
-
-        // Заглушка - возвращаем демо-ссылку
-        return String.format("https://oplata.qiwi.com/create?amount=%s&payment_id=%s",
-                payment.getAmount(), payment.getPaymentId());
-    }
-
-    private String createSberPayPaymentLink(PaymentEntity payment) {
-        if (!paymentConfig.getSberpay().getEnabled()) {
-            log.warn("⚠️ SberPay отключен в конфигурации");
-            return null;
-        }
-
-        // TODO: Реальная интеграция с SberPay API
-        log.info("🚧 SberPay: Создание ссылки для платежа {}", payment.getPaymentId());
-
-        // Заглушка - возвращаем демо-ссылку
-        return String.format(
-                "https://securepayments.sberbank.ru/payment/merchants/%s/payment_pages?amount=%s&payment_id=%s",
-                paymentConfig.getSberpay().getMerchantId(), payment.getAmount(), payment.getPaymentId());
-    }
-
-    // ===== МЕТОДЫ ВЕРИФИКАЦИИ CALLBACK'ОВ =====
-
-    private boolean verifyTonCallback(PaymentEntity payment, Map<String, String> params) {
-        // TODO: Реальная верификация подписи TON
-        log.info("🚧 TON: Верификация callback для платежа {}", payment.getPaymentId());
-        return true; // Заглушка
-    }
-
-    private boolean verifyYooKassaCallback(PaymentEntity payment, Map<String, String> params) {
-        // TODO: Реальная верификация подписи YooKassa
-        log.info("🚧 YooKassa: Верификация callback для платежа {}", payment.getPaymentId());
-        return true; // Заглушка
-    }
-
-    private boolean verifyQiwiCallback(PaymentEntity payment, Map<String, String> params) {
-        // TODO: Реальная верификация подписи Qiwi
-        log.info("🚧 Qiwi: Верификация callback для платежа {}", payment.getPaymentId());
-        return true; // Заглушка
-    }
-
-    private boolean verifySberPayCallback(PaymentEntity payment, Map<String, String> params) {
-        // TODO: Реальная верификация подписи SberPay
-        log.info("🚧 SberPay: Верификация callback для платежа {}", payment.getPaymentId());
-        return true; // Заглушка
-    }
-
     // ===== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ =====
 
     private void validatePaymentData(Long userId, BigDecimal amount, String paymentMethod) {
@@ -391,12 +299,10 @@ public class PaymentService {
     }
 
     private void validatePaymentMethod(String paymentMethod) {
-        String[] enabledMethods = paymentConfig.getEnabledPaymentMethods();
-        boolean isSupported = Arrays.stream(enabledMethods)
-                .anyMatch(method -> method.equalsIgnoreCase(paymentMethod));
-
-        if (!isSupported) {
-            throw new IllegalArgumentException("Неподдерживаемый метод оплаты: " + paymentMethod);
+        // Используем Strategy Pattern для проверки поддержки метода
+        if (!paymentStrategyFactory.isPaymentMethodSupported(paymentMethod)) {
+            throw new IllegalArgumentException("Неподдерживаемый метод оплаты: " + paymentMethod +
+                    ". Доступные методы: " + paymentStrategyFactory.getSupportedPaymentMethods());
         }
     }
 

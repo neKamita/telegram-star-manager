@@ -14,16 +14,18 @@ import shit.back.model.StarPackage;
 import shit.back.security.RateLimitService;
 import shit.back.security.SecurityValidator;
 import shit.back.entity.BalanceTransactionEntity;
+import shit.back.entity.PaymentEntity;
 import shit.back.entity.UserBalanceEntity;
-import shit.back.exception.BalanceException;
-import shit.back.exception.InsufficientBalanceException;
+import shit.back.domain.balance.exceptions.BalanceDomainException;
+import shit.back.domain.balance.exceptions.InsufficientFundsException;
 import shit.back.service.BalanceService;
-import shit.back.service.BalanceTransactionService;
 import shit.back.service.OrderService;
 import shit.back.service.PaymentService;
 import shit.back.service.PriceService;
-import shit.back.service.UserSessionService;
+import shit.back.service.TestPaymentService;
+import shit.back.service.UserSessionUnifiedService;
 import shit.back.utils.MessageUtils;
+import shit.back.service.payment.PaymentStrategy;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -35,7 +37,7 @@ import java.util.Optional;
 public class CallbackHandler {
 
     @Autowired
-    private UserSessionService userSessionService;
+    private UserSessionUnifiedService userSessionService;
 
     @Autowired
     private PriceService priceService;
@@ -50,14 +52,15 @@ public class CallbackHandler {
     @Autowired
     private BalanceService balanceService;
 
-    @Autowired
-    private BalanceTransactionService balanceTransactionService;
 
     @Autowired
     private OrderService orderService;
 
     @Autowired
     private PaymentService paymentService;
+
+    @Autowired(required = false)
+    private TestPaymentService testPaymentService;
 
     public EditMessageText handleCallback(CallbackQuery callbackQuery) {
         String data = callbackQuery.getData();
@@ -228,6 +231,13 @@ public class CallbackHandler {
         if (data.startsWith("topup_sberpay_")) {
             String amount = data.replace("topup_sberpay_", "");
             return handleTopupSberPay(chatId, messageId, session, amount);
+        }
+
+        // === ТЕСТОВЫЕ CALLBACK'Ы ===
+
+        if (data.startsWith("test_payment_")) {
+            String amount = data.replace("test_payment_", "");
+            return handleTestPayment(chatId, messageId, session, amount);
         }
 
         // Неизвестный callback
@@ -623,7 +633,7 @@ public class CallbackHandler {
             return MessageUtils.createEditMessageWithKeyboard(chatId, messageId, text,
                     MessageUtils.createBackToMainKeyboard());
 
-        } catch (InsufficientBalanceException e) {
+        } catch (InsufficientFundsException e) {
             log.warn("💸 Недостаточно средств для пользователя {}: {}", session.getUserId(), e.getMessage());
             return MessageUtils.createEditMessage(chatId, messageId,
                     "❌ Недостаточно средств на балансе. Пополните баланс или выберите другой способ оплаты.");
@@ -700,6 +710,13 @@ public class CallbackHandler {
     private InlineKeyboardMarkup createTopupPaymentKeyboard(String amount) {
         InlineKeyboardMarkup keyboard = new InlineKeyboardMarkup();
         List<List<InlineKeyboardButton>> rows = new ArrayList<>();
+
+        // Тестовая оплата (только в dev режиме)
+        if (testPaymentService != null && testPaymentService.isTestModeEnabled()) {
+            List<InlineKeyboardButton> testRow = new ArrayList<>();
+            testRow.add(createButton("🧪 ТЕСТОВАЯ ОПЛАТА", "test_payment_" + amount));
+            rows.add(testRow);
+        }
 
         // Способы оплаты
         List<InlineKeyboardButton> row1 = new ArrayList<>();
@@ -794,7 +811,12 @@ public class CallbackHandler {
             }
 
             // Создаем платежную ссылку через PaymentService
-            String paymentUrl = paymentService.processPayment(session.getUserId(), amount, "TON");
+            PaymentStrategy.PaymentResult result = paymentService.processPayment(session.getUserId(), amount, "TON");
+            if (!result.success()) {
+                return MessageUtils.createEditMessage(chatId, messageId,
+                        "❌ Ошибка при создании платежа: " + result.errorMessage());
+            }
+            String paymentUrl = result.paymentUrl();
 
             String text = String.format("""
                     💎 <b>Пополнение через TON Wallet</b>
@@ -835,7 +857,13 @@ public class CallbackHandler {
             }
 
             // Создаем платежную ссылку через PaymentService
-            String paymentUrl = paymentService.processPayment(session.getUserId(), amount, "YooKassa");
+            PaymentStrategy.PaymentResult result = paymentService.processPayment(session.getUserId(), amount,
+                    "YooKassa");
+            if (!result.success()) {
+                return MessageUtils.createEditMessage(chatId, messageId,
+                        "❌ Ошибка при создании платежа: " + result.errorMessage());
+            }
+            String paymentUrl = result.paymentUrl();
 
             String text = String.format("""
                     💳 <b>Пополнение через YooKassa</b>
@@ -877,7 +905,12 @@ public class CallbackHandler {
             }
 
             // Создаем платежную ссылку через PaymentService
-            String paymentUrl = paymentService.processPayment(session.getUserId(), amount, "Qiwi");
+            PaymentStrategy.PaymentResult result = paymentService.processPayment(session.getUserId(), amount, "Qiwi");
+            if (!result.success()) {
+                return MessageUtils.createEditMessage(chatId, messageId,
+                        "❌ Ошибка при создании платежа: " + result.errorMessage());
+            }
+            String paymentUrl = result.paymentUrl();
 
             String text = String.format("""
                     🥝 <b>Пополнение через Qiwi</b>
@@ -919,7 +952,13 @@ public class CallbackHandler {
             }
 
             // Создаем платежную ссылку через PaymentService
-            String paymentUrl = paymentService.processPayment(session.getUserId(), amount, "SberPay");
+            PaymentStrategy.PaymentResult result = paymentService.processPayment(session.getUserId(), amount,
+                    "SberPay");
+            if (!result.success()) {
+                return MessageUtils.createEditMessage(chatId, messageId,
+                        "❌ Ошибка при создании платежа: " + result.errorMessage());
+            }
+            String paymentUrl = result.paymentUrl();
 
             String text = String.format("""
                     🏦 <b>Пополнение через SberPay</b>
@@ -982,6 +1021,65 @@ public class CallbackHandler {
                     session.getUserId(), e.getMessage(), e);
             return MessageUtils.createEditMessage(chatId, messageId,
                     "❌ Ошибка при загрузке баланса. Попробуйте позже.");
+        }
+    }
+
+    // ============================================
+    // === ОБРАБОТЧИК ТЕСТОВЫХ ПЛАТЕЖЕЙ ===
+    // ============================================
+
+    /**
+     * Обработка тестового платежа
+     */
+    private EditMessageText handleTestPayment(Long chatId, Integer messageId, UserSession session, String amountStr) {
+        log.info("🧪 ТЕСТ: Обработка тестового платежа для пользователя {}: сумма={}",
+                session.getUserId(), amountStr);
+
+        // Проверяем, что тестовый сервис доступен
+        if (testPaymentService == null || !testPaymentService.isTestModeEnabled()) {
+            return MessageUtils.createEditMessage(chatId, messageId,
+                    "❌ Тестовый режим платежей недоступен. Используйте обычные способы оплаты.");
+        }
+
+        try {
+            BigDecimal amount = parseAmount(amountStr);
+            if (amount == null) {
+                return MessageUtils.createEditMessage(chatId, messageId,
+                        "❌ Некорректная сумма для тестового платежа.");
+            }
+
+            // Создаем тестовый платеж
+            PaymentEntity testPayment = testPaymentService.createTestPayment(
+                    session.getUserId(),
+                    amount,
+                    "Тестовое пополнение баланса через бота");
+
+            String text = String.format("""
+                    🧪 <b>Тестовый платеж создан!</b>
+
+                    💰 <b>Сумма:</b> %.2f ₽
+                    🆔 <b>ID платежа:</b> <code>%s</code>
+                    ⚡ <b>Режим:</b> Тестовый (автозавершение)
+
+                    ⏱️ <b>Статус:</b> Обрабатывается...
+                    🔄 <b>Автозавершение:</b> ~3 секунды
+
+                    <i>💡 В тестовом режиме платеж автоматически завершится успешно,
+                    и баланс будет пополнен без реальной оплаты</i>
+
+                    📊 Следите за статусом в логах приложения
+                    """,
+                    amount,
+                    testPayment.getId());
+
+            return MessageUtils.createEditMessageWithKeyboard(chatId, messageId, text,
+                    MessageUtils.createBackToMainKeyboard());
+
+        } catch (Exception e) {
+            log.error("❌ ТЕСТ: Ошибка при создании тестового платежа для пользователя {}: {}",
+                    session.getUserId(), e.getMessage(), e);
+            return MessageUtils.createEditMessage(chatId, messageId,
+                    "❌ Ошибка при создании тестового платежа: " + e.getMessage());
         }
     }
 }

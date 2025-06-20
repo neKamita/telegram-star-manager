@@ -3,7 +3,6 @@ package shit.back.entity;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 
@@ -12,7 +11,7 @@ import java.time.LocalDateTime;
 
 /**
  * Сущность платежа в системе Telegram Star Manager
- * 
+ *
  * Хранит информацию о платежах через различные платежные системы
  */
 @Entity
@@ -26,7 +25,6 @@ import java.time.LocalDateTime;
         @Index(name = "idx_payments_updated", columnList = "updated_at")
 })
 @Data
-@NoArgsConstructor
 public class PaymentEntity {
 
     @Id
@@ -173,6 +171,12 @@ public class PaymentEntity {
     private LocalDateTime completedAt;
 
     /**
+     * Конструктор по умолчанию
+     */
+    public PaymentEntity() {
+    }
+
+    /**
      * Конструктор для создания нового платежа
      */
     public PaymentEntity(String paymentId, Long userId, BigDecimal amount, String currency, String paymentMethod) {
@@ -275,5 +279,38 @@ public class PaymentEntity {
      */
     public boolean requiresProcessing() {
         return !status.isFinal() && !isExpired();
+    }
+
+    // Публичные геттеры для совместимости с IDE (дополнительно к Lombok)
+    public Long getId() {
+        return id;
+    }
+
+    public Long getUserId() {
+        return userId;
+    }
+
+    public BigDecimal getAmount() {
+        return amount;
+    }
+
+    public String getCurrency() {
+        return currency;
+    }
+
+    public String getPaymentMethod() {
+        return paymentMethod;
+    }
+
+    public PaymentStatus getStatus() {
+        return status;
+    }
+
+    public String getPaymentUrl() {
+        return paymentUrl;
+    }
+
+    public void setPaymentUrl(String paymentUrl) {
+        this.paymentUrl = paymentUrl;
     }
 }

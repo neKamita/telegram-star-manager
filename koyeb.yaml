@@ -19,9 +19,16 @@ env_vars:
   - key: SERVER_PORT
     value: "8080"
   - key: JAVA_OPTS
-    value: "-Xmx400m -Xms200m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication"
+    value: "-Xmx400m -Xms200m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication -XX:+OptimizeStringConcat"
   - key: LOGGING_LEVEL
     value: "WARN"
+  # Performance optimization settings
+  - key: SPRING_JPA_PROPERTIES_HIBERNATE_JDBC_BATCH_SIZE
+    value: "25"
+  - key: SPRING_JPA_PROPERTIES_HIBERNATE_JDBC_FETCH_SIZE
+    value: "50"
+  - key: SPRING_CACHE_CAFFEINE_SPEC
+    value: "maximumSize=100,expireAfterWrite=5m"
   # Telegram Bot Configuration - Set tokens in Koyeb Dashboard as secrets
   - key: TELEGRAM_BOT_USERNAME
     value: MirzaShop_bot

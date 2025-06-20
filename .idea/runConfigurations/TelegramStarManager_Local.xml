@@ -1,0 +1,33 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="TelegramStarManager Local" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
+    <envs>
+      <!-- БЕЗОПАСНОСТЬ: Все секретные данные должны загружаться из .env файла -->
+      <!-- Скопируйте .env.example в .env и заполните своими значениями -->
+      
+      <env name="SPRING_PROFILES_ACTIVE" value="dev" />
+      <env name="LOGGING_LEVEL" value="DEBUG" />
+      
+      <!-- ОБЯЗАТЕЛЬНО: Установите эти переменные в .env файле -->
+      <!-- <env name="TELEGRAM_BOT_TOKEN" value="" /> - ЗАПОЛНИТЕ В .env -->
+      <!-- <env name="TELEGRAM_BOT_USERNAME" value="" /> - ЗАПОЛНИТЕ В .env -->
+      <!-- <env name="API_SECRET_KEY" value="" /> - ЗАПОЛНИТЕ В .env -->
+      
+      <!-- База данных - конфигурация из .env файла -->
+      <!-- <env name="DEV_DATABASE_HOST" value="" /> - ЗАПОЛНИТЕ В .env -->
+      <!-- <env name="DEV_DATABASE_PORT" value="5432" /> -->
+      <!-- <env name="DEV_DATABASE_NAME" value="neondb" /> -->
+      <!-- <env name="DEV_DATABASE_USERNAME" value="" /> - ЗАПОЛНИТЕ В .env -->
+      <!-- <env name="DEV_DATABASE_PASSWORD" value="" /> - ЗАПОЛНИТЕ В .env -->
+      
+      <!-- ВНИМАНИЕ: IntelliJ IDEA автоматически загружает переменные из .env файла -->
+      <!-- Убедитесь что .env файл находится в корне проекта -->
+    </envs>
+    <option name="FRAME_DEACTIVATION_UPDATE_POLICY" value="UpdateClassesAndResources" />
+    <module name="TelegramStarManager" />
+    <option name="SHORTEN_COMMAND_LINE" value="NONE" />
+    <option name="SPRING_BOOT_MAIN_CLASS" value="shit.back.TelegramStarManagerApplication" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

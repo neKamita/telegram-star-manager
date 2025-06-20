@@ -215,31 +215,9 @@
                 </div>
             </div>
             
-            <!-- Recent Activity & Logs -->
+            <!-- System Actions -->
             <div class="row">
-                <div class="col-lg-8 mb-4">
-                    <div class="table-responsive">
-                        <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
-                            <h5 class="mb-0">
-                                <i class="fas fa-history text-primary me-2"></i>
-                                Recent Activity
-                            </h5>
-                            <button class="btn btn-sm btn-outline-primary" onclick="refreshActivity()" title="Refresh Activity">
-                                <i class="fas fa-sync-alt"></i>
-                            </button>
-                        </div>
-                        
-                        <div id="activity-logs" class="p-3" style="max-height: 400px; overflow-y: auto;">
-                            <div class="text-center text-muted py-4">
-                                <i class="fas fa-clock fa-2x mb-3"></i>
-                                <p>Loading recent activity...</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="col-lg-4 mb-4">
-                    <!-- System Actions -->
+                <div class="col-lg-6 mb-4">
                     <div class="feature-flag-card">
                         <h5 class="mb-3">
                             <i class="fas fa-tools text-warning me-2"></i>
@@ -268,9 +246,11 @@
                             </button>
                         </div>
                     </div>
-                    
+                </div>
+                
+                <div class="col-lg-6 mb-4">
                     <!-- Environment Info -->
-                    <div class="feature-flag-card mt-4">
+                    <div class="feature-flag-card">
                         <h5 class="mb-3">
                             <i class="fas fa-info-circle text-info me-2"></i>
                             Environment Info

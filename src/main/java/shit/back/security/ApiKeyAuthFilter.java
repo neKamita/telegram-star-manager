@@ -5,6 +5,9 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -20,124 +23,136 @@ import java.io.IOException;
 import java.util.Collections;
 
 @Slf4j
-@Component
 public class ApiKeyAuthFilter extends OncePerRequestFilter {
-    
+
+    private static final String ROLE_API = "ROLE_API";
+    private static final String AUTH_USER = "api-user";
+    private static final String ERROR_AUTH = "Authentication error";
+    private static final String CONTENT_TYPE_JSON = "application/json";
+    private static final String CHARSET_UTF8 = "UTF-8";
+
+    // Публичные эндпоинты
+    private static final String[] PUBLIC_ENDPOINTS = {
+            "/api/bot/health", "/", "/static/", "/css/", "/js/", "/images/"
+    };
+    private static final String ACTUATOR_PREFIX = "/actuator/";
+    private static final String WEBHOOK_PREFIX = "/webhook/";
+
+    // Заголовки безопасности
+    private static final String HEADER_X_CONTENT_TYPE_OPTIONS = "X-Content-Type-Options";
+    private static final String HEADER_X_FRAME_OPTIONS = "X-Frame-Options";
+    private static final String HEADER_X_XSS_PROTECTION = "X-XSS-Protection";
+    private static final String HEADER_REFERRER_POLICY = "Referrer-Policy";
+    private static final String VALUE_NOSNIFF = "nosniff";
+    private static final String VALUE_DENY = "DENY";
+    private static final String VALUE_XSS = "1; mode=block";
+    private static final String VALUE_REFERRER = "strict-origin-when-cross-origin";
+
+    private final SecurityProperties securityProperties;
+    private final ApiKeyValidationService apiKeyValidationService;
+
     @Autowired
-    private SecurityProperties securityProperties;
-    
+    public ApiKeyAuthFilter(SecurityProperties securityProperties, ApiKeyValidationService apiKeyValidationService) {
+        this.securityProperties = securityProperties;
+        this.apiKeyValidationService = apiKeyValidationService;
+    }
+
     @Override
-    protected void doFilterInternal(HttpServletRequest request, 
-                                  HttpServletResponse response, 
-                                  FilterChain filterChain) throws ServletException, IOException {
-        
-        String requestUri = request.getRequestURI();
-        String method = request.getMethod();
-        
-        // Логируем запрос
+    protected void doFilterInternal(HttpServletRequest request,
+            HttpServletResponse response,
+            FilterChain filterChain) throws ServletException, IOException {
+
+        final String requestUri = request.getRequestURI();
+        final String method = request.getMethod();
+
         log.info("🔍 ApiKeyAuthFilter: Processing request: {} {}", method, requestUri);
-        
-        // Пропускаем публичные эндпоинты
+
         if (isPublicEndpoint(requestUri)) {
             log.info("✅ Public endpoint, skipping authentication: {}", requestUri);
             filterChain.doFilter(request, response);
             return;
         }
-        
-        // Проверяем только API эндпоинты
+
         if (!requestUri.startsWith("/api/")) {
             filterChain.doFilter(request, response);
             return;
         }
-        
-        // Если API безопасность отключена
+
         if (!securityProperties.getApi().isEnabled()) {
             log.warn("API security is disabled - allowing request without authentication");
             filterChain.doFilter(request, response);
             return;
         }
-        
+
         try {
-            // Получаем API ключ из заголовка
             String apiKey = request.getHeader(securityProperties.getApi().getHeaderName());
-            
+
             if (!StringUtils.hasText(apiKey)) {
                 log.warn("Missing API key for request: {} {}", method, requestUri);
-                sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, 
-                    SecurityConstants.ERROR_INVALID_API_KEY);
+                sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED,
+                        SecurityConstants.ERROR_INVALID_API_KEY);
                 return;
             }
-            
-            // Проверяем API ключ
-            if (!isValidApiKey(apiKey)) {
+
+            if (!apiKeyValidationService.isValidApiKey(apiKey)) {
                 log.warn("Invalid API key provided for request: {} {}", method, requestUri);
-                sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, 
-                    SecurityConstants.ERROR_INVALID_API_KEY);
+                sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED,
+                        SecurityConstants.ERROR_INVALID_API_KEY);
                 return;
             }
-            
-            // Устанавливаем аутентификацию
+
             Authentication auth = new UsernamePasswordAuthenticationToken(
-                "api-user", 
-                null, 
-                Collections.singletonList(new SimpleGrantedAuthority("ROLE_API"))
-            );
-            
+                    AUTH_USER,
+                    null,
+                    Collections.singletonList(new SimpleGrantedAuthority(ROLE_API)));
+
             SecurityContextHolder.getContext().setAuthentication(auth);
-            
+
             log.debug("API key authentication successful for: {} {}", method, requestUri);
-            
-            // Добавляем заголовки безопасности
+
             addSecurityHeaders(response);
-            
+
         } catch (Exception e) {
             log.error("Error during API key authentication: {}", e.getMessage(), e);
-            sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, 
-                "Authentication error");
+            sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                    ERROR_AUTH);
             return;
         }
-        
+
         filterChain.doFilter(request, response);
     }
-    
+
     private boolean isPublicEndpoint(String requestUri) {
-        return requestUri.equals("/api/bot/health") ||
-               requestUri.startsWith("/actuator/") ||
-               requestUri.startsWith("/webhook/") ||  // Исправлен путь для webhook
-               requestUri.equals("/") ||
-               requestUri.startsWith("/static/") ||
-               requestUri.startsWith("/css/") ||
-               requestUri.startsWith("/js/") ||
-               requestUri.startsWith("/images/");
+        for (String endpoint : PUBLIC_ENDPOINTS) {
+            if (endpoint.endsWith("/") && requestUri.startsWith(endpoint)) {
+                return true;
+            }
+            if (endpoint.equals(requestUri)) {
+                return true;
+            }
+        }
+        return requestUri.startsWith(ACTUATOR_PREFIX) || requestUri.startsWith(WEBHOOK_PREFIX);
     }
-    
-    private boolean isValidApiKey(String apiKey) {
-        // В продакшене здесь должна быть более сложная логика
-        // например проверка в базе данных или JWT токен
-        return securityProperties.getApi().getKey().equals(apiKey);
-    }
-    
-    private void sendErrorResponse(HttpServletResponse response, int status, String message) 
+
+    private void sendErrorResponse(HttpServletResponse response, int status, String message)
             throws IOException {
         response.setStatus(status);
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-        
+        response.setContentType(CONTENT_TYPE_JSON);
+        response.setCharacterEncoding(CHARSET_UTF8);
+
         String jsonResponse = String.format(
-            "{\"error\": \"%s\", \"status\": %d, \"timestamp\": \"%s\"}", 
-            message, 
-            status, 
-            java.time.Instant.now()
-        );
-        
+                "{\"error\": \"%s\", \"status\": %d, \"timestamp\": \"%s\"}",
+                message,
+                status,
+                java.time.Instant.now());
+
         response.getWriter().write(jsonResponse);
     }
-    
+
     private void addSecurityHeaders(HttpServletResponse response) {
-        // Добавляем стандартные заголовки безопасности
-        response.setHeader("X-Content-Type-Options", "nosniff");
-        response.setHeader("X-Frame-Options", "DENY");
-        response.setHeader("X-XSS-Protection", "1; mode=block");
-        response.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+        response.setHeader(HEADER_X_CONTENT_TYPE_OPTIONS, VALUE_NOSNIFF);
+        response.setHeader(HEADER_X_FRAME_OPTIONS, VALUE_DENY);
+        response.setHeader(HEADER_X_XSS_PROTECTION, VALUE_XSS);
+        response.setHeader(HEADER_REFERRER_POLICY, VALUE_REFERRER);
     }
 }

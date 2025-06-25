@@ -186,7 +186,6 @@ public class AdminDashboardUIController implements AdminControllerOperations {
         }
     }
 
-
     /**
      * Страница управления пользователями
      */
@@ -495,7 +494,11 @@ public class AdminDashboardUIController implements AdminControllerOperations {
                 "lastChecked", LocalDateTime.now(),
                 "redisHealthy", false,
                 "botHealthy", false,
-                "cacheHealthy", false);
+                "cacheHealthy", false,
+                "totalUsers", 0L,
+                "activeUsers", 0L,
+                "onlineUsers", 0L,
+                "totalOrders", 0L);
     }
 
     private Object createEmptyPaymentDashboard() {

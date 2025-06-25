@@ -19,6 +19,31 @@ public class AdminAuthenticationService {
 
     private static final Logger log = LoggerFactory.getLogger(AdminAuthenticationService.class);
 
+    /**
+     * Внутренние админские endpoints, которые не требуют API ключ
+     * Это AJAX запросы из админской панели для внутреннего использования
+     */
+    private static final String[] ADMIN_INTERNAL_ENDPOINTS = {
+            "/admin/api/dashboard-data",
+            "/admin/api/system-health",
+            "/admin/api/dashboard/overview",
+            "/admin/api/dashboard/full",
+            "/admin/api/dashboard/system-health",
+            "/admin/api/dashboard/recent-activity",
+            "/admin/api/dashboard/quick-stats",
+            "/admin/api/dashboard/activity-statistics",
+            "/admin/api/dashboard/refresh-cache",
+            "/admin/api/dashboard/activity-stream",
+            // ИСПРАВЛЕНИЕ SSE: Добавляем SSE endpoints для мониторинга
+            "/admin/api/metrics/stream",
+            "/admin/api/metrics/current",
+            "/admin/api/metrics/health",
+            "/admin/api/metrics/stats",
+            "/admin/api/metrics/test-connection",
+            "/admin/api/monitoring-fast",
+            "/admin/api/environment-info"
+    };
+
     @Autowired
     private SecurityProperties securityProperties;
 
@@ -27,15 +52,23 @@ public class AdminAuthenticationService {
 
     /**
      * Универсальная проверка API запроса с аутентификацией и rate limiting
-     * 
+     *
      * @param request HTTP запрос
      * @return true если запрос валиден
      */
     public boolean validateApiRequest(HttpServletRequest request) {
         String remoteAddr = request.getRemoteAddr();
+        String requestUri = request.getRequestURI();
 
         try {
-            // Проверка rate limiting
+            // Проверяем, является ли это внутренним админским endpoint
+            if (isAdminInternalEndpoint(requestUri)) {
+                log.debug("Admin internal endpoint allowed without API key from IP: {} for URI: {}", remoteAddr,
+                        requestUri);
+                return true;
+            }
+
+            // Проверка rate limiting для внешних API запросов
             RateLimitService.RateLimitResult rateLimitResult = rateLimitService.checkApiLimit(remoteAddr);
             if (!rateLimitResult.isAllowed()) {
                 log.warn("Rate limit exceeded for admin API from IP: {}", remoteAddr);
@@ -59,14 +92,22 @@ public class AdminAuthenticationService {
 
     /**
      * Проверка только аутентификации без rate limiting
-     * 
+     *
      * @param request HTTP запрос
      * @return true если аутентификация прошла успешно
      */
     public boolean validateAuthentication(HttpServletRequest request) {
         String remoteAddr = request.getRemoteAddr();
+        String requestUri = request.getRequestURI();
 
         try {
+            // Проверяем, является ли это внутренним админским endpoint
+            if (isAdminInternalEndpoint(requestUri)) {
+                log.debug("Admin internal endpoint allowed without API key from IP: {} for URI: {}", remoteAddr,
+                        requestUri);
+                return true;
+            }
+
             if (isApiRequest(request)) {
                 return validateApiKey(request, remoteAddr);
             } else {
@@ -90,7 +131,7 @@ public class AdminAuthenticationService {
         String acceptHeader = request.getHeader("Accept");
         String contentType = request.getHeader("Content-Type");
         String userAgent = request.getHeader("User-Agent");
-        String apiKeyHeader = request.getHeader("X-Admin-API-Key");
+        String apiKeyHeader = request.getHeader(securityProperties.getApi().getHeaderName());
         String requestUri = request.getRequestURI();
 
         // Если присутствует API ключ, считаем это API запросом
@@ -150,7 +191,7 @@ public class AdminAuthenticationService {
         }
 
         // Получаем API ключ из заголовка запроса
-        String providedApiKey = request.getHeader("X-Admin-API-Key");
+        String providedApiKey = request.getHeader(securityProperties.getApi().getHeaderName());
 
         // Проверяем наличие ключа в API запросе
         if (providedApiKey == null || providedApiKey.trim().isEmpty()) {
@@ -203,8 +244,27 @@ public class AdminAuthenticationService {
     }
 
     /**
+     * Проверяет, является ли endpoint внутренним админским
+     *
+     * @param requestUri URI запроса
+     * @return true если это внутренний админский endpoint
+     */
+    private boolean isAdminInternalEndpoint(String requestUri) {
+        if (requestUri == null) {
+            return false;
+        }
+
+        for (String endpoint : ADMIN_INTERNAL_ENDPOINTS) {
+            if (requestUri.equals(endpoint) || requestUri.startsWith(endpoint + "/")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Получение информации о типе запроса для логирования
-     * 
+     *
      * @param request HTTP запрос
      * @return строковое описание типа запроса
      */

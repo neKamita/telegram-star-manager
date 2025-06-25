@@ -12,6 +12,7 @@ import shit.back.dto.monitoring.SystemHealth;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Сервис обслуживания системы для админской панели
@@ -39,6 +40,9 @@ public class AdminMaintenanceService {
 
     @Autowired
     private UserSessionUnifiedService userSessionService;
+
+    @Autowired(required = false)
+    private ConnectionPoolMonitoringService connectionPoolMonitoringService;
 
     /**
      * Получение индикаторов здоровья системы
@@ -146,7 +150,12 @@ public class AdminMaintenanceService {
                 status,
                 details,
                 LocalDateTime.now(),
-                messages);
+                messages,
+                totalUsersCount,
+                activeUsersCount,
+                onlineUsersCount,
+                totalOrdersCount,
+                healthScore);
     }
 
     /**
@@ -243,18 +252,47 @@ public class AdminMaintenanceService {
     }
 
     private boolean checkRedisHealth() {
-        // В реальной системе - проверка подключения к Redis
-        return true;
+        try {
+            if (connectionPoolMonitoringService != null) {
+                Map<String, Object> poolStats = connectionPoolMonitoringService.getConnectionPoolStats();
+                Map<String, Object> redisStats = (Map<String, Object>) poolStats.get("redis");
+
+                if (redisStats != null) {
+                    Boolean connected = (Boolean) redisStats.get("connected");
+                    return connected != null && connected;
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Redis health check failed: {}", e.getMessage());
+        }
+
+        // Fallback: предполагаем что Redis в fallback режиме (не критично)
+        return false;
     }
 
     private boolean checkBotHealth() {
-        // В реальной системе - проверка статуса Telegram бота
-        return true;
+        try {
+            // Проверяем наличие активных пользователей как индикатор работы бота
+            UserCountsBatchResult userCounts = userSessionService.getUserCountsBatch();
+            return userCounts.totalUsers() > 0;
+        } catch (Exception e) {
+            log.warn("Bot health check failed: {}", e.getMessage());
+            return false;
+        }
     }
 
     private boolean checkCacheHealth() {
-        // В реальной системе - проверка статуса кэша
-        return true;
+        try {
+            // Проверяем доступность кэш сервиса
+            if (connectionPoolMonitoringService != null) {
+                connectionPoolMonitoringService.getConnectionPoolStats();
+                return true;
+            }
+        } catch (Exception e) {
+            log.warn("Cache health check failed: {}", e.getMessage());
+        }
+
+        return false;
     }
 
     private Double calculateAverageResponseTime() {

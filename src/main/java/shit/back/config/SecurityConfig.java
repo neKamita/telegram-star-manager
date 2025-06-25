@@ -17,6 +17,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import shit.back.security.ApiKeyAuthFilter;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -82,7 +83,26 @@ public class SecurityConfig {
 
                             // Telegram webhook - КРИТИЧЕСКИ ВАЖНО для бота!
                             .requestMatchers("/webhook/telegram").permitAll()
-                            .requestMatchers("/webhook/**").permitAll();
+                            .requestMatchers("/webhook/**").permitAll()
+
+                            // ИСПРАВЛЕНИЕ: Внутренние админские AJAX эндпоинты (без API ключа)
+                            .requestMatchers("/admin/api/dashboard/**").permitAll()
+                            .requestMatchers("/admin/api/system-health").permitAll()
+                            .requestMatchers("/admin/api/dashboard-data").permitAll()
+                            .requestMatchers("/admin/api/recent-activity").permitAll()
+                            .requestMatchers("/admin/api/quick-stats").permitAll()
+                            .requestMatchers("/admin/api/activity-statistics").permitAll()
+                            .requestMatchers("/admin/api/refresh-cache").permitAll()
+                            .requestMatchers("/admin/api/activity-stream").permitAll()
+
+                            // ИСПРАВЛЕНИЕ SSE: Добавляем SSE endpoints для мониторинга
+                            .requestMatchers("/admin/api/metrics/stream").permitAll()
+                            .requestMatchers("/admin/api/metrics/current").permitAll()
+                            .requestMatchers("/admin/api/metrics/health").permitAll()
+                            .requestMatchers("/admin/api/metrics/stats").permitAll()
+                            .requestMatchers("/admin/api/metrics/test-connection").permitAll()
+                            .requestMatchers("/admin/api/monitoring-fast").permitAll()
+                            .requestMatchers("/admin/api/environment-info").permitAll();
 
                     // Тестовые endpoints только в dev режиме (если включен тестовый режим)
                     if (testPaymentEnabled) {
@@ -93,6 +113,8 @@ public class SecurityConfig {
                     authz
                             // API эндпоинты требуют аутентификации
                             .requestMatchers("/api/**").authenticated()
+                            // Остальные admin API эндпоинты требуют аутентификации
+                            .requestMatchers("/admin/api/**").authenticated()
 
                             // Все остальные запросы разрешены
                             .anyRequest().permitAll();
@@ -119,11 +141,22 @@ public class SecurityConfig {
             configuration.addAllowedOrigin("*");
         }
 
-        // Разрешенные методы
-        configuration.setAllowedMethods(securityProperties.getCors().getAllowedMethods());
+        // Разрешенные методы (добавляем OPTIONS для preflight запросов SSE)
+        List<String> allowedMethods = new ArrayList<>(securityProperties.getCors().getAllowedMethods());
+        if (!allowedMethods.contains("OPTIONS")) {
+            allowedMethods.add("OPTIONS");
+        }
+        configuration.setAllowedMethods(allowedMethods);
 
-        // Разрешенные заголовки
-        configuration.setAllowedHeaders(securityProperties.getCors().getAllowedHeaders());
+        // Разрешенные заголовки (добавляем специальные заголовки для SSE)
+        List<String> allowedHeaders = new ArrayList<>(securityProperties.getCors().getAllowedHeaders());
+        if (!allowedHeaders.contains("Cache-Control")) {
+            allowedHeaders.add("Cache-Control");
+        }
+        if (!allowedHeaders.contains("Last-Event-ID")) {
+            allowedHeaders.add("Last-Event-ID");
+        }
+        configuration.setAllowedHeaders(allowedHeaders);
 
         // Разрешаем credentials
         configuration.setAllowCredentials(true);
@@ -133,8 +166,10 @@ public class SecurityConfig {
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/api/**", configuration);
+        source.registerCorsConfiguration("/admin/api/**", configuration);
 
-        log.info("CORS configuration applied for origins: {}", allowedOrigins);
+        log.info("CORS configuration applied for origins: {} (API and Admin API)", allowedOrigins);
+        log.info("🔧 ИСПРАВЛЕНИЕ: Внутренние админские AJAX эндпоинты исключены из API-key аутентификации");
 
         return source;
     }

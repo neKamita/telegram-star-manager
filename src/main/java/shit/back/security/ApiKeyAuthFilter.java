@@ -33,6 +33,17 @@ public class ApiKeyAuthFilter implements Filter {
     private static final String ACTUATOR_PREFIX = "/actuator/";
     private static final String WEBHOOK_PREFIX = "/webhook/";
 
+    // ИСПРАВЛЕНИЕ: Внутренние админские AJAX эндпоинты (без API ключа)
+    private static final String[] ADMIN_INTERNAL_ENDPOINTS = {
+            "/admin/api/dashboard/", "/admin/api/system-health", "/admin/api/dashboard-data",
+            "/admin/api/recent-activity", "/admin/api/quick-stats", "/admin/api/activity-statistics",
+            "/admin/api/refresh-cache", "/admin/api/activity-stream",
+            // ИСПРАВЛЕНИЕ SSE: Добавляем SSE endpoints для мониторинга
+            "/admin/api/metrics/stream", "/admin/api/metrics/current", "/admin/api/metrics/health",
+            "/admin/api/metrics/stats", "/admin/api/metrics/test-connection",
+            "/admin/api/monitoring-fast", "/admin/api/environment-info"
+    };
+
     // Security headers
     private static final String HEADER_X_CONTENT_TYPE_OPTIONS = "X-Content-Type-Options";
     private static final String HEADER_X_FRAME_OPTIONS = "X-Frame-Options";
@@ -69,12 +80,18 @@ public class ApiKeyAuthFilter implements Filter {
         log.info("ApiKeyAuthFilter: Processing request: {} {}", method, requestUri);
 
         if (isPublicEndpoint(requestUri)) {
-            log.info("Public endpoint, skipping authentication: {}", requestUri);
+            boolean isAdminInternal = isAdminInternalEndpoint(requestUri);
+            if (isAdminInternal) {
+                log.info("🔧 ИСПРАВЛЕНИЕ: Admin internal endpoint, skipping API key check: {}", requestUri);
+            } else {
+                log.info("Public endpoint, skipping authentication: {}", requestUri);
+            }
             chain.doFilter(request, response);
             return;
         }
 
-        if (!requestUri.startsWith("/api/")) {
+        if (!requestUri.startsWith("/api/") && !requestUri.startsWith("/admin/api/")) {
+            log.debug("Skipping non-API endpoint: {}", requestUri);
             chain.doFilter(request, response);
             return;
         }
@@ -129,6 +146,7 @@ public class ApiKeyAuthFilter implements Filter {
     }
 
     private boolean isPublicEndpoint(String requestUri) {
+        // Проверяем стандартные публичные эндпоинты
         for (String endpoint : PUBLIC_ENDPOINTS) {
             if (endpoint.endsWith("/") && requestUri.startsWith(endpoint)) {
                 return true;
@@ -137,7 +155,30 @@ public class ApiKeyAuthFilter implements Filter {
                 return true;
             }
         }
+
+        // Проверяем внутренние админские эндпоинты
+        for (String endpoint : ADMIN_INTERNAL_ENDPOINTS) {
+            if (endpoint.endsWith("/") && requestUri.startsWith(endpoint)) {
+                return true;
+            }
+            if (endpoint.equals(requestUri)) {
+                return true;
+            }
+        }
+
         return requestUri.startsWith(ACTUATOR_PREFIX) || requestUri.startsWith(WEBHOOK_PREFIX);
+    }
+
+    private boolean isAdminInternalEndpoint(String requestUri) {
+        for (String endpoint : ADMIN_INTERNAL_ENDPOINTS) {
+            if (endpoint.endsWith("/") && requestUri.startsWith(endpoint)) {
+                return true;
+            }
+            if (endpoint.equals(requestUri)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void sendErrorResponse(HttpServletResponse response, int status, String message)

@@ -67,9 +67,11 @@ public class AdminDashboardApiController implements AdminControllerOperations {
     public ResponseEntity<Object> getDashboardOverview(HttpServletRequest request) {
         try {
             log.debug("API: Getting dashboard overview");
+            log.info("🔧 ИСПРАВЛЕНИЕ: Dashboard overview request from: {}", request.getRemoteAddr());
 
             // Аутентификация
             if (!adminAuthenticationService.validateApiRequest(request)) {
+                log.warn("🔧 ИСПРАВЛЕНИЕ: Authentication failed for dashboard overview");
                 return ResponseEntity.status(401)
                         .body(createErrorResponse("Unauthorized access", null));
             }

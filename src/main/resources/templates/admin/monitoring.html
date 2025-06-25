@@ -187,20 +187,32 @@
                         <div class="row text-center">
                             <div class="col-4">
                                 <div class="p-3">
-                                    <h4 id="total-users" class="text-primary mb-1" th:text="${systemHealth?.totalUsers ?: '---'}">---</h4>
-                                    <small class="text-muted">Total Users</small>
+                                    <h4 id="db-pool-usage" class="text-primary mb-1">--%</h4>
+                                    <small class="text-muted">DB Pool Usage</small>
+                                    <div class="small text-muted mt-1">
+                                        <i class="fas fa-circle text-success" id="db-pool-indicator" style="font-size: 6px;"></i>
+                                        <span class="ms-1">Live</span>
+                                    </div>
                                 </div>
                             </div>
                             <div class="col-4">
                                 <div class="p-3">
-                                    <h4 id="active-users" class="text-success mb-1" th:text="${systemHealth?.activeUsersCount ?: '---'}">---</h4>
-                                    <small class="text-muted">Active Users</small>
+                                    <h4 id="cache-miss-ratio" class="text-warning mb-1">--%</h4>
+                                    <small class="text-muted">Cache Miss Ratio</small>
+                                    <div class="small text-muted mt-1">
+                                        <i class="fas fa-circle text-success" id="cache-miss-indicator" style="font-size: 6px;"></i>
+                                        <span class="ms-1">Live</span>
+                                    </div>
                                 </div>
                             </div>
                             <div class="col-4">
                                 <div class="p-3">
-                                    <h4 id="total-orders" class="text-info mb-1" th:text="${systemHealth?.totalOrders ?: '---'}">---</h4>
-                                    <small class="text-muted">Total Orders</small>
+                                    <h4 id="active-db-connections" class="text-info mb-1">--</h4>
+                                    <small class="text-muted">Active DB Connections</small>
+                                    <div class="small text-muted mt-1">
+                                        <i class="fas fa-circle text-success" id="db-connections-indicator" style="font-size: 6px;"></i>
+                                        <span class="ms-1">Live</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -243,6 +255,11 @@
                             <button class="btn btn-outline-success" onclick="exportDiagnostics()">
                                 <i class="fas fa-download me-2"></i>
                                 Export Diagnostics
+                            </button>
+                            
+                            <button class="btn btn-outline-warning" onclick="testDatabaseCacheMetrics()">
+                                <i class="fas fa-database me-2"></i>
+                                Test DB&Cache Metrics
                             </button>
                         </div>
                     </div>
@@ -399,6 +416,36 @@
         // ==================== SSE PERFORMANCE METRICS ====================
         
         /**
+         * Тестирование доступности SSE endpoint
+         */
+        function testSSEEndpoint() {
+            console.log('🔍 ДИАГНОСТИКА SSE: Testing SSE endpoint accessibility...');
+            
+            fetch('/admin/api/metrics/test-connection')
+                .then(response => {
+                    console.log('📡 ДИАГНОСТИКА SSE: Test endpoint response status:', response.status);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(result => {
+                    console.log('✅ ДИАГНОСТИКА SSE: Test endpoint successful:', result);
+                    if (result.success) {
+                        console.log('🎯 ДИАГНОСТИКА SSE: SSE endpoint is accessible, proceeding with connection');
+                        return true;
+                    } else {
+                        console.error('❌ ДИАГНОСТИКА SSE: Test endpoint reports error:', result.error);
+                        return false;
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ ДИАГНОСТИКА SSE: Test endpoint failed:', error);
+                    return false;
+                });
+        }
+
+        /**
          * Инициализация SSE подключения для Performance Metrics
          */
         function initPerformanceSSE() {
@@ -407,7 +454,11 @@
                 return;
             }
             
-            console.log('🚀 Initializing SSE for Performance Metrics');
+            console.log('🚀 ИСПРАВЛЕНИЕ SSE: Initializing SSE for Performance Metrics');
+            
+            // Сначала тестируем доступность endpoint
+            testSSEEndpoint();
+            
             updateSSEConnectionStatus('connecting');
             
             try {
@@ -429,10 +480,17 @@
                 performanceSSE.onmessage = function(event) {
                     try {
                         const data = JSON.parse(event.data);
-                        console.log('📡 SSE Performance Metrics received:', data);
+                        console.log('📡 ДИАГНОСТИКА SSE: Performance Metrics received:', data);
+                        console.log('🔍 ДИАГНОСТИКА SSE: Data structure analysis:');
+                        console.log('  - responseTime:', data.responseTime, 'type:', typeof data.responseTime);
+                        console.log('  - memoryUsage:', data.memoryUsage, 'type:', typeof data.memoryUsage);
+                        console.log('  - cacheHitRatio:', data.cacheHitRatio, 'type:', typeof data.cacheHitRatio);
+                        console.log('  - averageResponseTime:', data.averageResponseTime, 'type:', typeof data.averageResponseTime);
+                        console.log('  - memoryUsagePercent:', data.memoryUsagePercent, 'type:', typeof data.memoryUsagePercent);
                         handleSSEPerformanceMetrics(data);
                     } catch (e) {
-                        console.error('❌ Error parsing SSE Performance Metrics data:', e);
+                        console.error('❌ ДИАГНОСТИКА SSE: Error parsing SSE Performance Metrics data:', e);
+                        console.error('❌ ДИАГНОСТИКА SSE: Raw event data:', event.data);
                     }
                 };
                 
@@ -458,6 +516,17 @@
                 
                 performanceSSE.onerror = function(event) {
                     console.error('❌ SSE Performance Metrics connection error:', event);
+                    console.error('❌ ДИАГНОСТИКА SSE: Error details - readyState:', performanceSSE.readyState);
+                    console.error('❌ ДИАГНОСТИКА SSE: Error event type:', event.type);
+                    console.error('❌ ДИАГНОСТИКА SSE: Connection URL:', '/admin/api/metrics/stream');
+                    
+                    // Проверяем статус подключения для диагностики
+                    if (performanceSSE.readyState === EventSource.CLOSED) {
+                        console.error('❌ ДИАГНОСТИКА SSE: Connection closed by server - возможная проблема с аутентификацией');
+                    } else if (performanceSSE.readyState === EventSource.CONNECTING) {
+                        console.error('❌ ДИАГНОСТИКА SSE: Still trying to connect - возможная проблема с сетью или CORS');
+                    }
+                    
                     updateSSEConnectionStatus('error');
                     handleSSEError();
                 };
@@ -473,14 +542,24 @@
          * Обработка данных Performance Metrics от SSE
          */
         function handleSSEPerformanceMetrics(metrics) {
+            console.log('🔍 ДИАГНОСТИКА HANDLER: Starting handleSSEPerformanceMetrics with data:', metrics);
+            
             // Обновляем Performance Metrics элементы
             const responseTimeEl = document.getElementById('response-time');
             const memoryUsageEl = document.getElementById('memory-usage');
             const cacheHitsEl = document.getElementById('cache-hits');
             
-            if (responseTimeEl && metrics.responseTime !== undefined) {
-                const responseTime = Math.round(metrics.responseTime);
+            console.log('🔍 ДИАГНОСТИКА HANDLER: DOM elements found:');
+            console.log('  - responseTimeEl:', !!responseTimeEl, 'current value:', responseTimeEl?.textContent);
+            console.log('  - memoryUsageEl:', !!memoryUsageEl, 'current value:', memoryUsageEl?.textContent);
+            console.log('  - cacheHitsEl:', !!cacheHitsEl, 'current value:', cacheHitsEl?.textContent);
+            
+            // Попробуем оба варианта имен полей для responseTime
+            let responseTimeValue = metrics.responseTime || metrics.averageResponseTime;
+            if (responseTimeEl && responseTimeValue !== undefined) {
+                const responseTime = Math.round(responseTimeValue);
                 responseTimeEl.textContent = responseTime + 'ms';
+                console.log('✅ ДИАГНОСТИКА HANDLER: Response time updated to:', responseTime + 'ms');
                 
                 // Мигание индикатора обновления
                 const responseIndicator = document.getElementById('response-indicator');
@@ -494,8 +573,11 @@
                 console.log('✅ SSE Response time updated:', responseTime + 'ms');
             }
             
-            if (memoryUsageEl && metrics.memoryUsage !== undefined) {
-                memoryUsageEl.textContent = metrics.memoryUsage + '%';
+            // Попробуем оба варианта имен полей для memoryUsage
+            let memoryUsageValue = metrics.memoryUsage || metrics.memoryUsagePercent;
+            if (memoryUsageEl && memoryUsageValue !== undefined) {
+                memoryUsageEl.textContent = memoryUsageValue + '%';
+                console.log('✅ ДИАГНОСТИКА HANDLER: Memory usage updated to:', memoryUsageValue + '%');
                 
                 // Мигание индикатора обновления
                 const memoryIndicator = document.getElementById('memory-indicator');
@@ -507,19 +589,22 @@
                 }
                 
                 // Цветовая индикация уровня памяти
-                if (metrics.memoryUsage > 80) {
+                if (memoryUsageValue > 80) {
                     memoryUsageEl.style.color = '#dc3545'; // Красный
-                } else if (metrics.memoryUsage > 60) {
+                } else if (memoryUsageValue > 60) {
                     memoryUsageEl.style.color = '#ffc107'; // Желтый
                 } else {
                     memoryUsageEl.style.color = '#17a2b8'; // Синий
                 }
-                
-                console.log('✅ SSE Memory usage updated:', metrics.memoryUsage + '%');
+            } else {
+                console.warn('⚠️ ДИАГНОСТИКА HANDLER: Memory usage field not found or undefined');
+                console.warn('  - metrics.memoryUsage:', metrics.memoryUsage);
+                console.warn('  - metrics.memoryUsagePercent:', metrics.memoryUsagePercent);
             }
             
             if (cacheHitsEl && metrics.cacheHitRatio !== undefined) {
                 cacheHitsEl.textContent = metrics.cacheHitRatio + '%';
+                console.log('✅ ДИАГНОСТИКА HANDLER: Cache hits updated to:', metrics.cacheHitRatio + '%');
                 
                 // Мигание индикатора обновления
                 const cacheIndicator = document.getElementById('cache-indicator');
@@ -538,8 +623,9 @@
                 } else {
                     cacheHitsEl.style.color = '#ffc107'; // Желтый
                 }
-                
-                console.log('✅ SSE Cache hits updated:', metrics.cacheHitRatio + '%');
+            } else {
+                console.warn('⚠️ ДИАГНОСТИКА HANDLER: Cache hit ratio field not found or undefined');
+                console.warn('  - metrics.cacheHitRatio:', metrics.cacheHitRatio);
             }
             
             // Обновляем время последнего обновления
@@ -548,18 +634,80 @@
                 lastUpdateEl.textContent = new Date().toLocaleTimeString('ru-RU') + ' (SSE)';
             }
             
-            // Обновляем дополнительные счетчики если есть
-            if (metrics.totalUsers !== undefined) {
-                const totalUsersEl = document.getElementById('total-users');
-                if (totalUsersEl) totalUsersEl.textContent = metrics.totalUsers;
+            // Обновляем новые Database & Cache метрики
+            if (metrics.dbPoolUsage !== undefined) {
+                const dbPoolUsageEl = document.getElementById('db-pool-usage');
+                if (dbPoolUsageEl) {
+                    dbPoolUsageEl.textContent = metrics.dbPoolUsage + '%';
+                    
+                    // Мигание индикатора обновления
+                    const dbPoolIndicator = document.getElementById('db-pool-indicator');
+                    if (dbPoolIndicator) {
+                        dbPoolIndicator.className = 'fas fa-circle text-warning';
+                        setTimeout(() => {
+                            dbPoolIndicator.className = 'fas fa-circle text-success';
+                        }, 200);
+                    }
+                    
+                    // Цветовая индикация уровня использования пула
+                    if (metrics.dbPoolUsage > 80) {
+                        dbPoolUsageEl.style.color = '#dc3545'; // Красный
+                    } else if (metrics.dbPoolUsage > 60) {
+                        dbPoolUsageEl.style.color = '#ffc107'; // Желтый
+                    } else {
+                        dbPoolUsageEl.style.color = '#007bff'; // Синий
+                    }
+                }
             }
-            if (metrics.activeUsers !== undefined) {
-                const activeUsersEl = document.getElementById('active-users');
-                if (activeUsersEl) activeUsersEl.textContent = metrics.activeUsers;
+            
+            if (metrics.cacheMissRatio !== undefined) {
+                const cacheMissRatioEl = document.getElementById('cache-miss-ratio');
+                if (cacheMissRatioEl) {
+                    cacheMissRatioEl.textContent = metrics.cacheMissRatio + '%';
+                    
+                    // Мигание индикатора обновления
+                    const cacheMissIndicator = document.getElementById('cache-miss-indicator');
+                    if (cacheMissIndicator) {
+                        cacheMissIndicator.className = 'fas fa-circle text-warning';
+                        setTimeout(() => {
+                            cacheMissIndicator.className = 'fas fa-circle text-success';
+                        }, 200);
+                    }
+                    
+                    // Цветовая индикация Cache Miss Ratio (меньше = лучше)
+                    if (metrics.cacheMissRatio < 5) {
+                        cacheMissRatioEl.style.color = '#28a745'; // Зеленый
+                    } else if (metrics.cacheMissRatio < 15) {
+                        cacheMissRatioEl.style.color = '#ffc107'; // Желтый
+                    } else {
+                        cacheMissRatioEl.style.color = '#dc3545'; // Красный
+                    }
+                }
             }
-            if (metrics.totalOrders !== undefined) {
-                const totalOrdersEl = document.getElementById('total-orders');
-                if (totalOrdersEl) totalOrdersEl.textContent = metrics.totalOrders;
+            
+            if (metrics.activeDbConnections !== undefined) {
+                const activeDbConnectionsEl = document.getElementById('active-db-connections');
+                if (activeDbConnectionsEl) {
+                    activeDbConnectionsEl.textContent = metrics.activeDbConnections;
+                    
+                    // Мигание индикатора обновления
+                    const dbConnectionsIndicator = document.getElementById('db-connections-indicator');
+                    if (dbConnectionsIndicator) {
+                        dbConnectionsIndicator.className = 'fas fa-circle text-warning';
+                        setTimeout(() => {
+                            dbConnectionsIndicator.className = 'fas fa-circle text-success';
+                        }, 200);
+                    }
+                    
+                    // Цветовая индикация количества соединений
+                    if (metrics.activeDbConnections > 10) {
+                        activeDbConnectionsEl.style.color = '#dc3545'; // Красный
+                    } else if (metrics.activeDbConnections > 5) {
+                        activeDbConnectionsEl.style.color = '#ffc107'; // Желтый
+                    } else {
+                        activeDbConnectionsEl.style.color = '#17a2b8'; // Синий
+                    }
+                }
             }
             
             // Обновление Redis статуса из SSE данных
@@ -599,7 +747,7 @@
         function updateSSEConnectionStatus(status) {
             sseConnectionStatus = status;
             
-            const indicators = ['response-indicator', 'memory-indicator', 'cache-indicator'];
+            const indicators = ['response-indicator', 'memory-indicator', 'cache-indicator', 'db-pool-indicator', 'cache-miss-indicator', 'db-connections-indicator'];
             const statusColors = {
                 'disconnected': 'text-secondary',
                 'connecting': 'text-warning',
@@ -782,9 +930,9 @@
                         totalUsersEl.textContent = healthData.totalUsers;
                         console.log('✅ Total users updated:', healthData.totalUsers);
                     }
-                    if (activeUsersEl && healthData.activeUsersCount !== undefined) {
-                        activeUsersEl.textContent = healthData.activeUsersCount;
-                        console.log('✅ Active users updated:', healthData.activeUsersCount);
+                    if (activeUsersEl && healthData.activeUsers !== undefined) {
+                        activeUsersEl.textContent = healthData.activeUsers;
+                        console.log('✅ Active users updated:', healthData.activeUsers);
                     }
                     if (totalOrdersEl && healthData.totalOrders !== undefined) {
                         totalOrdersEl.textContent = healthData.totalOrders;
@@ -846,15 +994,18 @@
         
         // Новая функция для fallback обновления счетчиков + Performance Metrics
         function updateUserCountsFallback() {
+            console.log('🔄 ДИАГНОСТИКА FALLBACK: Attempting to fetch /admin/api/monitoring-fast');
             
             fetch('/admin/api/monitoring-fast')
                 .then(response => {
+                    console.log('📡 ДИАГНОСТИКА FALLBACK: monitoring-fast response status:', response.status);
                     if (!response.ok) {
                         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
                     return response.json();
                 })
                 .then(data => {
+                    console.log('📊 ДИАГНОСТИКА FALLBACK: monitoring-fast data received:', data);
                     
                     // Обновляем счетчики пользователей
                     const totalUsersEl = document.getElementById('total-users');
@@ -888,6 +1039,24 @@
                     if (cacheHitsEl && data.cacheHitRatio !== undefined) {
                         cacheHitsEl.textContent = data.cacheHitRatio + '%';
                         console.log('✅ Fast endpoint cache hits updated:', data.cacheHitRatio + '%');
+                    }
+                    
+                    // НОВОЕ: Обновляем Database & Cache метрики из fast endpoint
+                    const dbPoolUsageEl = document.getElementById('db-pool-usage');
+                    const cacheMissRatioEl = document.getElementById('cache-miss-ratio');
+                    const activeDbConnectionsEl = document.getElementById('active-db-connections');
+                    
+                    if (dbPoolUsageEl && data.dbPoolUsage !== undefined) {
+                        dbPoolUsageEl.textContent = data.dbPoolUsage + '%';
+                        console.log('✅ Fast endpoint DB pool usage updated:', data.dbPoolUsage + '%');
+                    }
+                    if (cacheMissRatioEl && data.cacheMissRatio !== undefined) {
+                        cacheMissRatioEl.textContent = data.cacheMissRatio + '%';
+                        console.log('✅ Fast endpoint cache miss ratio updated:', data.cacheMissRatio + '%');
+                    }
+                    if (activeDbConnectionsEl && data.activeDbConnections !== undefined) {
+                        activeDbConnectionsEl.textContent = data.activeDbConnections;
+                        console.log('✅ Fast endpoint active DB connections updated:', data.activeDbConnections);
                     }
                     
                     // НОВОЕ: Обновляем Health Score из fast endpoint
@@ -938,9 +1107,9 @@
                         totalUsersEl.textContent = healthData.totalUsers;
                         console.log('✅ Total users updated:', healthData.totalUsers);
                     }
-                    if (activeUsersEl && healthData.activeUsersCount !== undefined) {
-                        activeUsersEl.textContent = healthData.activeUsersCount;
-                        console.log('✅ Active users updated:', healthData.activeUsersCount);
+                    if (activeUsersEl && healthData.activeUsers !== undefined) {
+                        activeUsersEl.textContent = healthData.activeUsers;
+                        console.log('✅ Active users updated:', healthData.activeUsers);
                     }
                     if (totalOrdersEl && healthData.totalOrders !== undefined) {
                         totalOrdersEl.textContent = healthData.totalOrders;
@@ -1336,8 +1505,12 @@
                 responseTime: document.getElementById('response-time').textContent,
                 memoryUsage: document.getElementById('memory-usage').textContent,
                 cacheHits: document.getElementById('cache-hits').textContent,
-                totalFlags: document.getElementById('total-flags').textContent,
-                activeFlags: document.getElementById('active-flags').textContent,
+                // НОВЫЕ Database & Cache метрики
+                dbPoolUsage: document.getElementById('db-pool-usage').textContent,
+                cacheMissRatio: document.getElementById('cache-miss-ratio').textContent,
+                activeDbConnections: document.getElementById('active-db-connections').textContent,
+                totalFlags: document.getElementById('total-flags')?.textContent || 'N/A',
+                activeFlags: document.getElementById('active-flags')?.textContent || 'N/A',
                 cacheSize: document.getElementById('cache-size').textContent
             };
             
@@ -1354,6 +1527,52 @@
             URL.revokeObjectURL(url);
             
             showToast('Diagnostics exported successfully', 'success');
+        }
+        
+        /**
+         * ДИАГНОСТИЧЕСКАЯ ФУНКЦИЯ: Тестирование новых Database & Cache метрик
+         */
+        function testDatabaseCacheMetrics() {
+            console.log('🔍 ДИАГНОСТИКА DB&CACHE: Testing new Database & Cache metrics...');
+            
+            fetch('/admin/api/test-db-cache-metrics')
+                .then(response => {
+                    console.log('📡 ДИАГНОСТИКА DB&CACHE: Test response status:', response.status);
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(result => {
+                    console.log('✅ ДИАГНОСТИКА DB&CACHE: Test results:', result);
+                    
+                    if (result.success) {
+                        console.log('🔍 ДИАГНОСТИКА DB&CACHE: Calculated metrics:', result.calculatedMetrics);
+                        console.log('🔍 ДИАГНОСТИКА DB&CACHE: Raw connection pool stats:', result.rawConnectionPoolStats);
+                        console.log('🔍 ДИАГНОСТИКА DB&CACHE: Validation results:', result.validation);
+                        
+                        // Проверяем валидность метрик
+                        const validation = result.validation;
+                        let validationMessage = 'Database & Cache metrics validation:\n';
+                        validationMessage += `- DB Pool Usage Valid: ${validation.dbPoolUsageValid}\n`;
+                        validationMessage += `- Cache Miss Ratio Valid: ${validation.cacheMissRatioValid}\n`;
+                        validationMessage += `- Active DB Connections Valid: ${validation.activeDbConnectionsValid}\n`;
+                        validationMessage += `- Connection Pool Service Available: ${validation.connectionPoolServiceAvailable}`;
+                        
+                        console.log('📊 ДИАГНОСТИКА DB&CACHE: Validation summary:', validationMessage);
+                        
+                        // Показываем результат пользователю
+                        const metrics = result.calculatedMetrics;
+                        showToast(`DB&Cache Test: Pool=${metrics.dbPoolUsage}%, Miss=${metrics.cacheMissRatio}%, Connections=${metrics.activeDbConnections}`, 'info');
+                    } else {
+                        console.error('❌ ДИАГНОСТИКА DB&CACHE: Test failed:', result.error);
+                        showToast('Database & Cache metrics test failed', 'danger');
+                    }
+                })
+                .catch(error => {
+                    console.error('❌ ДИАГНОСТИКА DB&CACHE: Test request failed:', error);
+                    showToast('Failed to test Database & Cache metrics', 'danger');
+                });
         }
         
         /**
@@ -1439,6 +1658,21 @@
                             }
                         }
                         
+                        // НОВОЕ: Обновляем Database & Cache метрики
+                        const dbPoolUsageEl = document.getElementById('db-pool-usage');
+                        const cacheMissRatioEl = document.getElementById('cache-miss-ratio');
+                        const activeDbConnectionsEl = document.getElementById('active-db-connections');
+                        
+                        if (dbPoolUsageEl && data.dbPoolUsage !== undefined) {
+                            dbPoolUsageEl.textContent = data.dbPoolUsage + '%';
+                        }
+                        if (cacheMissRatioEl && data.cacheMissRatio !== undefined) {
+                            cacheMissRatioEl.textContent = data.cacheMissRatio + '%';
+                        }
+                        if (activeDbConnectionsEl && data.activeDbConnections !== undefined) {
+                            activeDbConnectionsEl.textContent = data.activeDbConnections;
+                        }
+                        
                         // Обновляем время последнего обновления
                         const lastUpdateEl = document.getElementById('metrics-last-update');
                         if (lastUpdateEl) {
@@ -1448,7 +1682,10 @@
                         console.log('⚡ Performance metrics updated:', {
                             responseTime: data.averageResponseTime,
                             memory: data.memoryUsagePercent,
-                            cache: data.cacheHitRatio
+                            cache: data.cacheHitRatio,
+                            dbPoolUsage: data.dbPoolUsage,
+                            cacheMissRatio: data.cacheMissRatio,
+                            activeDbConnections: data.activeDbConnections
                         });
                     }
                 })
@@ -1462,19 +1699,23 @@
          * Получение Environment Info из API
          */
         function updateEnvironmentInfoFromAPI() {
+            console.log('🌍 ДИАГНОСТИКА ENV: Attempting to fetch /admin/api/environment-info');
             
             fetch('/admin/api/environment-info')
                 .then(response => {
+                    console.log('📡 ДИАГНОСТИКА ENV: environment-info response status:', response.status);
                     if (!response.ok) {
                         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
                     return response.json();
                 })
                 .then(envData => {
+                    console.log('📊 ДИАГНОСТИКА ENV: environment-info data received:', envData);
                     updateEnvironmentInfo(envData);
                 })
                 .catch(error => {
-                    console.warn('⚠️ ДИАГНОСТИКА: Environment info fetch failed:', error);
+                    console.error('❌ ДИАГНОСТИКА ENV: Environment info fetch failed:', error);
+                    console.error('❌ ДИАГНОСТИКА ENV: This endpoint is missing - will use fallback data');
                     // Fallback к статичным значениям
                     updateEnvironmentInfo({
                         platform: 'Koyeb',

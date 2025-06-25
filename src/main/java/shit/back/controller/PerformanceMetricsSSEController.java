@@ -6,10 +6,14 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import shit.back.service.BackgroundMetricsService;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -24,9 +28,20 @@ public class PerformanceMetricsSSEController {
         @Autowired
         private BackgroundMetricsService backgroundMetricsService;
 
+        // ИСПРАВЛЕНИЕ: ObjectMapper для безопасной JSON сериализации
+        private final ObjectMapper objectMapper;
+
         // Статистика подключений
         private final AtomicLong totalConnections = new AtomicLong(0);
         private final AtomicLong activeConnections = new AtomicLong(0);
+
+        // ИСПРАВЛЕНИЕ: Инициализация ObjectMapper в конструкторе
+        public PerformanceMetricsSSEController() {
+                this.objectMapper = new ObjectMapper();
+                this.objectMapper.registerModule(new JavaTimeModule());
+                this.objectMapper
+                                .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        }
 
         /**
          * SSE endpoint для real-time Performance Metrics
@@ -34,7 +49,8 @@ public class PerformanceMetricsSSEController {
          */
         @GetMapping(value = "/stream", produces = "text/event-stream")
         public SseEmitter streamPerformanceMetrics(
-                        @RequestParam(value = "timeout", defaultValue = "300000") Long timeoutMs) {
+                        @RequestParam(value = "timeout", defaultValue = "300000") Long timeoutMs,
+                        jakarta.servlet.http.HttpServletResponse response) {
 
                 long connectionId = totalConnections.incrementAndGet();
                 activeConnections.incrementAndGet();
@@ -43,6 +59,13 @@ public class PerformanceMetricsSSEController {
                                 connectionId, timeoutMs);
                 log.info("🔍 ДИАГНОСТИКА SSE: Total connections: {}, Active connections: {}",
                                 totalConnections.get(), activeConnections.get());
+
+                // ИСПРАВЛЕНИЕ SSE: Устанавливаем необходимые заголовки для SSE
+                response.setHeader("Cache-Control", "no-cache");
+                response.setHeader("Connection", "keep-alive");
+                response.setHeader("Access-Control-Allow-Origin", "*");
+                response.setHeader("Access-Control-Allow-Headers", "Cache-Control");
+                response.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
 
                 // Создаем SSE emitter с настройками
                 SseEmitter emitter = new SseEmitter(timeoutMs); // Default 5 минут timeout
@@ -57,6 +80,7 @@ public class PerformanceMetricsSSEController {
                         log.info("📡 ДИАГНОСТИКА SSE: Registering emitter #{} in BackgroundMetricsService",
                                         connectionId);
                         backgroundMetricsService.addSSEConnection(emitter);
+                        log.info("🔍 ДИАГНОСТИКА SSE: Emitter registration completed for connection #{}", connectionId);
 
                         // Настройка callbacks для статистики
                         setupEmitterCallbacks(emitter, connectionId);
@@ -204,19 +228,37 @@ public class PerformanceMetricsSSEController {
         }
 
         /**
-         * Создание сообщения о подключении
+         * ИСПРАВЛЕНИЕ: Безопасное создание сообщения о подключении
+         * Замена ручного форматирования на ObjectMapper для предотвращения JSON parsing
+         * ошибок
          */
         private String createConnectionMessage(long connectionId) {
-                return String.format("""
-                                {
-                                    "message": "Performance Metrics SSE connection established",
-                                    "connectionId": %d,
-                                    "interval": "10 seconds",
-                                    "eventTypes": ["performance-metrics"],
-                                    "timestamp": "%s"
-                                }""",
-                                connectionId,
-                                LocalDateTime.now().toString());
+                try {
+                        Map<String, Object> connectionMap = new LinkedHashMap<>();
+                        connectionMap.put("message", "Performance Metrics SSE connection established");
+                        connectionMap.put("connectionId", connectionId);
+                        connectionMap.put("interval", "15 seconds");
+                        connectionMap.put("eventTypes", new String[] { "performance-metrics" });
+                        connectionMap.put("timestamp",
+                                        LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
+                        connectionMap.put("success", true);
+
+                        String jsonData = objectMapper.writeValueAsString(connectionMap);
+
+                        log.debug("✅ ИСПРАВЛЕНИЕ JSON: Connection message создан безопасно для connection #{}",
+                                        connectionId);
+                        log.debug("📊 ИСПРАВЛЕНИЕ JSON: Connection JSON: {}", jsonData);
+
+                        return jsonData;
+
+                } catch (Exception e) {
+                        log.error("❌ ОШИБКА JSON: Не удалось создать connection message для connection #{}: {}",
+                                        connectionId, e.getMessage(), e);
+                        // Fallback JSON
+                        return String.format(
+                                        "{\"message\":\"SSE connection established\",\"connectionId\":%d,\"success\":false,\"error\":\"JSON creation failed\"}",
+                                        connectionId);
+                }
         }
 
         /**
@@ -263,6 +305,71 @@ public class PerformanceMetricsSSEController {
                                         "success", false,
                                         "error", e.getMessage(),
                                         "timestamp", LocalDateTime.now());
+                }
+        }
+
+        /**
+         * ДИАГНОСТИЧЕСКИЙ ENDPOINT: Проверка доступности SSE
+         */
+        @GetMapping(value = "/test-connection", produces = MediaType.APPLICATION_JSON_VALUE)
+        @ResponseBody
+        public Map<String, Object> testSSEConnection() {
+                try {
+                        log.info("🔍 ДИАГНОСТИКА SSE: Test connection endpoint called");
+
+                        BackgroundMetricsService.BackgroundServiceStats stats = backgroundMetricsService
+                                        .getServiceStats();
+
+                        return Map.of(
+                                        "status", "SSE_ENDPOINT_ACCESSIBLE",
+                                        "message", "SSE endpoint is accessible and working",
+                                        "currentConnections", stats.getActiveSSEConnections(),
+                                        "totalConnections", totalConnections.get(),
+                                        "serviceHealthy", stats.getIsHealthy(),
+                                        "lastCollection", stats.getLastSuccessfulCollection(),
+                                        "timestamp", LocalDateTime.now(),
+                                        "success", true);
+
+                } catch (Exception e) {
+                        log.error("❌ ДИАГНОСТИКА SSE: Test connection failed: {}", e.getMessage());
+                        return Map.of(
+                                        "status", "SSE_ENDPOINT_ERROR",
+                                        "error", e.getMessage(),
+                                        "timestamp", LocalDateTime.now(),
+                                        "success", false);
+                }
+        }
+
+        /**
+         * ДИАГНОСТИЧЕСКИЙ ENDPOINT: Тест JSON валидности для performance-metrics
+         */
+        @GetMapping(value = "/test-json", produces = MediaType.APPLICATION_JSON_VALUE)
+        @ResponseBody
+        public Map<String, Object> testJsonValidity() {
+                try {
+                        log.info("🔍 ИСПРАВЛЕНИЕ JSON: Testing JSON validity for performance-metrics");
+
+                        // Создаем тестовое сообщение подключения
+                        String connectionMessage = createConnectionMessage(999L);
+
+                        // Проверяем валидность JSON
+                        objectMapper.readTree(connectionMessage);
+
+                        return Map.of(
+                                        "status", "JSON_VALID",
+                                        "message", "JSON serialization is working correctly",
+                                        "testConnectionMessage", connectionMessage,
+                                        "timestamp", LocalDateTime.now(),
+                                        "success", true);
+
+                } catch (Exception e) {
+                        log.error("❌ ИСПРАВЛЕНИЕ JSON: JSON validity test failed: {}", e.getMessage());
+                        return Map.of(
+                                        "status", "JSON_INVALID",
+                                        "error", e.getMessage(),
+                                        "message", "JSON serialization has issues",
+                                        "timestamp", LocalDateTime.now(),
+                                        "success", false);
                 }
         }
 }

@@ -31,6 +31,9 @@ public class AdminDashboardCacheService {
     @Autowired
     private UserSessionUnifiedService userSessionService;
 
+    @Autowired(required = false)
+    private ConnectionPoolMonitoringService connectionPoolMonitoringService;
+
     // Минимальный кэш для экономии памяти на Koyeb
     private final Map<String, CachedData> cache = new ConcurrentHashMap<>(8, 0.75f, 1);
     private static final long CACHE_TTL_MS = 600_000; // 10 minutes (увеличено для SystemHealth)
@@ -298,7 +301,11 @@ public class AdminDashboardCacheService {
                 health = (SystemHealth) healthObj;
             } else {
                 health = new SystemHealth();
-                // Здесь можно добавить копирование нужных полей, если требуется
+                health.setTotalUsers(0L);
+                health.setActiveUsers(0L);
+                health.setOnlineUsers(0L);
+                health.setTotalOrders(0L);
+                health.setHealthScore(0);
             }
 
             // Кэшируем результат с длительным TTL (10 минут)
@@ -379,6 +386,11 @@ public class AdminDashboardCacheService {
         sh.setDetails(null);
         sh.setLastChecked(java.time.LocalDateTime.now());
         sh.setMessages(null);
+        sh.setTotalUsers(0L);
+        sh.setActiveUsers(0L);
+        sh.setOnlineUsers(0L);
+        sh.setTotalOrders(0L);
+        sh.setHealthScore(0);
         return sh;
     }
 

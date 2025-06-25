@@ -241,8 +241,12 @@ public class UserActivityLogService {
     public void logApplicationActivity(Long userId, String username, String firstName, String lastName,
             ActionType actionType, String actionDescription) {
         try {
+            // Исправляем проблему с NULL user_id - для админских действий используем -1
+            Long actualUserId = userId != null ? userId : -1L;
+            String actualUsername = username != null ? username : "ADMIN";
+
             UserActivityLogEntity activity = new UserActivityLogEntity(
-                    userId, username, firstName, lastName, actionType, actionDescription)
+                    actualUserId, actualUsername, firstName, lastName, actionType, actionDescription)
                     .withLogCategory(LogCategory.APPLICATION);
 
             UserActivityLogEntity saved = activityLogRepository.save(activity);
@@ -250,7 +254,7 @@ public class UserActivityLogService {
             addToRecentActivities(saved);
             broadcastActivity(saved);
 
-            log.debug("Logged application activity: {} for user {}", actionType, username);
+            log.debug("Logged application activity: {} for user {}", actionType, actualUsername);
         } catch (Exception e) {
             log.error("Error logging application activity: {}", e.getMessage(), e);
         }
@@ -811,7 +815,7 @@ public class UserActivityLogService {
                         Collectors.counting()));
 
         return packageCounts.entrySet().stream()
-                .max(Map.Entry.comparingByValue())  
+                .max(Map.Entry.comparingByValue())
                 .map(entry -> entry.getKey() + "⭐ Package")
                 .orElse("N/A");
     }

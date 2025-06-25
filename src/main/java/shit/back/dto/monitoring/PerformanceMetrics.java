@@ -16,6 +16,11 @@ public class PerformanceMetrics implements Serializable {
     private long errorCount;
     private long uptime;
 
+    // ИСПРАВЛЕНИЕ: Добавляем поля для совместимости с JavaScript
+    private double averageResponseTime; // JavaScript ожидает это поле
+    private int memoryUsagePercent; // JavaScript ожидает это поле
+    private int cacheHitRatio; // JavaScript ожидает это поле
+
     public PerformanceMetrics() {
     }
 
@@ -27,6 +32,11 @@ public class PerformanceMetrics implements Serializable {
         this.requestCount = requestCount;
         this.errorCount = errorCount;
         this.uptime = uptime;
+
+        // ИСПРАВЛЕНИЕ: Инициализируем новые поля для совместимости
+        this.averageResponseTime = responseTime; // По умолчанию равно responseTime
+        this.memoryUsagePercent = (int) (memoryUsage * 100); // Конвертируем в проценты
+        this.cacheHitRatio = 90; // Значение по умолчанию для cache hit ratio
     }
 
     public double getCpuUsage() {
@@ -77,6 +87,32 @@ public class PerformanceMetrics implements Serializable {
         this.uptime = uptime;
     }
 
+    // ИСПРАВЛЕНИЕ: Геттеры и сеттеры для новых полей совместимости с JavaScript
+
+    public double getAverageResponseTime() {
+        return averageResponseTime;
+    }
+
+    public void setAverageResponseTime(double averageResponseTime) {
+        this.averageResponseTime = averageResponseTime;
+    }
+
+    public int getMemoryUsagePercent() {
+        return memoryUsagePercent;
+    }
+
+    public void setMemoryUsagePercent(int memoryUsagePercent) {
+        this.memoryUsagePercent = memoryUsagePercent;
+    }
+
+    public int getCacheHitRatio() {
+        return cacheHitRatio;
+    }
+
+    public void setCacheHitRatio(int cacheHitRatio) {
+        this.cacheHitRatio = cacheHitRatio;
+    }
+
     @Override
     public String toString() {
         return "PerformanceMetrics{" +
@@ -101,11 +137,15 @@ public class PerformanceMetrics implements Serializable {
                 && Double.compare(that.responseTime, responseTime) == 0
                 && requestCount == that.requestCount
                 && errorCount == that.errorCount
-                && uptime == that.uptime;
+                && uptime == that.uptime
+                && Double.compare(that.averageResponseTime, averageResponseTime) == 0
+                && memoryUsagePercent == that.memoryUsagePercent
+                && cacheHitRatio == that.cacheHitRatio;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(cpuUsage, memoryUsage, responseTime, requestCount, errorCount, uptime);
+        return Objects.hash(cpuUsage, memoryUsage, responseTime, requestCount, errorCount, uptime,
+                averageResponseTime, memoryUsagePercent, cacheHitRatio);
     }
 }

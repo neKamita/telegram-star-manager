@@ -22,7 +22,7 @@ services:
   # POSTGRESQL DATABASE
   # ============================================
   postgres:
-    image: postgres:15-alpine
+    image: postgres:16-alpine
     container_name: telegram-star-postgres
     restart: unless-stopped
     environment:

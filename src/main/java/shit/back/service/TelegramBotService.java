@@ -17,8 +17,6 @@ import shit.back.handler.CallbackHandler;
 import shit.back.handler.MessageHandler;
 import shit.back.entity.UserActivityLogEntity.ActionType;
 
-import jakarta.annotation.PostConstruct;
-
 @Service
 @Profile("!production")
 public class TelegramBotService extends TelegramLongPollingBot {
@@ -53,14 +51,17 @@ public class TelegramBotService extends TelegramLongPollingBot {
         return new DefaultBotOptions();
     }
 
-    @PostConstruct
+    /**
+     * Инициализация бота. Вызывается перед регистрацией в
+     * TelegramBotRegistrationService.
+     */
     public void init() {
         logger.info("🤖 Initializing Telegram Bot Service...");
 
         if (botToken == null || botToken.isBlank() || "YOUR_BOT_TOKEN_HERE".equals(botToken)
                 || "YOUR_BOT_TOKEN".equals(botToken)) {
             logger.warn("⚠️  Bot token not configured! Please set telegram.bot.token in application.properties");
-            logger.warn("⚠️  Bot registration will be handled by TelegramBotConfig.");
+            logger.warn("⚠️  Bot registration will be handled by TelegramBotRegistrationService.");
             botRegistered = false;
             botStatus = "Not configured - missing bot token";
             errorMessage = "Bot token not configured";
@@ -71,7 +72,8 @@ public class TelegramBotService extends TelegramLongPollingBot {
 
         botStatus = "Ready for registration";
         errorMessage = "";
-        logger.info("🚀 Telegram Bot Service initialized. Registration will be handled by TelegramBotConfig.");
+        logger.info(
+                "🚀 Telegram Bot Service initialized. Registration will be handled by TelegramBotRegistrationService.");
     }
 
     public void markAsRegistered() {

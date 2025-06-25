@@ -147,8 +147,9 @@ public class AuditAspect {
     /**
      * After advice для операций безопасности
      */
-    @AfterReturning(pointcut = "securityMethods()", returning = "result")
-    public void auditSecurityOperation(JoinPoint joinPoint, Object result) {
+    // Temporarily disabled to avoid recursion with SecurityContextManager.getCurrentUserId()
+    // @AfterReturning(pointcut = "securityMethods()", returning = "result")
+    public void auditSecurityOperationDisabled(JoinPoint joinPoint, Object result) {
         String methodName = getMethodSignature(joinPoint);
         String userId = getCurrentUserId();
 

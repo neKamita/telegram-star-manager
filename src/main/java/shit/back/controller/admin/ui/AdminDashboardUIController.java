@@ -186,14 +186,6 @@ public class AdminDashboardUIController implements AdminControllerOperations {
         }
     }
 
-    /**
-     * Страница управления заказами (перенаправление)
-     */
-    @GetMapping("/orders")
-    public String ordersPage() {
-        // Перенаправляем на новый UI контроллер заказов
-        return "redirect:/admin/orders";
-    }
 
     /**
      * Страница управления пользователями

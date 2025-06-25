@@ -57,10 +57,10 @@ public interface UserActivityLogJpaRepository extends JpaRepository<UserActivity
                      "(:toTime IS NULL OR a.timestamp <= :toTime) AND " +
                      "(:actionTypes IS NULL OR a.actionType IN :actionTypes) AND " +
                      "(:searchTerm IS NULL OR " +
-                     " LOWER(a.username) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
-                     " LOWER(a.firstName) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
-                     " LOWER(a.lastName) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
-                     " LOWER(a.orderId) LIKE LOWER(CONCAT('%', :searchTerm, '%'))) " +
+                     " LOWER(CAST(a.username AS string)) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
+                     " LOWER(CAST(a.firstName AS string)) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
+                     " LOWER(CAST(a.lastName AS string)) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
+                     " LOWER(CAST(a.orderId AS string)) LIKE LOWER(CONCAT('%', :searchTerm, '%'))) " +
                      "ORDER BY a.timestamp DESC")
        Page<UserActivityLogEntity> findWithFilters(
                      @Param("showAll") boolean showAll,
@@ -186,10 +186,10 @@ public interface UserActivityLogJpaRepository extends JpaRepository<UserActivity
                      "(:actionTypes IS NULL OR a.actionType IN :actionTypes) AND " +
                      "(:logCategories IS NULL OR a.logCategory IN :logCategories) AND " +
                      "(:searchTerm IS NULL OR " +
-                     " LOWER(a.username) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
-                     " LOWER(a.firstName) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
-                     " LOWER(a.lastName) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
-                     " LOWER(a.orderId) LIKE LOWER(CONCAT('%', :searchTerm, '%'))) " +
+                     " LOWER(CAST(a.username AS string)) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
+                     " LOWER(CAST(a.firstName AS string)) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
+                     " LOWER(CAST(a.lastName AS string)) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
+                     " LOWER(CAST(a.orderId AS string)) LIKE LOWER(CONCAT('%', :searchTerm, '%'))) " +
                      "ORDER BY a.timestamp DESC")
        Page<UserActivityLogEntity> findWithFiltersAndCategories(
                      @Param("showAll") boolean showAll,

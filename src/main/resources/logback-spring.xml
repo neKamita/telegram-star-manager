@@ -7,6 +7,24 @@
 
     <!-- Console Appender -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <!-- Filter out RMI/JMX noise -->
+        <filter class="ch.qos.logback.core.filter.EvaluatorFilter">
+            <evaluator>
+                <expression>
+                    logger.contains("sun.rmi") || 
+                    logger.contains("javax.management") ||
+                    logger.contains("RMI TCP Connection") ||
+                    message.contains("RMI TCP Connection") ||
+                    message.contains("codebase") ||
+                    message.contains("connectionId=rmi") ||
+                    message.contains("HeapMemoryUsage") ||
+                    message.contains("ProcessCpuLoad")
+                </expression>
+            </evaluator>
+            <onMismatch>NEUTRAL</onMismatch>
+            <onMatch>DENY</onMatch>
+        </filter>
+        
         <encoder>
             <pattern>${CONSOLE_LOG_PATTERN}</pattern>
             <charset>UTF-8</charset>
@@ -16,6 +34,25 @@
     <!-- File Appender для общих логов -->
     <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
         <file>logs/spring-boot-application.log</file>
+        
+        <!-- Same RMI filter for file -->
+        <filter class="ch.qos.logback.core.filter.EvaluatorFilter">
+            <evaluator>
+                <expression>
+                    logger.contains("sun.rmi") || 
+                    logger.contains("javax.management") ||
+                    logger.contains("RMI TCP Connection") ||
+                    message.contains("RMI TCP Connection") ||
+                    message.contains("codebase") ||
+                    message.contains("connectionId=rmi") ||
+                    message.contains("HeapMemoryUsage") ||
+                    message.contains("ProcessCpuLoad")
+                </expression>
+            </evaluator>
+            <onMismatch>NEUTRAL</onMismatch>
+            <onMatch>DENY</onMatch>
+        </filter>
+        
         <encoder>
             <pattern>${FILE_LOG_PATTERN}</pattern>
             <charset>UTF-8</charset>
@@ -90,6 +127,20 @@
         <appender-ref ref="CONSOLE"/>
         <appender-ref ref="FILE"/>
     </logger>
+
+    <!-- Silence RMI/JMX completely -->
+    <logger name="sun.rmi" level="OFF"/>
+    <logger name="javax.management" level="OFF"/>
+    <logger name="sun.rmi.loader" level="OFF"/>
+    <logger name="sun.rmi.transport" level="OFF"/>
+    <logger name="javax.management.remote" level="OFF"/>
+    <logger name="com.sun.jmx" level="OFF"/>
+    <logger name="sun.management" level="OFF"/>
+    
+    <!-- Отключение избыточных Tomcat DEBUG логов -->
+    <logger name="org.apache.tomcat" level="WARN"/>
+    <logger name="org.apache.catalina" level="WARN"/>
+    <logger name="com.zaxxer.hikari" level="WARN"/>
 
     <!-- Профиль для разработки -->
     <springProfile name="dev">

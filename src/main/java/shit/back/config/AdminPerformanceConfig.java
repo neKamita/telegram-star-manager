@@ -37,7 +37,8 @@ public class AdminPerformanceConfig {
 
         ConcurrentMapCacheManager cacheManager = new ConcurrentMapCacheManager(
                 "admin_performance",
-                "admin_recent_activity");
+                "admin_recent_activity",
+                "systemHealth");
         cacheManager.setAllowNullValues(false);
 
         log.info("Admin cache manager configured with {} cache regions",

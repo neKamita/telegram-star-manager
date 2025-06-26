@@ -34,6 +34,14 @@ public class AdminAuthenticationService {
             "/admin/api/dashboard/activity-statistics",
             "/admin/api/dashboard/refresh-cache",
             "/admin/api/dashboard/activity-stream",
+            "/admin/api/dashboard/activity-stream-categorized",
+
+            // ИСПРАВЛЕНИЕ: Новые SSE endpoints без /dashboard префикса
+            "/admin/api/activity-stream",
+            "/admin/api/activity-stream-categorized",
+            "/admin/api/category-statistics",
+            "/admin/api/activity-logs-by-category",
+
             // ИСПРАВЛЕНИЕ SSE: Добавляем SSE endpoints для мониторинга
             "/admin/api/metrics/stream",
             "/admin/api/metrics/current",

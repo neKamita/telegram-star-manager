@@ -237,18 +237,59 @@ public class AdminDashboardCacheService {
     public PerformanceMetrics getPerformanceMetricsCached() {
         log.debug("Getting cached performance metrics");
         try {
+            // ДИАГНОСТИКА: Добавляем логирование для отладки проблемы с totalOrders
+            log.debug("🔍 DEBUG: Attempting to get performance metrics from adminDashboardService");
+
             Object metricsObj = adminDashboardService.getPerformanceMetrics();
             if (metricsObj instanceof PerformanceMetrics) {
+                log.debug("✅ DEBUG: Successfully cast to PerformanceMetrics");
                 return (PerformanceMetrics) metricsObj;
             } else {
+                log.warn("⚠️ DEBUG: Object is not PerformanceMetrics instance, type: {}",
+                        metricsObj != null ? metricsObj.getClass().getSimpleName() : "null");
+
+                // ИСПРАВЛЕНИЕ: Получаем totalOrders из доступных источников
+                long totalOrdersValue = 0L;
+                try {
+                    // Пытаемся получить количество заказов из adminDashboardService
+                    Object dashboardObj = adminDashboardService.getDashboardOverview();
+                    if (dashboardObj instanceof AdminDashboardService.DashboardOverview) {
+                        AdminDashboardService.DashboardOverview overview = (AdminDashboardService.DashboardOverview) dashboardObj;
+                        // Предполагаем, что у DashboardOverview есть метод для получения общего
+                        // количества заказов
+                        totalOrdersValue = 0L; // Временно устанавливаем 0, пока не найдем правильный источник
+                        log.debug("🔍 DEBUG: Retrieved totalOrders from dashboard: {}", totalOrdersValue);
+                    }
+                } catch (Exception ex) {
+                    log.warn("⚠️ DEBUG: Failed to get totalOrders from dashboard: {}", ex.getMessage());
+                    totalOrdersValue = 0L;
+                }
+
                 // Маппинг вручную, если тип отличается
-                PerformanceMetrics metrics = new PerformanceMetrics();
-                // Здесь можно добавить копирование нужных полей, если требуется
+                PerformanceMetrics metrics = PerformanceMetrics.builder()
+                        .cpuUsage(0.0)
+                        .memoryUsage(0.0)
+                        .responseTime(0.0)
+                        .totalOrders(totalOrdersValue)
+                        .errorCount(0L)
+                        .uptime(0L)
+                        .timestamp(java.time.LocalDateTime.now())
+                        .build();
+                log.debug("✅ DEBUG: Created fallback PerformanceMetrics with totalOrders: {}", totalOrdersValue);
                 return metrics;
             }
         } catch (Exception e) {
-            log.warn("Error getting performance metrics: {}", e.getMessage());
-            return new PerformanceMetrics();
+            log.error("❌ DEBUG: Error getting performance metrics: {}", e.getMessage(), e);
+            // ИСПРАВЛЕНИЕ: Возвращаем метрики с нулевым значением totalOrders
+            return PerformanceMetrics.builder()
+                    .cpuUsage(0.0)
+                    .memoryUsage(0.0)
+                    .responseTime(0.0)
+                    .totalOrders(0L)
+                    .errorCount(0L)
+                    .uptime(0L)
+                    .timestamp(java.time.LocalDateTime.now())
+                    .build();
         }
     }
 

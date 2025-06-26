@@ -7,7 +7,6 @@ import org.springframework.core.env.Environment;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import shit.back.controller.admin.shared.AdminControllerOperations;
 import shit.back.service.AdminDashboardService;
 import shit.back.service.AdminDashboardCacheService;
@@ -22,7 +21,6 @@ import shit.back.service.admin.shared.AdminSecurityHelper;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
 import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -424,43 +422,8 @@ public class AdminDashboardApiController implements AdminControllerOperations {
         }
     }
 
-    /**
-     * Server-Sent Events для real-time activity stream
-     */
-    @GetMapping(value = "/activity-stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public SseEmitter getActivityStream(HttpServletRequest request) {
-        try {
-            // Аутентификация
-            if (!adminAuthenticationService.validateApiRequest(request)) {
-                SseEmitter emitter = new SseEmitter(0L);
-                try {
-                    emitter.completeWithError(new RuntimeException("Unauthorized"));
-                } catch (Exception ex) {
-                    log.error("Error completing SSE with unauthorized error", ex);
-                }
-                return emitter;
-            }
-
-            String clientId = "admin-api-" + UUID.randomUUID().toString().substring(0, 8);
-            log.info("API: Creating SSE connection for activity stream: {}", clientId);
-
-            // Логирование подключения
-            adminSecurityHelper.logAdminActivity(request, "API_SSE_CONNECT",
-                    "Подключение к потоку активности через SSE: " + clientId);
-
-            return userActivityLogService.createSseConnection(clientId);
-
-        } catch (Exception e) {
-            log.error("API: Error creating activity stream SSE connection", e);
-            SseEmitter emitter = new SseEmitter(0L);
-            try {
-                emitter.completeWithError(e);
-            } catch (Exception ex) {
-                log.error("API: Error completing SSE with error", ex);
-            }
-            return emitter;
-        }
-    }
+    // ИСПРАВЛЕНИЕ: SSE методы перенесены в AdminActivityStreamController
+    // для правильного URL mapping без /dashboard префикса
 
     // Вспомогательные методы
 

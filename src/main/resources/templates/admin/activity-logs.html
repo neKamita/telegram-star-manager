@@ -39,6 +39,384 @@
         .stats-card:hover {
             transform: translateY(-2px);
         }
+        
+        /* Стили для таблицы исторических активностей */
+        .historical-activities-table {
+            table-layout: auto; /* Изменено с fixed на auto для гибкости */
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 1200px; /* Минимальная ширина таблицы */
+        }
+        
+        .historical-activities-table th:nth-child(1) { width: 10%; min-width: 120px; } /* Время */
+        .historical-activities-table th:nth-child(2) { width: 12%; min-width: 140px; } /* Категория */
+        .historical-activities-table th:nth-child(3) { width: 13%; min-width: 150px; } /* Пользователь */
+        .historical-activities-table th:nth-child(4) { width: 11%; min-width: 130px; } /* Действие */
+        .historical-activities-table th:nth-child(5) { width: 40%; min-width: 400px; } /* Детали - основная колонка */
+        .historical-activities-table th:nth-child(6) { width: 14%; min-width: 160px; } /* Заказ */
+        
+        .activity-description {
+            word-wrap: break-word;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            hyphens: auto;
+            white-space: normal;
+            line-height: 1.4;
+            max-width: 100%;
+        }
+        
+        .historical-activities-table td {
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            word-break: break-word;
+            white-space: normal;
+            vertical-align: top;
+            padding: 0.75rem;
+        }
+        
+        .historical-activities-table td:nth-child(5) {
+            position: relative;
+            max-width: 500px; /* Максимальная ширина для колонки детали */
+        }
+        
+        /* Улучшенный контейнер для горизонтального скроллинга */
+        .table-responsive {
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            border: 1px solid var(--bs-border-color, #dee2e6);
+            border-radius: 0.375rem;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        }
+        
+        /* Исправление для badge элементов - переносы длинного текста */
+        .historical-activities-table .badge {
+            text-wrap: wrap;
+            word-wrap: break-word;
+            word-break: break-word;
+            overflow-wrap: break-word;
+            white-space: normal;
+            line-height: 1.3;
+        }
+        
+        .description-text {
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            line-height: 1.4;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            word-break: break-word;
+            white-space: normal;
+        }
+        
+        .description-text.expanding {
+            animation: expandText 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        
+        .description-text.collapsing {
+            animation: collapseText 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        
+        @keyframes expandText {
+            from {
+                opacity: 0.8;
+                transform: scale(0.98);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+        
+        @keyframes collapseText {
+            from {
+                opacity: 1;
+                transform: scale(1);
+            }
+            to {
+                opacity: 0.8;
+                transform: scale(0.98);
+            }
+        }
+        
+        .description-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.3rem;
+            padding: 0.2rem 0.6rem;
+            margin: 0.25rem 0 0 0;
+            border: none;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 0.7rem;
+            font-weight: 500;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            position: relative;
+            overflow: hidden;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .description-toggle::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+            transition: left 0.4s ease;
+        }
+        
+        .description-toggle:hover::before {
+            left: 100%;
+        }
+        
+        .description-toggle:hover {
+            transform: translateY(-1px) scale(1.02);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+        }
+        
+        .description-toggle:active {
+            transform: translateY(0) scale(1);
+            box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
+        }
+        
+        .description-toggle:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
+        }
+        
+        .description-toggle i {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            font-size: 0.65rem;
+            opacity: 0.9;
+        }
+        
+        .description-toggle[aria-expanded="true"] {
+            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+        }
+        
+        .description-toggle[aria-expanded="true"]:hover {
+            background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
+            box-shadow: 0 4px 12px rgba(72, 187, 120, 0.4);
+        }
+        
+        .description-toggle[aria-expanded="true"] i {
+            transform: rotate(180deg);
+        }
+        
+        .description-toggle-text {
+            transition: all 0.2s ease;
+            font-weight: 600;
+        }
+        
+        /* Адаптивность для мобильных устройств */
+        @media (max-width: 1400px) {
+            .historical-activities-table {
+                min-width: 1000px;
+            }
+            
+            .historical-activities-table th:nth-child(5) {
+                width: 35%;
+                min-width: 350px;
+            }
+        }
+        
+        @media (max-width: 1200px) {
+            .historical-activities-table {
+                min-width: 900px;
+                font-size: 0.9rem;
+            }
+            
+            .historical-activities-table th:nth-child(1) { width: 9%; min-width: 100px; }
+            .historical-activities-table th:nth-child(2) { width: 12%; min-width: 120px; }
+            .historical-activities-table th:nth-child(3) { width: 13%; min-width: 130px; }
+            .historical-activities-table th:nth-child(4) { width: 11%; min-width: 110px; }
+            .historical-activities-table th:nth-child(5) { width: 42%; min-width: 300px; }
+            .historical-activities-table th:nth-child(6) { width: 13%; min-width: 140px; }
+            
+            .historical-activities-table td:nth-child(5) {
+                max-width: 400px;
+            }
+            
+            .description-toggle {
+                font-size: 0.65rem;
+                padding: 0.15rem 0.5rem;
+                gap: 0.25rem;
+                border-radius: 10px;
+            }
+        }
+        
+        @media (max-width: 992px) {
+            .historical-activities-table {
+                min-width: 800px;
+                font-size: 0.85rem;
+            }
+            
+            .historical-activities-table th:nth-child(1) { width: 8%; min-width: 90px; }
+            .historical-activities-table th:nth-child(2) { width: 12%; min-width: 110px; }
+            .historical-activities-table th:nth-child(3) { width: 13%; min-width: 120px; }
+            .historical-activities-table th:nth-child(4) { width: 11%; min-width: 100px; }
+            .historical-activities-table th:nth-child(5) { width: 44%; min-width: 280px; }
+            .historical-activities-table th:nth-child(6) { width: 12%; min-width: 130px; }
+            
+            .historical-activities-table td:nth-child(5) {
+                max-width: 350px;
+            }
+            
+            .historical-activities-table td {
+                padding: 0.5rem;
+            }
+            
+            .description-toggle {
+                font-size: 0.6rem;
+                padding: 0.12rem 0.4rem;
+                gap: 0.2rem;
+                border-radius: 8px;
+                margin: 0.2rem 0 0 0;
+            }
+            
+            .description-toggle i {
+                font-size: 0.55rem;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .historical-activities-table {
+                min-width: 700px;
+                font-size: 0.8rem;
+            }
+            
+            .historical-activities-table th:nth-child(1) { width: 7%; min-width: 80px; }
+            .historical-activities-table th:nth-child(2) { width: 12%; min-width: 100px; }
+            .historical-activities-table th:nth-child(3) { width: 13%; min-width: 110px; }
+            .historical-activities-table th:nth-child(4) { width: 10%; min-width: 90px; }
+            .historical-activities-table th:nth-child(5) { width: 46%; min-width: 250px; }
+            .historical-activities-table th:nth-child(6) { width: 12%; min-width: 120px; }
+            
+            .historical-activities-table td:nth-child(5) {
+                max-width: 300px;
+            }
+            
+            .historical-activities-table td {
+                padding: 0.4rem;
+            }
+            
+            .description-toggle {
+                font-size: 0.55rem;
+                padding: 0.08rem 0.3rem;
+                gap: 0.15rem;
+                border-radius: 6px;
+                margin: 0.15rem 0 0 0;
+            }
+            
+            .description-toggle i {
+                font-size: 0.5rem;
+            }
+            
+            .description-text {
+                line-height: 1.3;
+            }
+        }
+        
+        @media (max-width: 576px) {
+            .historical-activities-table {
+                min-width: 600px;
+                font-size: 0.75rem;
+            }
+            
+            .historical-activities-table th:nth-child(1) { width: 6%; min-width: 70px; }
+            .historical-activities-table th:nth-child(2) { width: 11%; min-width: 90px; }
+            .historical-activities-table th:nth-child(3) { width: 13%; min-width: 100px; }
+            .historical-activities-table th:nth-child(4) { width: 9%; min-width: 80px; }
+            .historical-activities-table th:nth-child(5) { width: 49%; min-width: 220px; }
+            .historical-activities-table th:nth-child(6) { width: 12%; min-width: 110px; }
+            
+            .historical-activities-table td:nth-child(5) {
+                max-width: 280px;
+            }
+            
+            .historical-activities-table td {
+                padding: 0.3rem;
+            }
+            
+            .description-toggle {
+                font-size: 0.55rem;
+                padding: 0.08rem 0.2rem;
+                margin-left: 0.15rem;
+                border-radius: 3px;
+            }
+            
+            .description-toggle i {
+                font-size: 0.5rem;
+            }
+            
+            .description-text {
+                line-height: 1.25;
+            }
+        }
+        
+        /* Особые стили для очень маленьких экранов */
+        @media (max-width: 480px) {
+            .table-responsive {
+                border: 1px solid var(--bs-border-color, #dee2e6);
+                border-radius: 8px;
+                background: white;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+            
+            .historical-activities-table {
+                min-width: 550px;
+                margin-bottom: 0;
+                background: white;
+                font-size: 0.7rem;
+            }
+            
+            .historical-activities-table th:nth-child(1) { width: 5%; min-width: 60px; }
+            .historical-activities-table th:nth-child(2) { width: 10%; min-width: 80px; }
+            .historical-activities-table th:nth-child(3) { width: 12%; min-width: 90px; }
+            .historical-activities-table th:nth-child(4) { width: 8%; min-width: 70px; }
+            .historical-activities-table th:nth-child(5) { width: 53%; min-width: 200px; }
+            .historical-activities-table th:nth-child(6) { width: 12%; min-width: 100px; }
+            
+            .historical-activities-table td:nth-child(5) {
+                max-width: 250px;
+            }
+            
+            .historical-activities-table td {
+                padding: 0.25rem;
+            }
+            
+            .description-toggle {
+                display: block;
+                width: 100%;
+                text-align: center;
+                margin: 0.2rem 0 0 0;
+                font-size: 0.5rem;
+                padding: 0.06rem 0.2rem;
+                border-radius: 8px;
+                gap: 0.1rem;
+            }
+            
+            .description-toggle i {
+                font-size: 0.45rem;
+            }
+            
+            .activity-description {
+                display: flex;
+                flex-direction: column;
+            }
+            
+            .description-text {
+                line-height: 1.2;
+                font-size: 0.65rem;
+            }
+        }
     </style>
 </head>
 <body>
@@ -315,7 +693,7 @@
         </div>
         <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-striped table-hover">
+                <table class="table table-striped table-hover historical-activities-table">
                     <thead>
                         <tr>
                             <th>Время</th>
@@ -351,7 +729,25 @@
                                 <span th:text="${activity.actionDisplayName}" class="badge bg-primary">Action</span>
                                 <span th:if="${activity.isKeyAction}" class="badge bg-warning ms-1">КЛЮЧ</span>
                             </td>
-                            <td th:text="${activity.actionDescription}">Description</td>
+                            <td>
+                                <div class="activity-description">
+                                    <div class="description-text"
+                                         th:data-full-text="${activity.actionDescription}"
+                                         th:data-short-text="${#strings.length(activity.actionDescription) > 100 ? #strings.substring(activity.actionDescription, 0, 100) + '...' : activity.actionDescription}"
+                                         data-expanded="false"
+                                         th:text="${#strings.length(activity.actionDescription) > 100 ? #strings.substring(activity.actionDescription, 0, 100) + '...' : activity.actionDescription}">
+                                        Description
+                                    </div>
+                                    <button th:if="${#strings.length(activity.actionDescription) > 100}"
+                                            class="description-toggle"
+                                            onclick="toggleDescription(this)"
+                                            aria-expanded="false"
+                                            title="Показать полное описание">
+                                        <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                                        <span class="description-toggle-text">Показать больше</span>
+                                    </button>
+                                </div>
+                            </td>
                             <td>
                                 <span th:if="${activity.orderId}" th:text="${activity.orderDisplayInfo}">Order</span>
                                 <span th:unless="${activity.orderId}" class="text-muted">-</span>
@@ -413,6 +809,9 @@
             setTimeout(() => {
                 loadHistoricalData(currentCategory);
             }, 100);
+            
+            // Инициализация статических кнопок toggle в таблице
+            initializeStaticToggleButtons();
         });
         
         function loadPreferences() {
@@ -900,6 +1299,109 @@
                 const row = createHistoricalActivityRow(activity);
                 tableBody.appendChild(row);
             });
+            
+            // Инициализируем кнопки toggle для новых строк
+            initializeStaticToggleButtons();
+        }
+        
+        /**
+         * Обрабатывает длинный текст для показа/скрытия
+         */
+        function processDescriptionText(text, maxLength = 100) {
+            if (!text || text.length <= maxLength) {
+                return { short: text || '', full: text || '', needsToggle: false };
+            }
+            
+            const shortText = text.substring(0, maxLength) + '...';
+            return { short: shortText, full: text, needsToggle: true };
+        }
+        
+        /**
+         * Инициализирует кнопки toggle для статической таблицы
+         */
+        function initializeStaticToggleButtons() {
+            // Находим все кнопки toggle в статической таблице
+            const staticButtons = document.querySelectorAll('.historical-activities-table .description-toggle');
+            console.log(`Найдено ${staticButtons.length} статических кнопок toggle`);
+            
+            staticButtons.forEach(button => {
+                // Проверяем, что кнопка еще не инициализирована
+                if (!button.hasAttribute('data-initialized')) {
+                    button.setAttribute('data-initialized', 'true');
+                    
+                    // Убираем inline onclick и добавляем event listener
+                    button.removeAttribute('onclick');
+                    button.addEventListener('click', function() {
+                        toggleDescription(this);
+                    });
+                    
+                    // Обеспечиваем правильную структуру кнопки для старых кнопок
+                    if (!button.querySelector('i')) {
+                        const icon = document.createElement('i');
+                        icon.className = 'fas fa-chevron-down';
+                        icon.setAttribute('aria-hidden', 'true');
+                        
+                        const textSpan = document.createElement('span');
+                        textSpan.className = 'description-toggle-text';
+                        textSpan.textContent = button.textContent.trim();
+                        
+                        button.innerHTML = '';
+                        button.appendChild(icon);
+                        button.appendChild(textSpan);
+                    }
+                }
+            });
+        }
+        
+        /**
+         * Переключает отображение полного/сокращенного текста с анимациями
+         */
+        function toggleDescription(button) {
+            const textDiv = button.previousElementSibling;
+            const fullText = textDiv.dataset.fullText;
+            const shortText = textDiv.dataset.shortText;
+            const isExpanded = textDiv.dataset.expanded === 'true';
+            const icon = button.querySelector('i');
+            const textSpan = button.querySelector('.description-toggle-text');
+            
+            // Добавляем анимацию
+            textDiv.classList.remove('expanding', 'collapsing');
+            textDiv.classList.add(isExpanded ? 'collapsing' : 'expanding');
+            
+            if (isExpanded) {
+                // Сворачиваем
+                setTimeout(() => {
+                    textDiv.textContent = shortText;
+                }, 200);
+                textDiv.dataset.expanded = 'false';
+                
+                // Обновляем кнопку
+                if (textSpan) textSpan.textContent = 'Показать больше';
+                if (icon) {
+                    icon.className = 'fas fa-chevron-down';
+                }
+                button.setAttribute('aria-expanded', 'false');
+                button.title = 'Показать полное описание';
+            } else {
+                // Разворачиваем
+                setTimeout(() => {
+                    textDiv.textContent = fullText;
+                }, 200);
+                textDiv.dataset.expanded = 'true';
+                
+                // Обновляем кнопку
+                if (textSpan) textSpan.textContent = 'Показать меньше';
+                if (icon) {
+                    icon.className = 'fas fa-chevron-up';
+                }
+                button.setAttribute('aria-expanded', 'true');
+                button.title = 'Скрыть полное описание';
+            }
+            
+            // Убираем классы анимации после завершения
+            setTimeout(() => {
+                textDiv.classList.remove('expanding', 'collapsing');
+            }, 400);
         }
         
         /**
@@ -932,6 +1434,34 @@
             const orderInfo = orderId ? activity.orderDisplayInfo || `Заказ #${orderId}` : '-';
             const username = activity.username ? `<small class="text-muted">@${activity.username}</small>` : '';
             
+            // Обработка длинного описания
+            const description = actionDescription || 'Нет описания';
+            const processedDescription = processDescriptionText(description, 100);
+            
+            // Создаем HTML для колонки с описанием
+            let descriptionHtml = '';
+            if (processedDescription.needsToggle) {
+                descriptionHtml = `
+                    <div class="activity-description">
+                        <div class="description-text"
+                             data-full-text="${processedDescription.full.replace(/"/g, '&quot;')}"
+                             data-short-text="${processedDescription.short.replace(/"/g, '&quot;')}"
+                             data-expanded="false">
+                            ${processedDescription.short}
+                        </div>
+                        <button class="description-toggle"
+                                onclick="toggleDescription(this)"
+                                aria-expanded="false"
+                                title="Показать полное описание">
+                            <i class="fas fa-chevron-down" aria-hidden="true"></i>
+                            <span class="description-toggle-text">Показать больше</span>
+                        </button>
+                    </div>
+                `;
+            } else {
+                descriptionHtml = `<div class="activity-description">${description}</div>`;
+            }
+            
             row.innerHTML = `
                 <td>
                     <span class="badge bg-secondary">${formattedTimestamp || 'Недавно'}</span>
@@ -945,7 +1475,7 @@
                     <span class="badge bg-primary">${activity.actionDisplayName || actionDescription}</span>
                     ${keyBadge}
                 </td>
-                <td>${actionDescription || 'Нет описания'}</td>
+                <td>${descriptionHtml}</td>
                 <td>
                     <span class="${orderId ? '' : 'text-muted'}">${orderInfo}</span>
                 </td>

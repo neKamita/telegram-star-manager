@@ -89,16 +89,20 @@ public class AdminAnalyticsService {
 
         // Маппинг бизнесовых метрик в технические (заглушка, т.к. структура классов не
         // совпадает)
-        // Здесь можно реализовать преобразование или вернуть фиктивные значения, если
-        // нет данных
-        return new shit.back.dto.monitoring.PerformanceMetrics(
-                0.0, // cpuUsage
-                0.0, // memoryUsage
-                0.0, // responseTime
-                totalOrders, // requestCount
-                0, // errorCount
-                0 // uptime
-        );
+        // ИСПРАВЛЕНИЕ: Используем Builder паттерн вместо неправильного конструктора
+        log.debug("🔍 DEBUG: Creating PerformanceMetrics with totalOrders: {}", totalOrders);
+
+        return shit.back.dto.monitoring.PerformanceMetrics.builder()
+                .cpuUsage(0.0)
+                .memoryUsage(0.0)
+                .responseTime(0.0)
+                .requestCount(totalOrders) // используем totalOrders как requestCount
+                .totalOrders(totalOrders)
+                .errorCount(0L)
+                .uptime(0L)
+                .timestamp(LocalDateTime.now())
+                .source("AdminAnalyticsService")
+                .build();
     }
 
     /**

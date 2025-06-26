@@ -29,13 +29,13 @@ public class UserActivityLogEntity {
     @Column(name = "user_id", nullable = false)
     private Long userId;
 
-    @Column(name = "username", length = 100)
+    @Column(name = "username", length = 100, columnDefinition = "VARCHAR(100)")
     private String username;
 
-    @Column(name = "first_name", length = 100)
+    @Column(name = "first_name", length = 100, columnDefinition = "VARCHAR(100)")
     private String firstName;
 
-    @Column(name = "last_name", length = 100)
+    @Column(name = "last_name", length = 100, columnDefinition = "VARCHAR(100)")
     private String lastName;
 
     @Enumerated(EnumType.STRING)
@@ -49,11 +49,10 @@ public class UserActivityLogEntity {
     @Column(name = "action_description", length = 500)
     private String actionDescription;
 
-    @Lob
-    @Column(name = "action_details")
+    @Column(name = "action_details", columnDefinition = "TEXT")
     private String actionDetails; // JSON с дополнительными данными
 
-    @Column(name = "order_id", length = 8)
+    @Column(name = "order_id", length = 8, columnDefinition = "VARCHAR(8)")
     private String orderId;
 
     @Column(name = "order_amount", precision = 10, scale = 2)

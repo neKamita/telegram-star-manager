@@ -37,7 +37,7 @@ public class ApiKeyAuthFilter implements Filter {
     private static final String[] ADMIN_INTERNAL_ENDPOINTS = {
             "/admin/api/dashboard/", "/admin/api/system-health", "/admin/api/dashboard-data",
             "/admin/api/recent-activity", "/admin/api/quick-stats", "/admin/api/activity-statistics",
-            "/admin/api/refresh-cache", "/admin/api/activity-stream",
+            "/admin/api/refresh-cache", "/admin/api/activity-stream", "/admin/api/activity-stream-categorized",
             // ИСПРАВЛЕНИЕ SSE: Добавляем SSE endpoints для мониторинга
             "/admin/api/metrics/stream", "/admin/api/metrics/current", "/admin/api/metrics/health",
             "/admin/api/metrics/stats", "/admin/api/metrics/test-connection",

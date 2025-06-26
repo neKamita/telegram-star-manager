@@ -50,17 +50,13 @@ public interface UserActivityLogJpaRepository extends JpaRepository<UserActivity
 
        List<UserActivityLogEntity> findByActionTypeInOrderByTimestampDesc(List<ActionType> actionTypes);
 
-       // Поиск с фильтрами
+       // ВРЕМЕННОЕ ИСПРАВЛЕНИЕ: Упрощенный запрос без поиска по тексту для устранения
+       // ошибки bytea
        @Query("SELECT a FROM UserActivityLogEntity a WHERE " +
                      "(:showAll = true OR a.isKeyAction = true) AND " +
                      "(:fromTime IS NULL OR a.timestamp >= :fromTime) AND " +
                      "(:toTime IS NULL OR a.timestamp <= :toTime) AND " +
-                     "(:actionTypes IS NULL OR a.actionType IN :actionTypes) AND " +
-                     "(:searchTerm IS NULL OR " +
-                     " LOWER(CAST(a.username AS string)) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
-                     " LOWER(CAST(a.firstName AS string)) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
-                     " LOWER(CAST(a.lastName AS string)) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
-                     " LOWER(CAST(a.orderId AS string)) LIKE LOWER(CONCAT('%', :searchTerm, '%'))) " +
+                     "(:actionTypes IS NULL OR a.actionType IN :actionTypes) " +
                      "ORDER BY a.timestamp DESC")
        Page<UserActivityLogEntity> findWithFilters(
                      @Param("showAll") boolean showAll,
@@ -178,18 +174,14 @@ public interface UserActivityLogJpaRepository extends JpaRepository<UserActivity
                      @Param("logCategory") LogCategory logCategory,
                      @Param("fromTime") LocalDateTime fromTime);
 
-       // Комбинированный поиск с фильтрами по категориям
+       // ВРЕМЕННОЕ ИСПРАВЛЕНИЕ: Упрощенный запрос без поиска по тексту для избежания
+       // ошибки bytea
        @Query("SELECT a FROM UserActivityLogEntity a WHERE " +
                      "(:showAll = true OR a.isKeyAction = true) AND " +
                      "(:fromTime IS NULL OR a.timestamp >= :fromTime) AND " +
                      "(:toTime IS NULL OR a.timestamp <= :toTime) AND " +
                      "(:actionTypes IS NULL OR a.actionType IN :actionTypes) AND " +
-                     "(:logCategories IS NULL OR a.logCategory IN :logCategories) AND " +
-                     "(:searchTerm IS NULL OR " +
-                     " LOWER(CAST(a.username AS string)) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
-                     " LOWER(CAST(a.firstName AS string)) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
-                     " LOWER(CAST(a.lastName AS string)) LIKE LOWER(CONCAT('%', :searchTerm, '%')) OR " +
-                     " LOWER(CAST(a.orderId AS string)) LIKE LOWER(CONCAT('%', :searchTerm, '%'))) " +
+                     "(:logCategories IS NULL OR a.logCategory IN :logCategories) " +
                      "ORDER BY a.timestamp DESC")
        Page<UserActivityLogEntity> findWithFiltersAndCategories(
                      @Param("showAll") boolean showAll,

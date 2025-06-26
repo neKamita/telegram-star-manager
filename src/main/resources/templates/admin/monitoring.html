@@ -634,11 +634,25 @@
                 lastUpdateEl.textContent = new Date().toLocaleTimeString('ru-RU') + ' (SSE)';
             }
             
-            // Обновляем новые Database & Cache метрики
-            if (metrics.dbPoolUsage !== undefined) {
+            // ДИАГНОСТИКА Database & Cache метрики - ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ
+            console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: === АНАЛИЗ DATABASE & CACHE ПОЛЕЙ ===');
+            console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: dbPoolUsage field in metrics:',
+                'dbPoolUsage' in metrics, 'value:', metrics.dbPoolUsage, 'type:', typeof metrics.dbPoolUsage);
+            console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: cacheMissRatio field in metrics:',
+                'cacheMissRatio' in metrics, 'value:', metrics.cacheMissRatio, 'type:', typeof metrics.cacheMissRatio);
+            console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: activeDbConnections field in metrics:',
+                'activeDbConnections' in metrics, 'value:', metrics.activeDbConnections, 'type:', typeof metrics.activeDbConnections);
+
+            // Обновляем новые Database & Cache метрики с диагностикой
+            if (metrics.dbPoolUsage !== undefined && metrics.dbPoolUsage !== null) {
+                console.log('✅ ДИАГНОСТИКА DB&CACHE JS: dbPoolUsage найден, значение:', metrics.dbPoolUsage);
                 const dbPoolUsageEl = document.getElementById('db-pool-usage');
+                console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: db-pool-usage элемент найден:', !!dbPoolUsageEl);
+                
                 if (dbPoolUsageEl) {
-                    dbPoolUsageEl.textContent = metrics.dbPoolUsage + '%';
+                    const displayValue = metrics.dbPoolUsage + '%';
+                    dbPoolUsageEl.textContent = displayValue;
+                    console.log('✅ ДИАГНОСТИКА DB&CACHE JS: db-pool-usage обновлен на:', displayValue);
                     
                     // Мигание индикатора обновления
                     const dbPoolIndicator = document.getElementById('db-pool-indicator');
@@ -657,13 +671,22 @@
                     } else {
                         dbPoolUsageEl.style.color = '#007bff'; // Синий
                     }
+                } else {
+                    console.error('❌ ДИАГНОСТИКА DB&CACHE JS: db-pool-usage элемент не найден в DOM!');
                 }
+            } else {
+                console.warn('⚠️ ДИАГНОСТИКА DB&CACHE JS: dbPoolUsage НЕ НАЙДЕН в metrics или undefined');
             }
             
-            if (metrics.cacheMissRatio !== undefined) {
+            if (metrics.cacheMissRatio !== undefined && metrics.cacheMissRatio !== null) {
+                console.log('✅ ДИАГНОСТИКА DB&CACHE JS: cacheMissRatio найден, значение:', metrics.cacheMissRatio);
                 const cacheMissRatioEl = document.getElementById('cache-miss-ratio');
+                console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: cache-miss-ratio элемент найден:', !!cacheMissRatioEl);
+                
                 if (cacheMissRatioEl) {
-                    cacheMissRatioEl.textContent = metrics.cacheMissRatio + '%';
+                    const displayValue = metrics.cacheMissRatio + '%';
+                    cacheMissRatioEl.textContent = displayValue;
+                    console.log('✅ ДИАГНОСТИКА DB&CACHE JS: cache-miss-ratio обновлен на:', displayValue);
                     
                     // Мигание индикатора обновления
                     const cacheMissIndicator = document.getElementById('cache-miss-indicator');
@@ -682,13 +705,22 @@
                     } else {
                         cacheMissRatioEl.style.color = '#dc3545'; // Красный
                     }
+                } else {
+                    console.error('❌ ДИАГНОСТИКА DB&CACHE JS: cache-miss-ratio элемент не найден в DOM!');
                 }
+            } else {
+                console.warn('⚠️ ДИАГНОСТИКА DB&CACHE JS: cacheMissRatio НЕ НАЙДЕН в metrics или undefined');
             }
             
-            if (metrics.activeDbConnections !== undefined) {
+            if (metrics.activeDbConnections !== undefined && metrics.activeDbConnections !== null) {
+                console.log('✅ ДИАГНОСТИКА DB&CACHE JS: activeDbConnections найден, значение:', metrics.activeDbConnections);
                 const activeDbConnectionsEl = document.getElementById('active-db-connections');
+                console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: active-db-connections элемент найден:', !!activeDbConnectionsEl);
+                
                 if (activeDbConnectionsEl) {
-                    activeDbConnectionsEl.textContent = metrics.activeDbConnections;
+                    const displayValue = metrics.activeDbConnections.toString();
+                    activeDbConnectionsEl.textContent = displayValue;
+                    console.log('✅ ДИАГНОСТИКА DB&CACHE JS: active-db-connections обновлен на:', displayValue);
                     
                     // Мигание индикатора обновления
                     const dbConnectionsIndicator = document.getElementById('db-connections-indicator');
@@ -707,8 +739,14 @@
                     } else {
                         activeDbConnectionsEl.style.color = '#17a2b8'; // Синий
                     }
+                } else {
+                    console.error('❌ ДИАГНОСТИКА DB&CACHE JS: active-db-connections элемент не найден в DOM!');
                 }
+            } else {
+                console.warn('⚠️ ДИАГНОСТИКА DB&CACHE JS: activeDbConnections НЕ НАЙДЕН в metrics или undefined');
             }
+            
+            console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: === КОНЕЦ АНАЛИЗА DATABASE & CACHE ===');
             
             // Обновление Redis статуса из SSE данных
             if (typeof metrics.redis_healthy !== 'undefined') {
@@ -1046,16 +1084,16 @@
                     const cacheMissRatioEl = document.getElementById('cache-miss-ratio');
                     const activeDbConnectionsEl = document.getElementById('active-db-connections');
                     
-                    if (dbPoolUsageEl && data.dbPoolUsage !== undefined) {
+                    if (dbPoolUsageEl && data.dbPoolUsage !== undefined && data.dbPoolUsage !== null) {
                         dbPoolUsageEl.textContent = data.dbPoolUsage + '%';
                         console.log('✅ Fast endpoint DB pool usage updated:', data.dbPoolUsage + '%');
                     }
-                    if (cacheMissRatioEl && data.cacheMissRatio !== undefined) {
+                    if (cacheMissRatioEl && data.cacheMissRatio !== undefined && data.cacheMissRatio !== null) {
                         cacheMissRatioEl.textContent = data.cacheMissRatio + '%';
                         console.log('✅ Fast endpoint cache miss ratio updated:', data.cacheMissRatio + '%');
                     }
-                    if (activeDbConnectionsEl && data.activeDbConnections !== undefined) {
-                        activeDbConnectionsEl.textContent = data.activeDbConnections;
+                    if (activeDbConnectionsEl && data.activeDbConnections !== undefined && data.activeDbConnections !== null) {
+                        activeDbConnectionsEl.textContent = data.activeDbConnections.toString();
                         console.log('✅ Fast endpoint active DB connections updated:', data.activeDbConnections);
                     }
                     
@@ -1663,14 +1701,14 @@
                         const cacheMissRatioEl = document.getElementById('cache-miss-ratio');
                         const activeDbConnectionsEl = document.getElementById('active-db-connections');
                         
-                        if (dbPoolUsageEl && data.dbPoolUsage !== undefined) {
+                        if (dbPoolUsageEl && data.dbPoolUsage !== undefined && data.dbPoolUsage !== null) {
                             dbPoolUsageEl.textContent = data.dbPoolUsage + '%';
                         }
-                        if (cacheMissRatioEl && data.cacheMissRatio !== undefined) {
+                        if (cacheMissRatioEl && data.cacheMissRatio !== undefined && data.cacheMissRatio !== null) {
                             cacheMissRatioEl.textContent = data.cacheMissRatio + '%';
                         }
-                        if (activeDbConnectionsEl && data.activeDbConnections !== undefined) {
-                            activeDbConnectionsEl.textContent = data.activeDbConnections;
+                        if (activeDbConnectionsEl && data.activeDbConnections !== undefined && data.activeDbConnections !== null) {
+                            activeDbConnectionsEl.textContent = data.activeDbConnections.toString();
                         }
                         
                         // Обновляем время последнего обновления

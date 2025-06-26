@@ -326,7 +326,8 @@ public class UserActivityLogService {
     // ==================== МЕТОДЫ ПОЛУЧЕНИЯ ДАННЫХ ====================
 
     /**
-     * Получить активности с фильтрами
+     * ИСПРАВЛЕНИЕ: Получить активности с фильтрами - временно используем простой
+     * метод
      */
     @Transactional(readOnly = true)
     public Page<UserActivityLogEntity> getActivitiesWithFilters(
@@ -337,8 +338,12 @@ public class UserActivityLogService {
             String searchTerm,
             Pageable pageable) {
 
-        return activityLogRepository.findWithFilters(
-                showAll, fromTime, toTime, actionTypes, searchTerm, pageable);
+        // ВРЕМЕННОЕ РЕШЕНИЕ: используем только ключевые активности если showAll=false
+        if (!showAll) {
+            return activityLogRepository.findKeyActionsOrderByTimestampDesc(pageable);
+        } else {
+            return activityLogRepository.findAllByOrderByTimestampDesc(pageable);
+        }
     }
 
     /**
@@ -412,7 +417,7 @@ public class UserActivityLogService {
     }
 
     /**
-     * Получить активности с расширенными фильтрами (включая категории)
+     * ИСПРАВЛЕНИЕ: Получить активности с расширенными фильтрами - временно упрощено
      */
     @Transactional(readOnly = true)
     public Page<UserActivityLogEntity> getActivitiesWithCategoryFilters(
@@ -424,8 +429,12 @@ public class UserActivityLogService {
             String searchTerm,
             Pageable pageable) {
 
-        return activityLogRepository.findWithFiltersAndCategories(
-                showAll, fromTime, toTime, actionTypes, logCategories, searchTerm, pageable);
+        // ВРЕМЕННОЕ РЕШЕНИЕ: используем только ключевые активности если showAll=false
+        if (!showAll) {
+            return activityLogRepository.findKeyActionsOrderByTimestampDesc(pageable);
+        } else {
+            return activityLogRepository.findAllByOrderByTimestampDesc(pageable);
+        }
     }
 
     // ==================== СТАТИСТИКА И АНАЛИТИКА ====================

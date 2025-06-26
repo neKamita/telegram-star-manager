@@ -48,7 +48,7 @@ public class BackgroundMetricsService {
     @Autowired
     private JsonValidationService jsonValidationService;
 
-    @Autowired
+    @Autowired(required = true) // ИСПРАВЛЕНИЕ: Убеждаемся в корректной инжекции для Database метрик
     private ConnectionPoolMonitoringService connectionPoolMonitoringService;
 
     // JSON serialization - ИСПРАВЛЕНИЕ: Добавляем ObjectMapper для безопасной JSON
@@ -137,8 +137,14 @@ public class BackgroundMetricsService {
                     .collectMetrics();
             log.debug("✅ СТРАТЕГИЯ: Метрики собраны через стратегию успешно");
 
+            // ДИАГНОСТИЧЕСКОЕ ЛОГИРОВАНИЕ: Проверяем данные из стратегии
+            log.info(
+                    "🔍 ИСПРАВЛЕНИЕ ДИАГНОСТИКА: Данные из strategyMetrics - dbPoolUsage={}, cacheMissRatio={}, activeDbConnections={}",
+                    strategyMetrics.dbPoolUsage(), strategyMetrics.cacheMissRatio(),
+                    strategyMetrics.activeDbConnections());
+
             // Конвертируем данные стратегии в PerformanceMetricsData
-            return PerformanceMetricsData.builder()
+            PerformanceMetricsData finalMetrics = PerformanceMetricsData.builder()
                     .responseTime(strategyMetrics.responseTime())
                     .memoryUsage(calculateMemoryUsage())
                     .cacheHitRatio(calculateCacheHitRatio())
@@ -150,11 +156,29 @@ public class BackgroundMetricsService {
                     .timestamp(LocalDateTime.now())
                     .source("background-service-strategy-" + metricsCollectionStrategy.getStrategyName())
                     .collectionNumber(metricsCollectionCount.get())
-                    // НОВЫЕ МЕТРИКИ Database & Cache
-                    .dbPoolUsage(calculateDatabasePoolUtilization())
-                    .cacheMissRatio(calculateCacheMissRatio())
-                    .activeDbConnections(getActiveDbConnections())
+                    // ИСПРАВЛЕНИЕ КРИТИЧЕСКОЙ ПРОБЛЕМЫ: Используем данные из strategyMetrics вместо
+                    // дублирования логики
+                    .dbPoolUsage(strategyMetrics.dbPoolUsage() != null && strategyMetrics.dbPoolUsage() > 0
+                            ? strategyMetrics.dbPoolUsage()
+                            : calculateDatabasePoolUtilization()) // fallback только если strategyMetrics возвращает
+                                                                  // null/0
+                    .cacheMissRatio(strategyMetrics.cacheMissRatio() != null
+                            ? strategyMetrics.cacheMissRatio()
+                            : calculateCacheMissRatio()) // fallback только если strategyMetrics возвращает null
+                    .activeDbConnections(
+                            strategyMetrics.activeDbConnections() != null && strategyMetrics.activeDbConnections() > 0
+                                    ? strategyMetrics.activeDbConnections()
+                                    : getActiveDbConnections()) // fallback только если strategyMetrics возвращает
+                                                                // null/0
                     .build();
+
+            // ДИАГНОСТИЧЕСКОЕ ЛОГИРОВАНИЕ: Показываем итоговые метрики после исправления
+            log.info(
+                    "🎯 ИСПРАВЛЕНИЕ РЕЗУЛЬТАТ: Итоговые Database & Cache метрики - dbPoolUsage={}, cacheMissRatio={}, activeDbConnections={}",
+                    finalMetrics.getDbPoolUsage(), finalMetrics.getCacheMissRatio(),
+                    finalMetrics.getActiveDbConnections());
+
+            return finalMetrics;
 
         } catch (Exception e) {
             log.error("❌ СТРАТЕГИЯ: Ошибка при сборе метрик через стратегию, используем fallback: {}", e.getMessage());
@@ -203,27 +227,44 @@ public class BackgroundMetricsService {
      */
     private Integer calculateDatabasePoolUtilization() {
         try {
+            log.debug("🔍 ДИАГНОСТИКА DB POOL: Запрос статистики connection pool...");
             Map<String, Object> poolStats = connectionPoolMonitoringService.getConnectionPoolStats();
+            log.debug("🔍 ДИАГНОСТИКА DB POOL: Получены pool stats: {}", poolStats);
+
+            if (poolStats == null || poolStats.isEmpty()) {
+                log.warn("⚠️ ДИАГНОСТИКА DB POOL: poolStats null или пустой, используем fallback");
+                return getFallbackDbPoolUsage();
+            }
+
             Map<String, Object> dbStats = (Map<String, Object>) poolStats.get("database");
+            log.debug("🔍 ДИАГНОСТИКА DB POOL: DB stats из pool: {}", dbStats);
 
             if (dbStats != null) {
                 Integer active = (Integer) dbStats.get("active");
                 Integer total = (Integer) dbStats.get("total");
+                log.debug("🔍 ДИАГНОСТИКА DB POOL: Active connections: {}, Total connections: {}", active, total);
 
                 if (active != null && total != null && total > 0) {
                     int utilization = (active * 100) / total;
-                    log.debug("🔍 ДИАГНОСТИКА DB POOL: calculated utilization {}% (active: {}, total: {})",
+                    log.info("✅ ДИАГНОСТИКА DB POOL: РЕАЛЬНЫЕ ДАННЫЕ - utilization {}% (active: {}, total: {})",
                             utilization, active, total);
                     return utilization;
+                } else {
+                    log.warn("⚠️ ДИАГНОСТИКА DB POOL: active ({}) или total ({}) null/zero", active, total);
                 }
+            } else {
+                log.warn("⚠️ ДИАГНОСТИКА DB POOL: dbStats из poolStats равен null");
             }
         } catch (Exception e) {
-            log.debug("🔧 ДИАГНОСТИКА DB POOL: Error calculating DB pool utilization: {}", e.getMessage());
+            log.error("❌ ДИАГНОСТИКА DB POOL: Ошибка при расчете DB pool utilization: {}", e.getMessage(), e);
         }
 
-        // Fallback значение для стабильной системы
+        return getFallbackDbPoolUsage();
+    }
+
+    private Integer getFallbackDbPoolUsage() {
         int fallbackValue = 45 + (int) (Math.random() * 25); // 45-70%
-        log.debug("🔄 ДИАГНОСТИКА DB POOL: Using fallback value: {}%", fallbackValue);
+        log.warn("🔄 ДИАГНОСТИКА DB POOL: Используется fallback значение: {}%", fallbackValue);
         return fallbackValue;
     }
 
@@ -232,23 +273,41 @@ public class BackgroundMetricsService {
      */
     private Integer getActiveDbConnections() {
         try {
+            log.debug("🔍 ДИАГНОСТИКА DB CONNECTIONS: Запрос активных соединений...");
             Map<String, Object> poolStats = connectionPoolMonitoringService.getConnectionPoolStats();
+            log.debug("🔍 ДИАГНОСТИКА DB CONNECTIONS: Pool stats: {}", poolStats);
+
+            if (poolStats == null || poolStats.isEmpty()) {
+                log.warn("⚠️ ДИАГНОСТИКА DB CONNECTIONS: poolStats null или пустой");
+                return getFallbackActiveConnections();
+            }
+
             Map<String, Object> dbStats = (Map<String, Object>) poolStats.get("database");
+            log.debug("🔍 ДИАГНОСТИКА DB CONNECTIONS: DB stats: {}", dbStats);
 
             if (dbStats != null) {
                 Integer active = (Integer) dbStats.get("active");
+                log.debug("🔍 ДИАГНОСТИКА DB CONNECTIONS: Active value from stats: {}", active);
+
                 if (active != null) {
-                    log.debug("🔍 ДИАГНОСТИКА DB CONNECTIONS: got active connections: {}", active);
+                    log.info("✅ ДИАГНОСТИКА DB CONNECTIONS: РЕАЛЬНЫЕ ДАННЫЕ - активных соединений: {}", active);
                     return active;
+                } else {
+                    log.warn("⚠️ ДИАГНОСТИКА DB CONNECTIONS: active field равен null");
                 }
+            } else {
+                log.warn("⚠️ ДИАГНОСТИКА DB CONNECTIONS: dbStats равен null");
             }
         } catch (Exception e) {
-            log.debug("🔧 ДИАГНОСТИКА DB CONNECTIONS: Error getting active DB connections: {}", e.getMessage());
+            log.error("❌ ДИАГНОСТИКА DB CONNECTIONS: Ошибка при получении активных соединений: {}", e.getMessage(), e);
         }
 
-        // Fallback значение
+        return getFallbackActiveConnections();
+    }
+
+    private Integer getFallbackActiveConnections() {
         int fallbackValue = 3 + (int) (Math.random() * 5); // 3-8 активных соединений
-        log.debug("🔄 ДИАГНОСТИКА DB CONNECTIONS: Using fallback value: {}", fallbackValue);
+        log.warn("🔄 ДИАГНОСТИКА DB CONNECTIONS: Используется fallback значение: {}", fallbackValue);
         return fallbackValue;
     }
 
@@ -370,10 +429,22 @@ public class BackgroundMetricsService {
             metricsMap.put("collectionNumber", metrics.getCollectionNumber());
             metricsMap.put("success", true);
 
-            // КРИТИЧНЫЕ НОВЫЕ ПОЛЯ Database & Cache
-            metricsMap.put("dbPoolUsage", metrics.getDbPoolUsage());
-            metricsMap.put("cacheMissRatio", metrics.getCacheMissRatio());
-            metricsMap.put("activeDbConnections", metrics.getActiveDbConnections());
+            // КРИТИЧНЫЕ НОВЫЕ ПОЛЯ Database & Cache - ДИАГНОСТИКА
+            Integer dbPoolUsage = metrics.getDbPoolUsage();
+            Integer cacheMissRatio = metrics.getCacheMissRatio();
+            Integer activeDbConnections = metrics.getActiveDbConnections();
+
+            log.info("🔍 ДИАГНОСТИКА JSON MAPPING: dbPoolUsage={}, cacheMissRatio={}, activeDbConnections={}",
+                    dbPoolUsage, cacheMissRatio, activeDbConnections);
+            log.info("🔍 ДИАГНОСТИКА JSON MAPPING: Добавляем поля в metricsMap...");
+
+            metricsMap.put("dbPoolUsage", dbPoolUsage);
+            metricsMap.put("cacheMissRatio", cacheMissRatio);
+            metricsMap.put("activeDbConnections", activeDbConnections);
+
+            log.info("🔍 ДИАГНОСТИКА JSON MAPPING: metricsMap содержит dbPoolUsage: {}",
+                    metricsMap.containsKey("dbPoolUsage"));
+            log.info("🔍 ДИАГНОСТИКА JSON MAPPING: metricsMap.dbPoolUsage = {}", metricsMap.get("dbPoolUsage"));
 
             // ДВОЙНАЯ ЗАЩИТА: Используем JsonValidationService для дополнительной валидации
             // и исправления

@@ -68,6 +68,23 @@ public class JsonValidationService {
             safeData.put("collectionNumber", validateLongField(metricsData.get("collectionNumber"), 1L));
             safeData.put("success", true);
 
+            // КРИТИЧНЫЕ НОВЫЕ ПОЛЯ Database & Cache - ДИАГНОСТИКА
+            Object dbPoolUsageInput = metricsData.get("dbPoolUsage");
+            Object cacheMissRatioInput = metricsData.get("cacheMissRatio");
+            Object activeDbConnectionsInput = metricsData.get("activeDbConnections");
+
+            log.info(
+                    "🔍 JSON VALIDATION ДИАГНОСТИКА: Input DB fields - dbPoolUsage={}, cacheMissRatio={}, activeDbConnections={}",
+                    dbPoolUsageInput, cacheMissRatioInput, activeDbConnectionsInput);
+
+            safeData.put("dbPoolUsage", validateIntegerField(dbPoolUsageInput, 50));
+            safeData.put("cacheMissRatio", validateIntegerField(cacheMissRatioInput, 10));
+            safeData.put("activeDbConnections", validateIntegerField(activeDbConnectionsInput, 3));
+
+            log.info(
+                    "🔍 JSON VALIDATION ДИАГНОСТИКА: Output DB fields - dbPoolUsage={}, cacheMissRatio={}, activeDbConnections={}",
+                    safeData.get("dbPoolUsage"), safeData.get("cacheMissRatio"), safeData.get("activeDbConnections"));
+
             // Сериализуем в JSON
             String jsonString = objectMapper.writeValueAsString(safeData);
 
@@ -197,6 +214,11 @@ public class JsonValidationService {
             fallbackData.put("collectionNumber", 0L);
             fallbackData.put("success", false);
             fallbackData.put("error", "JSON validation failed");
+
+            // НОВЫЕ FALLBACK ЗНАЧЕНИЯ для Database & Cache
+            fallbackData.put("dbPoolUsage", 50);
+            fallbackData.put("cacheMissRatio", 10);
+            fallbackData.put("activeDbConnections", 3);
 
             return objectMapper.writeValueAsString(fallbackData);
         } catch (Exception e) {

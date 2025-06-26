@@ -44,7 +44,11 @@ public interface MetricsCollectionStrategy {
             LocalDateTime timestamp,
             String source,
             Long collectionNumber,
-            Map<String, Object> metadata) {
+            Map<String, Object> metadata,
+            // Database & Cache метрики
+            Integer dbPoolUsage,
+            Integer cacheMissRatio,
+            Integer activeDbConnections) {
 
         public static Builder builder() {
             return new Builder();
@@ -63,7 +67,10 @@ public interface MetricsCollectionStrategy {
                     .timestamp(this.timestamp)
                     .source(this.source)
                     .collectionNumber(this.collectionNumber)
-                    .metadata(this.metadata);
+                    .metadata(this.metadata)
+                    .dbPoolUsage(this.dbPoolUsage)
+                    .cacheMissRatio(this.cacheMissRatio)
+                    .activeDbConnections(this.activeDbConnections);
         }
 
         public static class Builder {
@@ -79,6 +86,10 @@ public interface MetricsCollectionStrategy {
             private String source;
             private Long collectionNumber;
             private Map<String, Object> metadata = Map.of();
+            // Database & Cache метрики
+            private Integer dbPoolUsage;
+            private Integer cacheMissRatio;
+            private Integer activeDbConnections;
 
             public Builder responseTime(Double responseTime) {
                 this.responseTime = responseTime;
@@ -140,6 +151,21 @@ public interface MetricsCollectionStrategy {
                 return this;
             }
 
+            public Builder dbPoolUsage(Integer dbPoolUsage) {
+                this.dbPoolUsage = dbPoolUsage;
+                return this;
+            }
+
+            public Builder cacheMissRatio(Integer cacheMissRatio) {
+                this.cacheMissRatio = cacheMissRatio;
+                return this;
+            }
+
+            public Builder activeDbConnections(Integer activeDbConnections) {
+                this.activeDbConnections = activeDbConnections;
+                return this;
+            }
+
             public PerformanceMetrics build() {
                 return new PerformanceMetrics(
                         responseTime,
@@ -153,7 +179,10 @@ public interface MetricsCollectionStrategy {
                         timestamp,
                         source,
                         collectionNumber,
-                        metadata);
+                        metadata,
+                        dbPoolUsage,
+                        cacheMissRatio,
+                        activeDbConnections);
             }
         }
     }

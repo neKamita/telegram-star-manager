@@ -94,6 +94,11 @@ public class SecurityConfig {
                             .requestMatchers("/admin/api/activity-statistics").permitAll()
                             .requestMatchers("/admin/api/refresh-cache").permitAll()
                             .requestMatchers("/admin/api/activity-stream").permitAll()
+                            .requestMatchers("/admin/api/activity-stream-categorized").permitAll()
+
+                            // ИСПРАВЛЕНИЕ: Добавляем недостающие activity endpoints
+                            .requestMatchers("/admin/api/category-statistics").permitAll()
+                            .requestMatchers("/admin/api/activity-logs-by-category").permitAll()
 
                             // ИСПРАВЛЕНИЕ SSE: Добавляем SSE endpoints для мониторинга
                             .requestMatchers("/admin/api/metrics/stream").permitAll()

@@ -266,23 +266,42 @@ public class AdminMonitoringApiController implements AdminControllerOperations {
      */
     private int calculateDatabasePoolUtilization() {
         try {
+            log.debug("🔍 ADMIN API: Запрос статистики DB pool...");
             Map<String, Object> poolStats = connectionPoolMonitoringService.getConnectionPoolStats();
+            log.debug("🔍 ADMIN API: Pool stats получены: {}", poolStats);
+
+            if (poolStats == null || poolStats.isEmpty()) {
+                log.warn("⚠️ ADMIN API: poolStats null или пустой");
+                return 45 + (int) (Math.random() * 25);
+            }
+
             Map<String, Object> dbStats = (Map<String, Object>) poolStats.get("database");
+            log.debug("🔍 ADMIN API: DB stats: {}", dbStats);
 
             if (dbStats != null) {
                 Integer active = (Integer) dbStats.get("active");
                 Integer total = (Integer) dbStats.get("total");
+                log.debug("🔍 ADMIN API: Active: {}, Total: {}", active, total);
 
                 if (active != null && total != null && total > 0) {
-                    return (active * 100) / total;
+                    int utilization = (active * 100) / total;
+                    log.info("✅ ADMIN API: РЕАЛЬНЫЕ ДАННЫЕ DB Pool - {}% (active: {}, total: {})", utilization, active,
+                            total);
+                    return utilization;
+                } else {
+                    log.warn("⚠️ ADMIN API: Active или total равны null/zero");
                 }
+            } else {
+                log.warn("⚠️ ADMIN API: dbStats равен null");
             }
         } catch (Exception e) {
-            log.debug("Error calculating DB pool utilization: {}", e.getMessage());
+            log.error("❌ ADMIN API: Ошибка расчета DB pool utilization: {}", e.getMessage(), e);
         }
 
         // Fallback значение для стабильной системы
-        return 45 + (int) (Math.random() * 25); // 45-70%
+        int fallback = 45 + (int) (Math.random() * 25); // 45-70%
+        log.warn("🔄 ADMIN API: Используется fallback DB pool utilization: {}%", fallback);
+        return fallback;
     }
 
     /**
@@ -290,21 +309,39 @@ public class AdminMonitoringApiController implements AdminControllerOperations {
      */
     private int getActiveDbConnections() {
         try {
+            log.debug("🔍 ADMIN API: Запрос активных DB соединений...");
             Map<String, Object> poolStats = connectionPoolMonitoringService.getConnectionPoolStats();
+            log.debug("🔍 ADMIN API: Pool stats для connections: {}", poolStats);
+
+            if (poolStats == null || poolStats.isEmpty()) {
+                log.warn("⚠️ ADMIN API: poolStats null или пустой для connections");
+                return 3 + (int) (Math.random() * 5);
+            }
+
             Map<String, Object> dbStats = (Map<String, Object>) poolStats.get("database");
+            log.debug("🔍 ADMIN API: DB stats для connections: {}", dbStats);
 
             if (dbStats != null) {
                 Integer active = (Integer) dbStats.get("active");
+                log.debug("🔍 ADMIN API: Active connections value: {}", active);
+
                 if (active != null) {
+                    log.info("✅ ADMIN API: РЕАЛЬНЫЕ ДАННЫЕ Active DB Connections - {}", active);
                     return active;
+                } else {
+                    log.warn("⚠️ ADMIN API: Active connections равен null");
                 }
+            } else {
+                log.warn("⚠️ ADMIN API: dbStats равен null для connections");
             }
         } catch (Exception e) {
-            log.debug("Error getting active DB connections: {}", e.getMessage());
+            log.error("❌ ADMIN API: Ошибка получения активных DB соединений: {}", e.getMessage(), e);
         }
 
         // Fallback значение
-        return 3 + (int) (Math.random() * 5); // 3-8 активных соединений
+        int fallback = 3 + (int) (Math.random() * 5); // 3-8 активных соединений
+        log.warn("🔄 ADMIN API: Используется fallback active DB connections: {}", fallback);
+        return fallback;
     }
 
     /**
@@ -440,13 +477,21 @@ public class AdminMonitoringApiController implements AdminControllerOperations {
                         .body(createErrorResponse("Unauthorized access", null));
             }
 
+            log.info("🔍 ДИАГНОСТИКА DB&CACHE: Начинаем тестирование метрик...");
+
             // Тестируем расчет новых метрик
             int dbPoolUsage = calculateDatabasePoolUtilization();
             int cacheMissRatio = calculateCacheMissRatio();
             int activeDbConnections = getActiveDbConnections();
 
+            log.info(
+                    "🔍 ДИАГНОСТИКА DB&CACHE: Calculated metrics - dbPoolUsage: {}, cacheMissRatio: {}, activeDbConnections: {}",
+                    dbPoolUsage, cacheMissRatio, activeDbConnections);
+
             // Получаем сырые данные от ConnectionPoolMonitoringService для диагностики
+            log.info("🔍 ДИАГНОСТИКА DB&CACHE: Получение сырых данных от ConnectionPoolMonitoringService...");
             Map<String, Object> poolStats = connectionPoolMonitoringService.getConnectionPoolStats();
+            log.info("🔍 ДИАГНОСТИКА DB&CACHE: Raw pool stats получены: {}", poolStats);
 
             Map<String, Object> response = new java.util.HashMap<>();
             response.put("success", true);
@@ -460,6 +505,21 @@ public class AdminMonitoringApiController implements AdminControllerOperations {
 
             // Сырые данные для диагностики
             response.put("rawConnectionPoolStats", poolStats);
+
+            // Детальная диагностика
+            Map<String, Object> diagnostics = new java.util.HashMap<>();
+            diagnostics.put("connectionPoolServiceClass", connectionPoolMonitoringService.getClass().getSimpleName());
+            diagnostics.put("poolStatsEmpty", poolStats == null || poolStats.isEmpty());
+            diagnostics.put("databaseStatsPresent", poolStats != null && poolStats.containsKey("database"));
+
+            if (poolStats != null && poolStats.containsKey("database")) {
+                Map<String, Object> dbStats = (Map<String, Object>) poolStats.get("database");
+                diagnostics.put("databaseStatsContent", dbStats);
+                diagnostics.put("hasActiveField", dbStats != null && dbStats.containsKey("active"));
+                diagnostics.put("hasTotalField", dbStats != null && dbStats.containsKey("total"));
+            }
+
+            response.put("diagnostics", diagnostics);
 
             // Проверяем что все значения корректны
             response.put("validation", Map.of(

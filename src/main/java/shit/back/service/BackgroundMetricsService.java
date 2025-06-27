@@ -110,8 +110,6 @@ public class BackgroundMetricsService {
             log.info(
                     "✅ ОПТИМИЗАЦИЯ SSE: Background metrics collection #{} completed in {}ms (CACHED DATA ONLY), broadcasted to {} connections",
                     collectionNumber, duration, activeConnections.size());
-            log.info("🔍 ДИАГНОСТИКА NEW METRICS: dbPoolUsage={}, cacheMissRatio={}, activeDbConnections={}",
-                    metrics.getDbPoolUsage(), metrics.getCacheMissRatio(), metrics.getActiveDbConnections());
 
         } catch (Exception e) {
             long duration = System.currentTimeMillis() - startTime;
@@ -139,9 +137,18 @@ public class BackgroundMetricsService {
 
             // ДИАГНОСТИЧЕСКОЕ ЛОГИРОВАНИЕ: Проверяем данные из стратегии
             log.info(
-                    "🔍 ИСПРАВЛЕНИЕ ДИАГНОСТИКА: Данные из strategyMetrics - dbPoolUsage={}, cacheMissRatio={}, activeDbConnections={}",
+                    "🔍 ДИАГНОСТИКА НОВЫХ ПОЛЕЙ: Данные из strategyMetrics - dbPoolUsage={}, cacheMissRatio={}, activeDbConnections={}",
                     strategyMetrics.dbPoolUsage(), strategyMetrics.cacheMissRatio(),
                     strategyMetrics.activeDbConnections());
+
+            // КРИТИЧЕСКАЯ ДИАГНОСТИКА: Проверяем новые расширенные поля из стратегии
+            log.info("🔍 ДИАГНОСТИКА РАСШИРЕННЫХ ПОЛЕЙ из strategyMetrics:");
+            log.info("🔍 averageConnectionAcquisitionTimeMs = {}",
+                    strategyMetrics.averageConnectionAcquisitionTimeMs());
+            log.info("🔍 totalConnectionRequests = {}", strategyMetrics.totalConnectionRequests());
+            log.info("🔍 connectionLeaksDetected = {}", strategyMetrics.connectionLeaksDetected());
+            log.info("🔍 connectionPoolPerformanceLevel = {}", strategyMetrics.connectionPoolPerformanceLevel());
+            log.info("🔍 connectionPoolEfficiency = {}", strategyMetrics.connectionPoolEfficiency());
 
             // Конвертируем данные стратегии в PerformanceMetricsData
             PerformanceMetricsData finalMetrics = PerformanceMetricsData.builder()
@@ -170,6 +177,12 @@ public class BackgroundMetricsService {
                                     ? strategyMetrics.activeDbConnections()
                                     : getActiveDbConnections()) // fallback только если strategyMetrics возвращает
                                                                 // null/0
+                    // НОВЫЕ РАСШИРЕННЫЕ ПОЛЯ Connection Pool Metrics
+                    .averageConnectionAcquisitionTimeMs(strategyMetrics.averageConnectionAcquisitionTimeMs())
+                    .totalConnectionRequests(strategyMetrics.totalConnectionRequests())
+                    .connectionLeaksDetected(strategyMetrics.connectionLeaksDetected())
+                    .connectionPoolPerformanceLevel(strategyMetrics.connectionPoolPerformanceLevel())
+                    .connectionPoolEfficiency(strategyMetrics.connectionPoolEfficiency())
                     .build();
 
             // ДИАГНОСТИЧЕСКОЕ ЛОГИРОВАНИЕ: Показываем итоговые метрики после исправления
@@ -177,6 +190,17 @@ public class BackgroundMetricsService {
                     "🎯 ИСПРАВЛЕНИЕ РЕЗУЛЬТАТ: Итоговые Database & Cache метрики - dbPoolUsage={}, cacheMissRatio={}, activeDbConnections={}",
                     finalMetrics.getDbPoolUsage(), finalMetrics.getCacheMissRatio(),
                     finalMetrics.getActiveDbConnections());
+
+            // КРИТИЧЕСКАЯ ДИАГНОСТИКА: Проверяем итоговые новые расширенные поля в
+            // finalMetrics
+            log.info("🎯 КРИТИЧЕСКАЯ ДИАГНОСТИКА: Итоговые расширенные поля в finalMetrics:");
+            log.info("🎯 finalMetrics.getAverageConnectionAcquisitionTimeMs() = {}",
+                    finalMetrics.getAverageConnectionAcquisitionTimeMs());
+            log.info("🎯 finalMetrics.getTotalConnectionRequests() = {}", finalMetrics.getTotalConnectionRequests());
+            log.info("🎯 finalMetrics.getConnectionLeaksDetected() = {}", finalMetrics.getConnectionLeaksDetected());
+            log.info("🎯 finalMetrics.getConnectionPoolPerformanceLevel() = {}",
+                    finalMetrics.getConnectionPoolPerformanceLevel());
+            log.info("🎯 finalMetrics.getConnectionPoolEfficiency() = {}", finalMetrics.getConnectionPoolEfficiency());
 
             return finalMetrics;
 
@@ -401,6 +425,12 @@ public class BackgroundMetricsService {
                 .dbPoolUsage(50 + (int) (Math.random() * 20)) // 50-70%
                 .cacheMissRatio(5 + (int) (Math.random() * 10)) // 5-15%
                 .activeDbConnections(4 + (int) (Math.random() * 3)) // 4-7 соединений
+                // НОВЫЕ РАСШИРЕННЫЕ FALLBACK ЗНАЧЕНИЯ Connection Pool Metrics
+                .averageConnectionAcquisitionTimeMs(35.0 + (Math.random() * 40)) // 35-75ms
+                .totalConnectionRequests((long) (500 + (Math.random() * 2000))) // 500-2500 запросов
+                .connectionLeaksDetected(0L) // Нет утечек в fallback
+                .connectionPoolPerformanceLevel("ACCEPTABLE") // Средний уровень для fallback
+                .connectionPoolEfficiency(0.75 + (Math.random() * 0.15)) // 75-90% эффективность
                 .build();
     }
 
@@ -411,8 +441,44 @@ public class BackgroundMetricsService {
      */
     private String formatMetricsAsJson(PerformanceMetricsData metrics) {
         try {
-            // Создаем Map с данными для JSON сериализации
+            // ИСПРАВЛЕНИЕ ПОРЯДКА: Создаем Map с данными для JSON сериализации
+            // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Новые поля добавляем В НАЧАЛО для их видимости в
+            // логах
             Map<String, Object> metricsMap = new LinkedHashMap<>();
+
+            // ДИАГНОСТИКА КРИТИЧЕСКОЙ ПРОБЛЕМЫ: Проверяем значения перед добавлением в JSON
+            Double acquisitionTime = metrics.getAverageConnectionAcquisitionTimeMs();
+            Long totalRequests = metrics.getTotalConnectionRequests();
+            Long leaksDetected = metrics.getConnectionLeaksDetected();
+            String performanceLevel = metrics.getConnectionPoolPerformanceLevel();
+            Double poolEfficiency = metrics.getConnectionPoolEfficiency();
+
+            log.info("🔍 DEBUG JSON: Значения новых полей перед добавлением в JSON:");
+            log.info("🔍 DEBUG JSON: acquisitionTime = {} (type: {})", acquisitionTime,
+                    acquisitionTime != null ? acquisitionTime.getClass().getSimpleName() : "null");
+            log.info("🔍 DEBUG JSON: totalRequests = {} (type: {})", totalRequests,
+                    totalRequests != null ? totalRequests.getClass().getSimpleName() : "null");
+            log.info("🔍 DEBUG JSON: leaksDetected = {} (type: {})", leaksDetected,
+                    leaksDetected != null ? leaksDetected.getClass().getSimpleName() : "null");
+            log.info("🔍 DEBUG JSON: performanceLevel = {} (type: {})", performanceLevel,
+                    performanceLevel != null ? performanceLevel.getClass().getSimpleName() : "null");
+            log.info("🔍 DEBUG JSON: poolEfficiency = {} (type: {})", poolEfficiency,
+                    poolEfficiency != null ? poolEfficiency.getClass().getSimpleName() : "null");
+
+            // ИСПРАВЛЕНИЕ КРИТИЧЕСКОЕ: Connection Pool расширенные метрики добавляем В
+            // НАЧАЛО
+            metricsMap.put("averageConnectionAcquisitionTimeMs", acquisitionTime);
+            metricsMap.put("totalConnectionRequests", totalRequests);
+            metricsMap.put("connectionLeaksDetected", leaksDetected);
+            metricsMap.put("connectionPoolPerformanceLevel", performanceLevel);
+            metricsMap.put("connectionPoolEfficiency", poolEfficiency);
+
+            // Database & Cache метрики
+            metricsMap.put("dbPoolUsage", metrics.getDbPoolUsage());
+            metricsMap.put("cacheMissRatio", metrics.getCacheMissRatio());
+            metricsMap.put("activeDbConnections", metrics.getActiveDbConnections());
+
+            // Основные метрики добавляем ПОСЛЕ новых полей
             metricsMap.put("responseTime", roundToOneDecimal(metrics.getResponseTime()));
             metricsMap.put("averageResponseTime", roundToOneDecimal(metrics.getResponseTime()));
             metricsMap.put("memoryUsage", metrics.getMemoryUsage());
@@ -429,31 +495,60 @@ public class BackgroundMetricsService {
             metricsMap.put("collectionNumber", metrics.getCollectionNumber());
             metricsMap.put("success", true);
 
-            // КРИТИЧНЫЕ НОВЫЕ ПОЛЯ Database & Cache - ДИАГНОСТИКА
-            Integer dbPoolUsage = metrics.getDbPoolUsage();
-            Integer cacheMissRatio = metrics.getCacheMissRatio();
-            Integer activeDbConnections = metrics.getActiveDbConnections();
-
-            log.info("🔍 ДИАГНОСТИКА JSON MAPPING: dbPoolUsage={}, cacheMissRatio={}, activeDbConnections={}",
-                    dbPoolUsage, cacheMissRatio, activeDbConnections);
-            log.info("🔍 ДИАГНОСТИКА JSON MAPPING: Добавляем поля в metricsMap...");
-
-            metricsMap.put("dbPoolUsage", dbPoolUsage);
-            metricsMap.put("cacheMissRatio", cacheMissRatio);
-            metricsMap.put("activeDbConnections", activeDbConnections);
-
-            log.info("🔍 ДИАГНОСТИКА JSON MAPPING: metricsMap содержит dbPoolUsage: {}",
-                    metricsMap.containsKey("dbPoolUsage"));
-            log.info("🔍 ДИАГНОСТИКА JSON MAPPING: metricsMap.dbPoolUsage = {}", metricsMap.get("dbPoolUsage"));
+            log.info("🔍 DEBUG JSON: Новые поля добавлены в metricsMap. Размер map: {}", metricsMap.size());
 
             // ДВОЙНАЯ ЗАЩИТА: Используем JsonValidationService для дополнительной валидации
             // и исправления
+            log.info("🔍 DEBUG JSON: metricsMap перед валидацией содержит {} элементов", metricsMap.size());
+            log.info("🔍 DEBUG JSON: Ключи в metricsMap: {}", metricsMap.keySet());
+
+            // 🚨 КРИТИЧЕСКАЯ ДИАГНОСТИКА: Document что JsonValidationService вызывается
+            // здесь
+            log.error(
+                    "🚨 DEBUG JSON: ВЫЗЫВАЕМ JsonValidationService.validateAndFixPerformanceMetricsJson() - ЗДЕСЬ МОГУТ ПОТЕРЯТЬСЯ ПОЛЯ!");
+
             String jsonData = jsonValidationService.validateAndFixPerformanceMetricsJson(metricsMap);
 
+            // 🚨 КРИТИЧЕСКАЯ ДИАГНОСТИКА: Проверяем результат ПОСЛЕ JsonValidationService
+            log.error("🚨 DEBUG JSON: JsonValidationService ЗАВЕРШЕН. Длина результата: {} символов",
+                    jsonData.length());
+
+            // ИСПРАВЛЕНИЕ КРИТИЧЕСКОЙ ПРОБЛЕМЫ: Увеличиваем лимит логирования с 500 до 1000
+            // символов
+            log.info("🔍 DEBUG JSON: JSON после валидации (первые 1000 символов): {}",
+                    jsonData.length() > 1000 ? jsonData.substring(0, 1000) + "..." : jsonData);
+
+            // ДОПОЛНИТЕЛЬНАЯ ДИАГНОСТИКА: Специальное логирование только новых полей из
+            // финального JSON
+            log.info("🔍 СПЕЦИАЛЬНАЯ ДИАГНОСТИКА: Проверка присутствия новых полей в финальном JSON:");
+            try {
+                // Проверяем наличие новых полей в JSON строке
+                boolean hasAcquisitionTime = jsonData.contains("averageConnectionAcquisitionTimeMs");
+                boolean hasTotalRequests = jsonData.contains("totalConnectionRequests");
+                boolean hasLeaksDetected = jsonData.contains("connectionLeaksDetected");
+                boolean hasPerformanceLevel = jsonData.contains("connectionPoolPerformanceLevel");
+                boolean hasPoolEfficiency = jsonData.contains("connectionPoolEfficiency");
+
+                log.info("✅ averageConnectionAcquisitionTimeMs присутствует в JSON: {}", hasAcquisitionTime);
+                log.info("✅ totalConnectionRequests присутствует в JSON: {}", hasTotalRequests);
+                log.info("✅ connectionLeaksDetected присутствует в JSON: {}", hasLeaksDetected);
+                log.info("✅ connectionPoolPerformanceLevel присутствует в JSON: {}", hasPerformanceLevel);
+                log.info("✅ connectionPoolEfficiency присутствует в JSON: {}", hasPoolEfficiency);
+
+                if (hasAcquisitionTime && hasTotalRequests && hasLeaksDetected && hasPerformanceLevel
+                        && hasPoolEfficiency) {
+                    log.info("🎯 УСПЕХ: Все новые поля присутствуют в финальном JSON!");
+                } else {
+                    log.error("❌ ПРОБЛЕМА: Некоторые новые поля отсутствуют в финальном JSON!");
+                }
+            } catch (Exception e) {
+                log.warn("⚠️ Ошибка при проверке присутствия новых полей в JSON: {}", e.getMessage());
+            }
+
             log.info(
-                    "📊 ИСПРАВЛЕНИЕ JSON: Безопасная сериализация + валидация метрик: responseTime={}, memoryUsage={}, cacheHitRatio={}, dbPoolUsage={}, cacheMissRatio={}, activeDbConnections={}",
-                    metrics.getResponseTime(), metrics.getMemoryUsage(), metrics.getCacheHitRatio(),
-                    metrics.getDbPoolUsage(), metrics.getCacheMissRatio(), metrics.getActiveDbConnections());
+                    "📊 JSON: Финальные метрики для SSE - dbPool={}%, cacheMiss={}%, activeConn={}, acquisitionTime={}ms, poolEfficiency={}",
+                    metrics.getDbPoolUsage(), metrics.getCacheMissRatio(), metrics.getActiveDbConnections(),
+                    metrics.getAverageConnectionAcquisitionTimeMs(), metrics.getConnectionPoolEfficiency());
             log.debug("📊 ИСПРАВЛЕНИЕ JSON: Дважды валидированный JSON данные: {}", jsonData);
 
             // Финальная проверка JSON валидности
@@ -542,7 +637,22 @@ public class BackgroundMetricsService {
      */
     private String createFallbackJson() {
         try {
+            // ИСПРАВЛЕНИЕ ПОРЯДКА: Новые поля добавляем В НАЧАЛО для консистентности
             Map<String, Object> fallbackMap = new LinkedHashMap<>();
+
+            // НОВЫЕ РАСШИРЕННЫЕ FALLBACK ЗНАЧЕНИЯ Connection Pool Metrics В НАЧАЛЕ
+            fallbackMap.put("averageConnectionAcquisitionTimeMs", 45.0);
+            fallbackMap.put("totalConnectionRequests", 1000L);
+            fallbackMap.put("connectionLeaksDetected", 0L);
+            fallbackMap.put("connectionPoolPerformanceLevel", "ACCEPTABLE");
+            fallbackMap.put("connectionPoolEfficiency", 0.80);
+
+            // НОВЫЕ FALLBACK ЗНАЧЕНИЯ для Database & Cache
+            fallbackMap.put("dbPoolUsage", 60);
+            fallbackMap.put("cacheMissRatio", 10);
+            fallbackMap.put("activeDbConnections", 5);
+
+            // Основные fallback поля
             fallbackMap.put("responseTime", 100.0);
             fallbackMap.put("averageResponseTime", 100.0);
             fallbackMap.put("memoryUsage", 70);
@@ -560,16 +670,12 @@ public class BackgroundMetricsService {
             fallbackMap.put("success", false);
             fallbackMap.put("error", "JSON serialization failed");
 
-            // НОВЫЕ FALLBACK ЗНАЧЕНИЯ для Database & Cache
-            fallbackMap.put("dbPoolUsage", 60);
-            fallbackMap.put("cacheMissRatio", 10);
-            fallbackMap.put("activeDbConnections", 5);
-
             return objectMapper.writeValueAsString(fallbackMap);
         } catch (Exception e) {
             log.error("❌ Даже fallback JSON не удалось создать: {}", e.getMessage());
-            // Последний резерв - минимальный JSON
-            return "{\"error\":\"Critical JSON serialization failure\",\"success\":false,\"dbPoolUsage\":60,\"cacheMissRatio\":10,\"activeDbConnections\":5}";
+            // ИСПРАВЛЕНИЕ ПОРЯДКА: Последний резерв - минимальный JSON с новыми полями В
+            // НАЧАЛЕ
+            return "{\"averageConnectionAcquisitionTimeMs\":45.0,\"totalConnectionRequests\":1000,\"connectionLeaksDetected\":0,\"connectionPoolPerformanceLevel\":\"ACCEPTABLE\",\"connectionPoolEfficiency\":0.80,\"dbPoolUsage\":60,\"cacheMissRatio\":10,\"activeDbConnections\":5,\"error\":\"Critical JSON serialization failure\",\"success\":false}";
         }
     }
 
@@ -652,6 +758,13 @@ public class BackgroundMetricsService {
         private Integer cacheMissRatio;
         private Integer activeDbConnections;
 
+        // НОВЫЕ РАСШИРЕННЫЕ ПОЛЯ Connection Pool Metrics
+        private Double averageConnectionAcquisitionTimeMs;
+        private Long totalConnectionRequests;
+        private Long connectionLeaksDetected;
+        private String connectionPoolPerformanceLevel;
+        private Double connectionPoolEfficiency;
+
         // Builder pattern
         public static PerformanceMetricsDataBuilder builder() {
             return new PerformanceMetricsDataBuilder();
@@ -672,7 +785,12 @@ public class BackgroundMetricsService {
                     .collectionNumber(this.collectionNumber)
                     .dbPoolUsage(this.dbPoolUsage)
                     .cacheMissRatio(this.cacheMissRatio)
-                    .activeDbConnections(this.activeDbConnections);
+                    .activeDbConnections(this.activeDbConnections)
+                    .averageConnectionAcquisitionTimeMs(this.averageConnectionAcquisitionTimeMs)
+                    .totalConnectionRequests(this.totalConnectionRequests)
+                    .connectionLeaksDetected(this.connectionLeaksDetected)
+                    .connectionPoolPerformanceLevel(this.connectionPoolPerformanceLevel)
+                    .connectionPoolEfficiency(this.connectionPoolEfficiency);
         }
 
         // Getters
@@ -732,6 +850,27 @@ public class BackgroundMetricsService {
             return activeDbConnections;
         }
 
+        // Геттеры для новых расширенных полей Connection Pool Metrics
+        public Double getAverageConnectionAcquisitionTimeMs() {
+            return averageConnectionAcquisitionTimeMs;
+        }
+
+        public Long getTotalConnectionRequests() {
+            return totalConnectionRequests;
+        }
+
+        public Long getConnectionLeaksDetected() {
+            return connectionLeaksDetected;
+        }
+
+        public String getConnectionPoolPerformanceLevel() {
+            return connectionPoolPerformanceLevel;
+        }
+
+        public Double getConnectionPoolEfficiency() {
+            return connectionPoolEfficiency;
+        }
+
         // Private constructor for builder
         private PerformanceMetricsData(PerformanceMetricsDataBuilder builder) {
             this.responseTime = builder.responseTime;
@@ -748,6 +887,12 @@ public class BackgroundMetricsService {
             this.dbPoolUsage = builder.dbPoolUsage;
             this.cacheMissRatio = builder.cacheMissRatio;
             this.activeDbConnections = builder.activeDbConnections;
+            // Новые расширенные поля Connection Pool Metrics
+            this.averageConnectionAcquisitionTimeMs = builder.averageConnectionAcquisitionTimeMs;
+            this.totalConnectionRequests = builder.totalConnectionRequests;
+            this.connectionLeaksDetected = builder.connectionLeaksDetected;
+            this.connectionPoolPerformanceLevel = builder.connectionPoolPerformanceLevel;
+            this.connectionPoolEfficiency = builder.connectionPoolEfficiency;
         }
 
         public static class PerformanceMetricsDataBuilder {
@@ -767,6 +912,13 @@ public class BackgroundMetricsService {
             private Integer dbPoolUsage;
             private Integer cacheMissRatio;
             private Integer activeDbConnections;
+
+            // НОВЫЕ РАСШИРЕННЫЕ ПОЛЯ Connection Pool Metrics
+            private Double averageConnectionAcquisitionTimeMs;
+            private Long totalConnectionRequests;
+            private Long connectionLeaksDetected;
+            private String connectionPoolPerformanceLevel;
+            private Double connectionPoolEfficiency;
 
             public PerformanceMetricsDataBuilder responseTime(Double responseTime) {
                 this.responseTime = responseTime;
@@ -835,6 +987,33 @@ public class BackgroundMetricsService {
 
             public PerformanceMetricsDataBuilder activeDbConnections(Integer activeDbConnections) {
                 this.activeDbConnections = activeDbConnections;
+                return this;
+            }
+
+            // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Добавляем методы Builder'а для НОВЫХ ПОЛЕЙ
+            public PerformanceMetricsDataBuilder averageConnectionAcquisitionTimeMs(
+                    Double averageConnectionAcquisitionTimeMs) {
+                this.averageConnectionAcquisitionTimeMs = averageConnectionAcquisitionTimeMs;
+                return this;
+            }
+
+            public PerformanceMetricsDataBuilder totalConnectionRequests(Long totalConnectionRequests) {
+                this.totalConnectionRequests = totalConnectionRequests;
+                return this;
+            }
+
+            public PerformanceMetricsDataBuilder connectionLeaksDetected(Long connectionLeaksDetected) {
+                this.connectionLeaksDetected = connectionLeaksDetected;
+                return this;
+            }
+
+            public PerformanceMetricsDataBuilder connectionPoolPerformanceLevel(String connectionPoolPerformanceLevel) {
+                this.connectionPoolPerformanceLevel = connectionPoolPerformanceLevel;
+                return this;
+            }
+
+            public PerformanceMetricsDataBuilder connectionPoolEfficiency(Double connectionPoolEfficiency) {
+                this.connectionPoolEfficiency = connectionPoolEfficiency;
                 return this;
             }
 

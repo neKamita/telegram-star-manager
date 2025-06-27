@@ -184,7 +184,7 @@
                             Database & Cache Metrics
                         </h5>
                         
-                        <div class="row text-center">
+                        <div class="row text-center mb-3">
                             <div class="col-4">
                                 <div class="p-3">
                                     <h4 id="db-pool-usage" class="text-primary mb-1">--%</h4>
@@ -211,6 +211,63 @@
                                     <small class="text-muted">Active DB Connections</small>
                                     <div class="small text-muted mt-1">
                                         <i class="fas fa-circle text-success" id="db-connections-indicator" style="font-size: 6px;"></i>
+                                        <span class="ms-1">Live</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Новые расширенные DB метрики -->
+                        <div class="row text-center mb-3">
+                            <div class="col-6">
+                                <div class="p-2">
+                                    <h6 id="connection-acquisition-time" class="text-secondary mb-1">--ms</h6>
+                                    <small class="text-muted">Connection Acquisition Time</small>
+                                    <div class="small text-muted mt-1">
+                                        <i class="fas fa-circle text-success" id="connection-time-indicator" style="font-size: 6px;"></i>
+                                        <span class="ms-1">Live</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="p-2">
+                                    <h6 id="total-connection-requests" class="text-secondary mb-1">--</h6>
+                                    <small class="text-muted">Total Connection Requests</small>
+                                    <div class="small text-muted mt-1">
+                                        <i class="fas fa-circle text-success" id="connection-requests-indicator" style="font-size: 6px;"></i>
+                                        <span class="ms-1">Live</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="row text-center mb-3">
+                            <div class="col-4">
+                                <div class="p-2">
+                                    <h6 id="connection-leaks" class="text-danger mb-1">--</h6>
+                                    <small class="text-muted">Connection Leaks</small>
+                                    <div class="small text-muted mt-1">
+                                        <i class="fas fa-circle text-success" id="connection-leaks-indicator" style="font-size: 6px;"></i>
+                                        <span class="ms-1">Live</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="p-2">
+                                    <h6 id="pool-performance-level" class="text-secondary mb-1">--</h6>
+                                    <small class="text-muted">Pool Performance</small>
+                                    <div class="small text-muted mt-1">
+                                        <i class="fas fa-circle text-success" id="pool-level-indicator" style="font-size: 6px;"></i>
+                                        <span class="ms-1">Live</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-4">
+                                <div class="p-2">
+                                    <h6 id="pool-efficiency" class="text-secondary mb-1">--%</h6>
+                                    <small class="text-muted">Pool Efficiency</small>
+                                    <div class="small text-muted mt-1">
+                                        <i class="fas fa-circle text-success" id="pool-efficiency-indicator" style="font-size: 6px;"></i>
                                         <span class="ms-1">Live</span>
                                     </div>
                                 </div>
@@ -642,6 +699,18 @@
                 'cacheMissRatio' in metrics, 'value:', metrics.cacheMissRatio, 'type:', typeof metrics.cacheMissRatio);
             console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: activeDbConnections field in metrics:',
                 'activeDbConnections' in metrics, 'value:', metrics.activeDbConnections, 'type:', typeof metrics.activeDbConnections);
+            
+            // НОВЫЕ Connection Pool метрики диагностика
+            console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: averageConnectionAcquisitionTimeMs field in metrics:',
+                'averageConnectionAcquisitionTimeMs' in metrics, 'value:', metrics.averageConnectionAcquisitionTimeMs, 'type:', typeof metrics.averageConnectionAcquisitionTimeMs);
+            console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: totalConnectionRequests field in metrics:',
+                'totalConnectionRequests' in metrics, 'value:', metrics.totalConnectionRequests, 'type:', typeof metrics.totalConnectionRequests);
+            console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: connectionLeaksDetected field in metrics:',
+                'connectionLeaksDetected' in metrics, 'value:', metrics.connectionLeaksDetected, 'type:', typeof metrics.connectionLeaksDetected);
+            console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: connectionPoolPerformanceLevel field in metrics:',
+                'connectionPoolPerformanceLevel' in metrics, 'value:', metrics.connectionPoolPerformanceLevel, 'type:', typeof metrics.connectionPoolPerformanceLevel);
+            console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: connectionPoolEfficiency field in metrics:',
+                'connectionPoolEfficiency' in metrics, 'value:', metrics.connectionPoolEfficiency, 'type:', typeof metrics.connectionPoolEfficiency);
 
             // Обновляем новые Database & Cache метрики с диагностикой
             if (metrics.dbPoolUsage !== undefined && metrics.dbPoolUsage !== null) {
@@ -748,6 +817,9 @@
             
             console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: === КОНЕЦ АНАЛИЗА DATABASE & CACHE ===');
             
+            // Обновляем новые Connection Pool метрики
+            updateNewConnectionPoolMetrics(metrics);
+            
             // Обновление Redis статуса из SSE данных
             if (typeof metrics.redis_healthy !== 'undefined') {
                 updateRedisStatus(metrics.redis_healthy);
@@ -780,12 +852,222 @@
         }
         
         /**
+         * Обновление новых расширенных Connection Pool метрик
+         */
+        function updateNewConnectionPoolMetrics(metrics) {
+            console.log('🔍 ДИАГНОСТИКА НОВЫЕ МЕТРИКИ: Starting updateNewConnectionPoolMetrics with data:', metrics);
+            
+            // ДИАГНОСТИКА новых Connection Pool полей
+            console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: === АНАЛИЗ НОВЫХ CONNECTION POOL ПОЛЕЙ ===');
+            console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: averageConnectionAcquisitionTimeMs field in metrics:',
+                'averageConnectionAcquisitionTimeMs' in metrics, 'value:', metrics.averageConnectionAcquisitionTimeMs, 'type:', typeof metrics.averageConnectionAcquisitionTimeMs);
+            console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: totalConnectionRequests field in metrics:',
+                'totalConnectionRequests' in metrics, 'value:', metrics.totalConnectionRequests, 'type:', typeof metrics.totalConnectionRequests);
+            console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: connectionLeaksDetected field in metrics:',
+                'connectionLeaksDetected' in metrics, 'value:', metrics.connectionLeaksDetected, 'type:', typeof metrics.connectionLeaksDetected);
+            console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: connectionPoolPerformanceLevel field in metrics:',
+                'connectionPoolPerformanceLevel' in metrics, 'value:', metrics.connectionPoolPerformanceLevel, 'type:', typeof metrics.connectionPoolPerformanceLevel);
+            console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: connectionPoolEfficiency field in metrics:',
+                'connectionPoolEfficiency' in metrics, 'value:', metrics.connectionPoolEfficiency, 'type:', typeof metrics.connectionPoolEfficiency);
+            
+            // Connection Acquisition Time
+            if (metrics.averageConnectionAcquisitionTimeMs !== undefined && metrics.averageConnectionAcquisitionTimeMs !== null) {
+                console.log('✅ ДИАГНОСТИКА DB&CACHE JS: averageConnectionAcquisitionTimeMs найден, значение:', metrics.averageConnectionAcquisitionTimeMs);
+                const connectionTimeEl = document.getElementById('connection-acquisition-time');
+                console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: connection-acquisition-time элемент найден:', !!connectionTimeEl);
+                
+                if (connectionTimeEl) {
+                    const displayValue = Math.round(metrics.averageConnectionAcquisitionTimeMs) + 'ms';
+                    connectionTimeEl.textContent = displayValue;
+                    console.log('✅ ДИАГНОСТИКА DB&CACHE JS: connection-acquisition-time обновлен на:', displayValue);
+                    
+                    // Мигание индикатора обновления
+                    const connectionTimeIndicator = document.getElementById('connection-time-indicator');
+                    if (connectionTimeIndicator) {
+                        connectionTimeIndicator.className = 'fas fa-circle text-warning';
+                        setTimeout(() => {
+                            connectionTimeIndicator.className = 'fas fa-circle text-success';
+                        }, 200);
+                    }
+                    
+                    // Цветовая индикация времени получения соединения (меньше = лучше)
+                    if (metrics.averageConnectionAcquisitionTimeMs < 10) {
+                        connectionTimeEl.style.color = '#28a745'; // Зеленый
+                    } else if (metrics.averageConnectionAcquisitionTimeMs < 50) {
+                        connectionTimeEl.style.color = '#17a2b8'; // Синий
+                    } else if (metrics.averageConnectionAcquisitionTimeMs < 100) {
+                        connectionTimeEl.style.color = '#ffc107'; // Желтый
+                    } else {
+                        connectionTimeEl.style.color = '#dc3545'; // Красный
+                    }
+                } else {
+                    console.error('❌ ДИАГНОСТИКА DB&CACHE JS: connection-acquisition-time элемент не найден в DOM!');
+                }
+            } else {
+                console.warn('⚠️ ДИАГНОСТИКА DB&CACHE JS: averageConnectionAcquisitionTimeMs НЕ НАЙДЕН в metrics или undefined');
+            }
+            
+            // Total Connection Requests
+            if (metrics.totalConnectionRequests !== undefined && metrics.totalConnectionRequests !== null) {
+                console.log('✅ ДИАГНОСТИКА DB&CACHE JS: totalConnectionRequests найден, значение:', metrics.totalConnectionRequests);
+                const totalRequestsEl = document.getElementById('total-connection-requests');
+                console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: total-connection-requests элемент найден:', !!totalRequestsEl);
+                
+                if (totalRequestsEl) {
+                    const displayValue = metrics.totalConnectionRequests.toString();
+                    totalRequestsEl.textContent = displayValue;
+                    console.log('✅ ДИАГНОСТИКА DB&CACHE JS: total-connection-requests обновлен на:', displayValue);
+                    
+                    // Мигание индикатора обновления
+                    const requestsIndicator = document.getElementById('connection-requests-indicator');
+                    if (requestsIndicator) {
+                        requestsIndicator.className = 'fas fa-circle text-warning';
+                        setTimeout(() => {
+                            requestsIndicator.className = 'fas fa-circle text-success';
+                        }, 200);
+                    }
+                    
+                    // Цветовая индикация количества запросов
+                    if (metrics.totalConnectionRequests > 10000) {
+                        totalRequestsEl.style.color = '#dc3545'; // Красный для высокой нагрузки
+                    } else if (metrics.totalConnectionRequests > 1000) {
+                        totalRequestsEl.style.color = '#ffc107'; // Желтый для средней нагрузки
+                    } else {
+                        totalRequestsEl.style.color = '#6c757d'; // Серый для нормальной нагрузки
+                    }
+                } else {
+                    console.error('❌ ДИАГНОСТИКА DB&CACHE JS: total-connection-requests элемент не найден в DOM!');
+                }
+            } else {
+                console.warn('⚠️ ДИАГНОСТИКА DB&CACHE JS: totalConnectionRequests НЕ НАЙДЕН в metrics или undefined');
+            }
+            
+            // Connection Leaks Detected
+            if (metrics.connectionLeaksDetected !== undefined && metrics.connectionLeaksDetected !== null) {
+                console.log('✅ ДИАГНОСТИКА DB&CACHE JS: connectionLeaksDetected найден, значение:', metrics.connectionLeaksDetected);
+                const leaksEl = document.getElementById('connection-leaks');
+                console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: connection-leaks элемент найден:', !!leaksEl);
+                
+                if (leaksEl) {
+                    const displayValue = metrics.connectionLeaksDetected.toString();
+                    leaksEl.textContent = displayValue;
+                    console.log('✅ ДИАГНОСТИКА DB&CACHE JS: connection-leaks обновлен на:', displayValue);
+                    
+                    // Мигание индикатора обновления
+                    const leaksIndicator = document.getElementById('connection-leaks-indicator');
+                    if (leaksIndicator) {
+                        leaksIndicator.className = 'fas fa-circle text-warning';
+                        setTimeout(() => {
+                            leaksIndicator.className = 'fas fa-circle text-success';
+                        }, 200);
+                    }
+                    
+                    // Цветовая индикация утечек соединений (0 = лучше всего)
+                    if (metrics.connectionLeaksDetected === 0) {
+                        leaksEl.style.color = '#28a745'; // Зеленый для отсутствия утечек
+                    } else if (metrics.connectionLeaksDetected < 5) {
+                        leaksEl.style.color = '#ffc107'; // Желтый для небольших утечек
+                    } else {
+                        leaksEl.style.color = '#dc3545'; // Красный для критических утечек
+                    }
+                } else {
+                    console.error('❌ ДИАГНОСТИКА DB&CACHE JS: connection-leaks элемент не найден в DOM!');
+                }
+            } else {
+                console.warn('⚠️ ДИАГНОСТИКА DB&CACHE JS: connectionLeaksDetected НЕ НАЙДЕН в metrics или undefined');
+            }
+            
+            // Connection Pool Performance Level
+            if (metrics.connectionPoolPerformanceLevel !== undefined && metrics.connectionPoolPerformanceLevel !== null) {
+                console.log('✅ ДИАГНОСТИКА DB&CACHE JS: connectionPoolPerformanceLevel найден, значение:', metrics.connectionPoolPerformanceLevel);
+                const performanceLevelEl = document.getElementById('pool-performance-level');
+                console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: pool-performance-level элемент найден:', !!performanceLevelEl);
+                
+                if (performanceLevelEl) {
+                    const displayValue = metrics.connectionPoolPerformanceLevel;
+                    performanceLevelEl.textContent = displayValue;
+                    console.log('✅ ДИАГНОСТИКА DB&CACHE JS: pool-performance-level обновлен на:', displayValue);
+                    
+                    // Мигание индикатора обновления
+                    const levelIndicator = document.getElementById('pool-level-indicator');
+                    if (levelIndicator) {
+                        levelIndicator.className = 'fas fa-circle text-warning';
+                        setTimeout(() => {
+                            levelIndicator.className = 'fas fa-circle text-success';
+                        }, 200);
+                    }
+                    
+                    // Цветовая индикация уровня производительности
+                    switch(displayValue) {
+                        case 'EXCELLENT':
+                            performanceLevelEl.style.color = '#28a745'; // Зеленый
+                            break;
+                        case 'GOOD':
+                            performanceLevelEl.style.color = '#17a2b8'; // Синий
+                            break;
+                        case 'ACCEPTABLE':
+                            performanceLevelEl.style.color = '#ffc107'; // Желтый
+                            break;
+                        case 'POOR':
+                            performanceLevelEl.style.color = '#dc3545'; // Красный
+                            break;
+                        default:
+                            performanceLevelEl.style.color = '#6c757d'; // Серый
+                    }
+                } else {
+                    console.error('❌ ДИАГНОСТИКА DB&CACHE JS: pool-performance-level элемент не найден в DOM!');
+                }
+            } else {
+                console.warn('⚠️ ДИАГНОСТИКА DB&CACHE JS: connectionPoolPerformanceLevel НЕ НАЙДЕН в metrics или undefined');
+            }
+            
+            // Connection Pool Efficiency
+            if (metrics.connectionPoolEfficiency !== undefined && metrics.connectionPoolEfficiency !== null) {
+                console.log('✅ ДИАГНОСТИКА DB&CACHE JS: connectionPoolEfficiency найден, значение:', metrics.connectionPoolEfficiency);
+                const efficiencyEl = document.getElementById('pool-efficiency');
+                console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: pool-efficiency элемент найден:', !!efficiencyEl);
+                
+                if (efficiencyEl) {
+                    const displayValue = Math.round(metrics.connectionPoolEfficiency) + '%';
+                    efficiencyEl.textContent = displayValue;
+                    console.log('✅ ДИАГНОСТИКА DB&CACHE JS: pool-efficiency обновлен на:', displayValue);
+                    
+                    // Мигание индикатора обновления
+                    const efficiencyIndicator = document.getElementById('pool-efficiency-indicator');
+                    if (efficiencyIndicator) {
+                        efficiencyIndicator.className = 'fas fa-circle text-warning';
+                        setTimeout(() => {
+                            efficiencyIndicator.className = 'fas fa-circle text-success';
+                        }, 200);
+                    }
+                    
+                    // Цветовая индикация эффективности пула
+                    if (metrics.connectionPoolEfficiency >= 90) {
+                        efficiencyEl.style.color = '#28a745'; // Зеленый для высокой эффективности
+                    } else if (metrics.connectionPoolEfficiency >= 75) {
+                        efficiencyEl.style.color = '#17a2b8'; // Синий для хорошей эффективности
+                    } else if (metrics.connectionPoolEfficiency >= 50) {
+                        efficiencyEl.style.color = '#ffc107'; // Желтый для средней эффективности
+                    } else {
+                        efficiencyEl.style.color = '#dc3545'; // Красный для низкой эффективности
+                    }
+                } else {
+                    console.error('❌ ДИАГНОСТИКА DB&CACHE JS: pool-efficiency элемент не найден в DOM!');
+                }
+            } else {
+                console.warn('⚠️ ДИАГНОСТИКА DB&CACHE JS: connectionPoolEfficiency НЕ НАЙДЕН в metrics или undefined');
+            }
+            
+            console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: === КОНЕЦ АНАЛИЗА НОВЫХ CONNECTION POOL ПОЛЕЙ ===');
+        }
+        
+        /**
          * Обновление статуса SSE подключения в UI
          */
         function updateSSEConnectionStatus(status) {
             sseConnectionStatus = status;
             
-            const indicators = ['response-indicator', 'memory-indicator', 'cache-indicator', 'db-pool-indicator', 'cache-miss-indicator', 'db-connections-indicator'];
+            const indicators = ['response-indicator', 'memory-indicator', 'cache-indicator', 'db-pool-indicator', 'cache-miss-indicator', 'db-connections-indicator', 'connection-time-indicator', 'connection-requests-indicator', 'connection-leaks-indicator', 'pool-level-indicator', 'pool-efficiency-indicator'];
             const statusColors = {
                 'disconnected': 'text-secondary',
                 'connecting': 'text-warning',
@@ -1095,6 +1377,34 @@
                     if (activeDbConnectionsEl && data.activeDbConnections !== undefined && data.activeDbConnections !== null) {
                         activeDbConnectionsEl.textContent = data.activeDbConnections.toString();
                         console.log('✅ Fast endpoint active DB connections updated:', data.activeDbConnections);
+                    }
+                    
+                    // НОВОЕ: Обновляем расширенные Connection Pool метрики из fast endpoint
+                    const connectionTimeEl = document.getElementById('connection-acquisition-time');
+                    const totalRequestsEl = document.getElementById('total-connection-requests');
+                    const leaksEl = document.getElementById('connection-leaks');
+                    const performanceLevelEl = document.getElementById('pool-performance-level');
+                    const efficiencyEl = document.getElementById('pool-efficiency');
+                    
+                    if (connectionTimeEl && data.averageConnectionAcquisitionTimeMs !== undefined && data.averageConnectionAcquisitionTimeMs !== null) {
+                        connectionTimeEl.textContent = Math.round(data.averageConnectionAcquisitionTimeMs) + 'ms';
+                        console.log('✅ Fast endpoint connection acquisition time updated:', data.averageConnectionAcquisitionTimeMs + 'ms');
+                    }
+                    if (totalRequestsEl && data.totalConnectionRequests !== undefined && data.totalConnectionRequests !== null) {
+                        totalRequestsEl.textContent = data.totalConnectionRequests.toString();
+                        console.log('✅ Fast endpoint total connection requests updated:', data.totalConnectionRequests);
+                    }
+                    if (leaksEl && data.connectionLeaksDetected !== undefined && data.connectionLeaksDetected !== null) {
+                        leaksEl.textContent = data.connectionLeaksDetected.toString();
+                        console.log('✅ Fast endpoint connection leaks updated:', data.connectionLeaksDetected);
+                    }
+                    if (performanceLevelEl && data.connectionPoolPerformanceLevel !== undefined && data.connectionPoolPerformanceLevel !== null) {
+                        performanceLevelEl.textContent = data.connectionPoolPerformanceLevel;
+                        console.log('✅ Fast endpoint pool performance level updated:', data.connectionPoolPerformanceLevel);
+                    }
+                    if (efficiencyEl && data.connectionPoolEfficiency !== undefined && data.connectionPoolEfficiency !== null) {
+                        efficiencyEl.textContent = Math.round(data.connectionPoolEfficiency) + '%';
+                        console.log('✅ Fast endpoint pool efficiency updated:', data.connectionPoolEfficiency + '%');
                     }
                     
                     // НОВОЕ: Обновляем Health Score из fast endpoint
@@ -1547,6 +1857,12 @@
                 dbPoolUsage: document.getElementById('db-pool-usage').textContent,
                 cacheMissRatio: document.getElementById('cache-miss-ratio').textContent,
                 activeDbConnections: document.getElementById('active-db-connections').textContent,
+                // НОВЫЕ расширенные Connection Pool метрики
+                connectionAcquisitionTime: document.getElementById('connection-acquisition-time').textContent,
+                totalConnectionRequests: document.getElementById('total-connection-requests').textContent,
+                connectionLeaks: document.getElementById('connection-leaks').textContent,
+                poolPerformanceLevel: document.getElementById('pool-performance-level').textContent,
+                poolEfficiency: document.getElementById('pool-efficiency').textContent,
                 totalFlags: document.getElementById('total-flags')?.textContent || 'N/A',
                 activeFlags: document.getElementById('active-flags')?.textContent || 'N/A',
                 cacheSize: document.getElementById('cache-size').textContent
@@ -1711,6 +2027,29 @@
                             activeDbConnectionsEl.textContent = data.activeDbConnections.toString();
                         }
                         
+                        // НОВОЕ: Обновляем расширенные Connection Pool метрики
+                        const connectionTimeEl = document.getElementById('connection-acquisition-time');
+                        const totalRequestsEl = document.getElementById('total-connection-requests');
+                        const leaksEl = document.getElementById('connection-leaks');
+                        const performanceLevelEl = document.getElementById('pool-performance-level');
+                        const efficiencyEl = document.getElementById('pool-efficiency');
+                        
+                        if (connectionTimeEl && data.averageConnectionAcquisitionTimeMs !== undefined && data.averageConnectionAcquisitionTimeMs !== null) {
+                            connectionTimeEl.textContent = Math.round(data.averageConnectionAcquisitionTimeMs) + 'ms';
+                        }
+                        if (totalRequestsEl && data.totalConnectionRequests !== undefined && data.totalConnectionRequests !== null) {
+                            totalRequestsEl.textContent = data.totalConnectionRequests.toString();
+                        }
+                        if (leaksEl && data.connectionLeaksDetected !== undefined && data.connectionLeaksDetected !== null) {
+                            leaksEl.textContent = data.connectionLeaksDetected.toString();
+                        }
+                        if (performanceLevelEl && data.connectionPoolPerformanceLevel !== undefined && data.connectionPoolPerformanceLevel !== null) {
+                            performanceLevelEl.textContent = data.connectionPoolPerformanceLevel;
+                        }
+                        if (efficiencyEl && data.connectionPoolEfficiency !== undefined && data.connectionPoolEfficiency !== null) {
+                            efficiencyEl.textContent = Math.round(data.connectionPoolEfficiency) + '%';
+                        }
+                        
                         // Обновляем время последнего обновления
                         const lastUpdateEl = document.getElementById('metrics-last-update');
                         if (lastUpdateEl) {
@@ -1723,7 +2062,13 @@
                             cache: data.cacheHitRatio,
                             dbPoolUsage: data.dbPoolUsage,
                             cacheMissRatio: data.cacheMissRatio,
-                            activeDbConnections: data.activeDbConnections
+                            activeDbConnections: data.activeDbConnections,
+                            // Новые расширенные Connection Pool метрики
+                            connectionAcquisitionTime: data.averageConnectionAcquisitionTimeMs,
+                            totalConnectionRequests: data.totalConnectionRequests,
+                            connectionLeaks: data.connectionLeaksDetected,
+                            poolPerformanceLevel: data.connectionPoolPerformanceLevel,
+                            poolEfficiency: data.connectionPoolEfficiency
                         });
                     }
                 })

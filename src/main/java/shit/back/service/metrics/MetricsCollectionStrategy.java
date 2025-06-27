@@ -48,7 +48,13 @@ public interface MetricsCollectionStrategy {
             // Database & Cache метрики
             Integer dbPoolUsage,
             Integer cacheMissRatio,
-            Integer activeDbConnections) {
+            Integer activeDbConnections,
+            // Query execution statistics - РАСШИРЕННЫЕ DATABASE МЕТРИКИ
+            Double averageConnectionAcquisitionTimeMs,
+            Long totalConnectionRequests,
+            Long connectionLeaksDetected,
+            String connectionPoolPerformanceLevel,
+            Double connectionPoolEfficiency) {
 
         public static Builder builder() {
             return new Builder();
@@ -70,7 +76,12 @@ public interface MetricsCollectionStrategy {
                     .metadata(this.metadata)
                     .dbPoolUsage(this.dbPoolUsage)
                     .cacheMissRatio(this.cacheMissRatio)
-                    .activeDbConnections(this.activeDbConnections);
+                    .activeDbConnections(this.activeDbConnections)
+                    .averageConnectionAcquisitionTimeMs(this.averageConnectionAcquisitionTimeMs)
+                    .totalConnectionRequests(this.totalConnectionRequests)
+                    .connectionLeaksDetected(this.connectionLeaksDetected)
+                    .connectionPoolPerformanceLevel(this.connectionPoolPerformanceLevel)
+                    .connectionPoolEfficiency(this.connectionPoolEfficiency);
         }
 
         public static class Builder {
@@ -90,6 +101,12 @@ public interface MetricsCollectionStrategy {
             private Integer dbPoolUsage;
             private Integer cacheMissRatio;
             private Integer activeDbConnections;
+            // Query execution statistics - РАСШИРЕННЫЕ DATABASE МЕТРИКИ
+            private Double averageConnectionAcquisitionTimeMs;
+            private Long totalConnectionRequests;
+            private Long connectionLeaksDetected;
+            private String connectionPoolPerformanceLevel;
+            private Double connectionPoolEfficiency;
 
             public Builder responseTime(Double responseTime) {
                 this.responseTime = responseTime;
@@ -166,6 +183,31 @@ public interface MetricsCollectionStrategy {
                 return this;
             }
 
+            public Builder averageConnectionAcquisitionTimeMs(Double averageConnectionAcquisitionTimeMs) {
+                this.averageConnectionAcquisitionTimeMs = averageConnectionAcquisitionTimeMs;
+                return this;
+            }
+
+            public Builder totalConnectionRequests(Long totalConnectionRequests) {
+                this.totalConnectionRequests = totalConnectionRequests;
+                return this;
+            }
+
+            public Builder connectionLeaksDetected(Long connectionLeaksDetected) {
+                this.connectionLeaksDetected = connectionLeaksDetected;
+                return this;
+            }
+
+            public Builder connectionPoolPerformanceLevel(String connectionPoolPerformanceLevel) {
+                this.connectionPoolPerformanceLevel = connectionPoolPerformanceLevel;
+                return this;
+            }
+
+            public Builder connectionPoolEfficiency(Double connectionPoolEfficiency) {
+                this.connectionPoolEfficiency = connectionPoolEfficiency;
+                return this;
+            }
+
             public PerformanceMetrics build() {
                 return new PerformanceMetrics(
                         responseTime,
@@ -182,7 +224,12 @@ public interface MetricsCollectionStrategy {
                         metadata,
                         dbPoolUsage,
                         cacheMissRatio,
-                        activeDbConnections);
+                        activeDbConnections,
+                        averageConnectionAcquisitionTimeMs,
+                        totalConnectionRequests,
+                        connectionLeaksDetected,
+                        connectionPoolPerformanceLevel,
+                        connectionPoolEfficiency);
             }
         }
     }

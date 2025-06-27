@@ -48,6 +48,17 @@ public class JsonValidationService {
      */
     public String validateAndFixPerformanceMetricsJson(Map<String, Object> metricsData) {
         try {
+            // 🔍 ДИАГНОСТИКА ПОТЕРИ ПОЛЕЙ: Логируем входящие данные
+            log.info("🔍 JSON VALIDATION ДИАГНОСТИКА: Входящие ключи metricsData ({}): {}",
+                    metricsData.size(), metricsData.keySet());
+            log.info("🔍 JSON VALIDATION ДИАГНОСТИКА: Проверяем новые поля ДО валидации:");
+            log.info("🔍 averageConnectionAcquisitionTimeMs = {}",
+                    metricsData.get("averageConnectionAcquisitionTimeMs"));
+            log.info("🔍 totalConnectionRequests = {}", metricsData.get("totalConnectionRequests"));
+            log.info("🔍 connectionLeaksDetected = {}", metricsData.get("connectionLeaksDetected"));
+            log.info("🔍 connectionPoolPerformanceLevel = {}", metricsData.get("connectionPoolPerformanceLevel"));
+            log.info("🔍 connectionPoolEfficiency = {}", metricsData.get("connectionPoolEfficiency"));
+
             // Создаем копию данных для безопасности
             Map<String, Object> safeData = new LinkedHashMap<>();
 
@@ -84,6 +95,49 @@ public class JsonValidationService {
             log.info(
                     "🔍 JSON VALIDATION ДИАГНОСТИКА: Output DB fields - dbPoolUsage={}, cacheMissRatio={}, activeDbConnections={}",
                     safeData.get("dbPoolUsage"), safeData.get("cacheMissRatio"), safeData.get("activeDbConnections"));
+
+            // ДОБАВЛЯЕМ НОВЫЕ CONNECTION POOL ПОЛЯ В SAFEDATA
+            Object avgConnectionAcquisitionTimeInput = metricsData.get("averageConnectionAcquisitionTimeMs");
+            Object totalConnectionRequestsInput = metricsData.get("totalConnectionRequests");
+            Object connectionLeaksDetectedInput = metricsData.get("connectionLeaksDetected");
+            Object connectionPoolPerformanceLevelInput = metricsData.get("connectionPoolPerformanceLevel");
+            Object connectionPoolEfficiencyInput = metricsData.get("connectionPoolEfficiency");
+
+            log.info("🔍 JSON VALIDATION ДИАГНОСТИКА: Connection Pool поля до валидации:");
+            log.info("🔍 averageConnectionAcquisitionTimeMs = {}", avgConnectionAcquisitionTimeInput);
+            log.info("🔍 totalConnectionRequests = {}", totalConnectionRequestsInput);
+            log.info("🔍 connectionLeaksDetected = {}", connectionLeaksDetectedInput);
+            log.info("🔍 connectionPoolPerformanceLevel = {}", connectionPoolPerformanceLevelInput);
+            log.info("🔍 connectionPoolEfficiency = {}", connectionPoolEfficiencyInput);
+
+            // Connection Pool расширенные метрики с валидацией типов
+            safeData.put("averageConnectionAcquisitionTimeMs",
+                    validateNumericField(avgConnectionAcquisitionTimeInput, 0.0));
+            safeData.put("totalConnectionRequests",
+                    validateLongField(totalConnectionRequestsInput, 0L));
+            safeData.put("connectionLeaksDetected",
+                    validateIntegerField(connectionLeaksDetectedInput, 0));
+            safeData.put("connectionPoolPerformanceLevel",
+                    validateStringField(connectionPoolPerformanceLevelInput, "UNKNOWN"));
+            safeData.put("connectionPoolEfficiency",
+                    validateNumericField(connectionPoolEfficiencyInput, 0.0));
+
+            // 🔍 ИСПРАВЛЕННАЯ ДИАГНОСТИКА: Проверяем что safeData ТЕПЕРЬ содержит новые
+            // поля
+            log.info("🔍 JSON VALIDATION ДИАГНОСТИКА: safeData ключи ПОСЛЕ добавления новых полей ({}): {}",
+                    safeData.size(), safeData.keySet());
+            log.info("✅ JSON VALIDATION ДИАГНОСТИКА: Новые поля ДОБАВЛЕНЫ в safeData:");
+            log.info("✅ averageConnectionAcquisitionTimeMs в safeData = {}",
+                    safeData.get("averageConnectionAcquisitionTimeMs"));
+            log.info("✅ totalConnectionRequests в safeData = {}", safeData.get("totalConnectionRequests"));
+            log.info("✅ connectionLeaksDetected в safeData = {}", safeData.get("connectionLeaksDetected"));
+            log.info("✅ connectionPoolPerformanceLevel в safeData = {}",
+                    safeData.get("connectionPoolPerformanceLevel"));
+            log.info("✅ connectionPoolEfficiency в safeData = {}", safeData.get("connectionPoolEfficiency"));
+
+            log.info(
+                    "✅ JSON VALIDATION ИСПРАВЛЕНО: JsonValidationService теперь сохраняет новые поля! Размер входящих данных: {}, размер safeData: {}",
+                    metricsData.size(), safeData.size());
 
             // Сериализуем в JSON
             String jsonString = objectMapper.writeValueAsString(safeData);
@@ -219,6 +273,13 @@ public class JsonValidationService {
             fallbackData.put("dbPoolUsage", 50);
             fallbackData.put("cacheMissRatio", 10);
             fallbackData.put("activeDbConnections", 3);
+
+            // НОВЫЕ FALLBACK ЗНАЧЕНИЯ для Connection Pool расширенных метрик
+            fallbackData.put("averageConnectionAcquisitionTimeMs", 0.0);
+            fallbackData.put("totalConnectionRequests", 0L);
+            fallbackData.put("connectionLeaksDetected", 0);
+            fallbackData.put("connectionPoolPerformanceLevel", "UNKNOWN");
+            fallbackData.put("connectionPoolEfficiency", 0.0);
 
             return objectMapper.writeValueAsString(fallbackData);
         } catch (Exception e) {

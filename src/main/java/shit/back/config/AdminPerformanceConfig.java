@@ -12,12 +12,16 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.scheduling.TaskScheduler;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
 
 import java.util.concurrent.Executor;
 
 /**
  * Configuration for admin dashboard performance optimization
  * Optimized for Koyeb's limited resources (0.1 vCPU, 512MB RAM)
+ *
+ * ИСПРАВЛЕНО: Циклическая зависимость устранена с помощью @Lazy аннотации
  */
 @Configuration
 @EnableCaching
@@ -27,9 +31,14 @@ public class AdminPerformanceConfig {
 
     private static final Logger log = LoggerFactory.getLogger(AdminPerformanceConfig.class);
 
+    @Lazy
+    @Autowired(required = false)
+    private CacheMetricsInterceptor cacheMetricsInterceptor;
+
     /**
      * Cache manager for admin dashboard data
      * Uses simple concurrent map cache for minimal memory usage
+     * ОБНОВЛЕНО: интеграция с CacheMetricsInterceptor для отслеживания статистики
      */
     @Bean("adminCacheManager")
     public CacheManager adminCacheManager() {
@@ -40,6 +49,14 @@ public class AdminPerformanceConfig {
                 "admin_recent_activity",
                 "systemHealth");
         cacheManager.setAllowNullValues(false);
+
+        // Интеграция с метриками кэша (если доступен)
+        if (cacheMetricsInterceptor != null) {
+            log.info("✅ CACHE METRICS: CacheMetricsInterceptor интегрирован с admin cache manager");
+            // Примечание: интеграция происходит через @Cacheable аннотации и Spring AOP
+        } else {
+            log.warn("⚠️ CACHE METRICS: CacheMetricsInterceptor не доступен");
+        }
 
         log.info("Admin cache manager configured with {} cache regions",
                 cacheManager.getCacheNames().size());

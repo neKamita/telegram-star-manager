@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.scheduling.annotation.Async;
+import shit.back.service.metrics.CacheMetricsService;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import shit.back.service.AdminDashboardService.*;
@@ -27,6 +28,9 @@ public class AdminDashboardCacheService {
 
     @Autowired
     private AdminDashboardService adminDashboardService;
+
+    @Autowired(required = false)
+    private CacheMetricsService cacheMetricsService;
 
     @Autowired
     private UserSessionUnifiedService userSessionService;
@@ -511,5 +515,34 @@ public class AdminDashboardCacheService {
                 .executionTimeMs(null)
                 .dataComplete(false)
                 .build();
+    }
+
+    /**
+     * ТЕСТОВЫЙ МЕТОД: демонстрация кэширования для CacheMetricsService
+     * Этот метод будет автоматически отслеживаться CacheEventListener
+     */
+    @Cacheable(value = "admin_performance", key = "'test-cache-metrics'")
+    public String testCacheMetrics() {
+        log.info("🧪 ТЕСТ CACHE METRICS: Выполнение expensive операции (кэш промах)");
+
+        // Симуляция дорогой операции
+        try {
+            Thread.sleep(100);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
+        String result = "Test cache result: " + System.currentTimeMillis();
+        log.info("🧪 ТЕСТ CACHE METRICS: Результат операции: {}", result);
+
+        return result;
+    }
+
+    /**
+     * ТЕСТОВЫЙ МЕТОД: очистка тестового кэша
+     */
+    @CacheEvict(value = "admin_performance", key = "'test-cache-metrics'")
+    public void clearTestCacheMetrics() {
+        log.info("🧹 ТЕСТ CACHE METRICS: Очистка тестового кэша");
     }
 }

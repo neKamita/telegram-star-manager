@@ -34,6 +34,13 @@ public class PerformanceMetrics implements Serializable {
     private Integer cacheMissRatio;
     private Integer activeDbConnections;
 
+    // Query execution statistics - РАСШИРЕННЫЕ DATABASE МЕТРИКИ
+    private Double averageConnectionAcquisitionTimeMs;
+    private Long totalConnectionRequests;
+    private Long connectionLeaksDetected;
+    private String connectionPoolPerformanceLevel; // EXCELLENT, GOOD, ACCEPTABLE, POOR
+    private Double connectionPoolEfficiency;
+
     // Дополнительные поля для полной функциональности
     private Long totalUsers;
     private Long activeUsers;

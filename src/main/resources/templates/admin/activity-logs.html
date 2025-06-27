@@ -106,6 +106,10 @@
             word-break: break-word;
             white-space: normal;
         }
+
+        .table-secondary td span{
+            text-wrap: wrap;
+        }
         
         .description-text.expanding {
             animation: expandText 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
@@ -137,82 +141,6 @@
             }
         }
         
-        .description-toggle {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.3rem;
-            padding: 0.2rem 0.6rem;
-            margin: 0.25rem 0 0 0;
-            border: none;
-            border-radius: 12px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            font-size: 0.7rem;
-            font-weight: 500;
-            text-decoration: none;
-            cursor: pointer;
-            transition: all 0.25s ease;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            position: relative;
-            overflow: hidden;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .description-toggle::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-            transition: left 0.4s ease;
-        }
-        
-        .description-toggle:hover::before {
-            left: 100%;
-        }
-        
-        .description-toggle:hover {
-            transform: translateY(-1px) scale(1.02);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
-            background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
-        }
-        
-        .description-toggle:active {
-            transform: translateY(0) scale(1);
-            box-shadow: 0 2px 6px rgba(102, 126, 234, 0.3);
-        }
-        
-        .description-toggle:focus {
-            outline: none;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
-        }
-        
-        .description-toggle i {
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            font-size: 0.65rem;
-            opacity: 0.9;
-        }
-        
-        .description-toggle[aria-expanded="true"] {
-            background: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
-        }
-        
-        .description-toggle[aria-expanded="true"]:hover {
-            background: linear-gradient(135deg, #38a169 0%, #2f855a 100%);
-            box-shadow: 0 4px 12px rgba(72, 187, 120, 0.4);
-        }
-        
-        .description-toggle[aria-expanded="true"] i {
-            transform: rotate(180deg);
-        }
-        
-        .description-toggle-text {
-            transition: all 0.2s ease;
-            font-weight: 600;
-        }
         
         /* Адаптивность для мобильных устройств */
         @media (max-width: 1400px) {
@@ -243,12 +171,6 @@
                 max-width: 400px;
             }
             
-            .description-toggle {
-                font-size: 0.65rem;
-                padding: 0.15rem 0.5rem;
-                gap: 0.25rem;
-                border-radius: 10px;
-            }
         }
         
         @media (max-width: 992px) {
@@ -272,17 +194,6 @@
                 padding: 0.5rem;
             }
             
-            .description-toggle {
-                font-size: 0.6rem;
-                padding: 0.12rem 0.4rem;
-                gap: 0.2rem;
-                border-radius: 8px;
-                margin: 0.2rem 0 0 0;
-            }
-            
-            .description-toggle i {
-                font-size: 0.55rem;
-            }
         }
         
         @media (max-width: 768px) {
@@ -306,17 +217,6 @@
                 padding: 0.4rem;
             }
             
-            .description-toggle {
-                font-size: 0.55rem;
-                padding: 0.08rem 0.3rem;
-                gap: 0.15rem;
-                border-radius: 6px;
-                margin: 0.15rem 0 0 0;
-            }
-            
-            .description-toggle i {
-                font-size: 0.5rem;
-            }
             
             .description-text {
                 line-height: 1.3;
@@ -344,20 +244,44 @@
                 padding: 0.3rem;
             }
             
-            .description-toggle {
-                font-size: 0.55rem;
-                padding: 0.08rem 0.2rem;
-                margin-left: 0.15rem;
-                border-radius: 3px;
-            }
-            
-            .description-toggle i {
-                font-size: 0.5rem;
-            }
             
             .description-text {
                 line-height: 1.25;
             }
+        }
+        
+        /* Стили для пагинации */
+        #static-pagination, #dynamic-pagination {
+            margin-top: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        #dynamic-pagination .pagination {
+            margin-bottom: 0;
+        }
+        
+        .pagination .page-link {
+            transition: all 0.2s ease;
+        }
+        
+        .pagination .page-link:hover {
+            background-color: #e9ecef;
+            border-color: #dee2e6;
+            color: #495057;
+        }
+        
+        .pagination .page-item.active .page-link {
+            background-color: #007bff;
+            border-color: #007bff;
+            color: white;
+        }
+        
+        .pagination .page-item.disabled .page-link {
+            color: #6c757d;
+            pointer-events: none;
+            cursor: auto;
+            background-color: #fff;
+            border-color: #dee2e6;
         }
         
         /* Особые стили для очень маленьких экранов */
@@ -368,6 +292,21 @@
                 background: white;
                 overflow-x: auto;
                 -webkit-overflow-scrolling: touch;
+            }
+            
+            /* Адаптивная пагинация для маленьких экранов */
+            .pagination {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            
+            .pagination .page-item {
+                margin: 2px;
+            }
+            
+            .pagination .page-link {
+                padding: 0.375rem 0.5rem;
+                font-size: 0.875rem;
             }
             
             .historical-activities-table {
@@ -392,20 +331,6 @@
                 padding: 0.25rem;
             }
             
-            .description-toggle {
-                display: block;
-                width: 100%;
-                text-align: center;
-                margin: 0.2rem 0 0 0;
-                font-size: 0.5rem;
-                padding: 0.06rem 0.2rem;
-                border-radius: 8px;
-                gap: 0.1rem;
-            }
-            
-            .description-toggle i {
-                font-size: 0.45rem;
-            }
             
             .activity-description {
                 display: flex;
@@ -726,26 +651,15 @@
                                 <small class="text-muted" th:if="${activity.username}" th:text="'@' + ${activity.username}">@username</small>
                             </td>
                             <td>
-                                <span th:text="${activity.actionDisplayName}" class="badge bg-primary">Action</span>
+                                <span th:text="${#strings.length(activity.actionDisplayName) > 30 ? #strings.substring(activity.actionDisplayName, 0, 30) + '...' : activity.actionDisplayName}" class="badge bg-primary">Action</span>
                                 <span th:if="${activity.isKeyAction}" class="badge bg-warning ms-1">КЛЮЧ</span>
                             </td>
                             <td>
                                 <div class="activity-description">
-                                    <div class="description-text"
-                                         th:data-full-text="${activity.actionDescription}"
-                                         th:data-short-text="${#strings.length(activity.actionDescription) > 100 ? #strings.substring(activity.actionDescription, 0, 100) + '...' : activity.actionDescription}"
-                                         data-expanded="false"
+                                    <span class="badge bg-light text-dark"
                                          th:text="${#strings.length(activity.actionDescription) > 100 ? #strings.substring(activity.actionDescription, 0, 100) + '...' : activity.actionDescription}">
                                         Description
-                                    </div>
-                                    <button th:if="${#strings.length(activity.actionDescription) > 100}"
-                                            class="description-toggle"
-                                            onclick="toggleDescription(this)"
-                                            aria-expanded="false"
-                                            title="Показать полное описание">
-                                        <i class="fas fa-chevron-down" aria-hidden="true"></i>
-                                        <span class="description-toggle-text">Показать больше</span>
-                                    </button>
+                                    </span>
                                 </div>
                             </td>
                             <td>
@@ -763,8 +677,10 @@
                 </table>
             </div>
 
-            <!-- Pagination -->
-            <nav th:if="${activities != null && activities.totalPages != null && activities.totalPages > 1}">
+            <!-- Pagination Container -->
+            <!-- Статическая пагинация (показывается при server-side рендеринге) -->
+            <nav id="static-pagination" th:if="${activities != null && activities.totalPages != null && activities.totalPages > 1}"
+                 style="display: block;">
                 <ul class="pagination justify-content-center">
                     <li class="page-item" th:classappend="${activities == null || !activities.hasPrevious()} ? 'disabled'">
                         <a class="page-link" th:href="@{/admin/activity-logs(page=${activities.number - 1}, showAll=${showAll}, search=${search}, category=${category})}">Предыдущая</a>
@@ -780,6 +696,11 @@
                     </li>
                 </ul>
             </nav>
+            
+            <!-- Динамическая пагинация (создается через JavaScript для AJAX) -->
+            <nav id="dynamic-pagination" style="display: none;">
+                <!-- Содержимое будет создано через JavaScript -->
+            </nav>
         </div>
     </div>
 
@@ -794,25 +715,127 @@
         let currentCategory = 'ALL';
         let categoryStatistics = {};
         
+        // Система локальных дельт для предотвращения сброса счетчиков
+        let localCounterDeltas = { total: 0, application: 0, telegram: 0, key: 0 };
+        
         // Локальное хранилище для сохранения состояния
         const STORAGE_KEY = 'activityLogs_preferences';
         
+        // Состояние пагинации
+        let currentPage = 0;
+        let currentPageSize = 20;
+        let totalPages = 0;
+        let totalElements = 0;
+        
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('PAGINATION_DEBUG: DOM загружен, начинаем инициализацию');
+            
+            // 🧪 НЕМЕДЛЕННОЕ ТЕСТИРОВАНИЕ ПОСЛЕ ЗАГРУЗКИ DOM
+            console.log('🧪🧪🧪 STARTING IMMEDIATE TESTING AFTER DOM LOAD 🧪🧪🧪');
+            
             loadPreferences();
             initializeActivityStream();
             setupEventHandlers();
             loadCategoryStatistics();
             initializeCategoryFilter();
             
-            // ИСПРАВЛЕНИЕ: Автоматическая загрузка исторических данных при инициализации
-            // Загружаем данные после инициализации категории
-            setTimeout(() => {
-                loadHistoricalData(currentCategory);
-            }, 100);
+            // ИСПРАВЛЕНИЕ: Проверяем наличие статических данных от Thymeleaf с учетом категории
+            const hasStaticData = checkForStaticData();
             
-            // Инициализация статических кнопок toggle в таблице
-            initializeStaticToggleButtons();
+            console.log('PAGINATION_DEBUG: Состояние при инициализации', {
+                hasStaticData: hasStaticData,
+                currentCategory: currentCategory,
+                currentPage: currentPage,
+                currentPageSize: currentPageSize,
+                staticPaginationExists: !!document.getElementById('static-pagination'),
+                dynamicPaginationExists: !!document.getElementById('dynamic-pagination')
+            });
+            
+            // 🧪 ЗАПУСК КОМПЛЕКСНОГО ТЕСТИРОВАНИЯ ПОСЛЕ ИНИЦИАЛИЗАЦИИ
+            setTimeout(() => {
+                console.log('🧪 RUNNING COMPREHENSIVE TESTS AFTER INITIALIZATION...');
+                runAllTests();
+                
+                // Тестируем также актуальное состояние пагинации
+                const currentStaticPagination = document.getElementById('static-pagination');
+                const currentDynamicPagination = document.getElementById('dynamic-pagination');
+                
+                console.log('🧪 PAGINATION_STATE_TEST: Current pagination visibility', {
+                    staticDisplay: currentStaticPagination ? currentStaticPagination.style.display : 'not found',
+                    dynamicDisplay: currentDynamicPagination ? currentDynamicPagination.style.display : 'not found',
+                    staticVisible: currentStaticPagination && currentStaticPagination.style.display !== 'none',
+                    dynamicVisible: currentDynamicPagination && currentDynamicPagination.style.display !== 'none'
+                });
+            }, 500);
+            
+            // ИСПРАВЛЕНИЕ: Всегда загружаем данные через AJAX для обеспечения консистентности
+            // Статические данные используем только как fallback при первоначальной загрузке ALL категории
+            if (hasStaticData && currentCategory === 'ALL') {
+                console.log('PAGINATION_DEBUG: Статические данные ALL категории обнаружены, используем их');
+                // Инициализируем пагинацию для статических данных
+                const staticPagination = document.getElementById('static-pagination');
+                if (staticPagination && staticPagination.style.display !== 'none') {
+                    console.log('PAGINATION_DEBUG: Статическая пагинация видима');
+                }
+                
+                // 🧪 ТЕСТИРУЕМ СТАТИЧЕСКУЮ ПАГИНАЦИЮ
+                setTimeout(() => {
+                    console.log('🧪 TESTING STATIC PAGINATION DATA...');
+                    logSystemState('STATIC_PAGINATION_CHECK');
+                }, 1000);
+            } else {
+                console.log('PAGINATION_DEBUG: Загружаем данные через AJAX для обеспечения консистентности');
+                // ИСПРАВЛЕНИЕ: Автоматическая загрузка исторических данных при инициализации
+                setTimeout(() => {
+                    console.log('🧪 TESTING AJAX DATA LOADING...');
+                    logSystemState('BEFORE_AJAX_LOAD');
+                    loadHistoricalData(currentCategory, currentPage, currentPageSize);
+                }, 100);
+                
+                // 🧪 ТЕСТИРУЕМ AJAX ЗАГРУЗКУ
+                setTimeout(() => {
+                    console.log('🧪 TESTING AFTER AJAX LOAD...');
+                    logSystemState('AFTER_AJAX_LOAD');
+                }, 2000);
+            }
+            
+            // 🧪 ПЕРИОДИЧЕСКОЕ ТЕСТИРОВАНИЕ КАЖДЫЕ 10 СЕКУНД
+            setInterval(() => {
+                console.log('🧪 PERIODIC_TEST: Running periodic system state check...');
+                logSystemState('PERIODIC_CHECK');
+                testSseFiltering();
+            }, 10000);
         });
+        
+        /**
+         * Проверяет наличие статических данных в таблице
+         * ИСПРАВЛЕНИЕ: Учитываем текущую категорию при проверке статических данных
+         */
+        function checkForStaticData() {
+            const tableBody = document.querySelector('.historical-activities-table tbody');
+            if (!tableBody) {
+                return false;
+            }
+            
+            const rows = tableBody.querySelectorAll('tr');
+            const hasData = rows.length > 0 && !tableBody.querySelector('td[colspan="6"]');
+            
+            // ИСПРАВЛЕНИЕ: Если есть статические данные, но категория была изменена,
+            // то статические данные больше не релевантны
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlCategory = urlParams.get('category') || 'ALL';
+            
+            console.log('STATIC_DATA_DEBUG: Проверка статических данных', {
+                hasData: hasData,
+                currentCategory: currentCategory,
+                urlCategory: urlCategory,
+                categoryMatches: currentCategory === urlCategory,
+                timestamp: new Date().toISOString()
+            });
+            
+            // Возвращаем true только если есть данные И категория не изменилась
+            return hasData && (currentCategory === urlCategory);
+        }
         
         function loadPreferences() {
             try {
@@ -820,6 +843,8 @@
                 if (stored) {
                     const prefs = JSON.parse(stored);
                     currentCategory = prefs.category || 'ALL';
+                    currentPage = prefs.page || 0;
+                    currentPageSize = prefs.pageSize || 20;
                 }
             } catch (e) {
                 console.warn('Не удалось загрузить предпочтения:', e);
@@ -830,12 +855,17 @@
             if (urlParams.has('category')) {
                 currentCategory = urlParams.get('category');
             }
+            if (urlParams.has('page')) {
+                currentPage = parseInt(urlParams.get('page')) || 0;
+            }
         }
         
         function savePreferences() {
             try {
                 const prefs = {
                     category: currentCategory,
+                    page: currentPage,
+                    pageSize: currentPageSize,
                     timestamp: Date.now()
                 };
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
@@ -895,8 +925,12 @@
             console.log('LIVE_FEED_DEBUG: SSE connection attempt', {
                 currentCategory: currentCategory,
                 existingConnection: !!eventSource,
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                localDeltasBeforeReset: { ...localCounterDeltas }
             });
+            
+            // Сбрасываем локальные дельты при переподключении SSE
+            resetLocalDeltas();
             
             try {
                 // Закрыть существующее соединение
@@ -932,6 +966,8 @@
                             timestamp: new Date().toISOString()
                         });
                         addActivityToFeed(activity);
+                        addActivityToHistoricalTable(activity);
+                        updateStatisticsCounters(activity);
                         updateLiveCounter();
                     } catch (e) {
                         console.error('Ошибка парсинга данных активности:', e);
@@ -949,6 +985,8 @@
                             timestamp: new Date().toISOString()
                         });
                         addActivityToFeed(activity);
+                        addActivityToHistoricalTable(activity);
+                        updateStatisticsCounters(activity);
                         updateLiveCounter();
                     } catch (e) {
                         console.error('Ошибка парсинга события активности:', e);
@@ -997,6 +1035,42 @@
             activityBuffer.unshift(activity);
             if (activityBuffer.length > 100) {
                 activityBuffer = activityBuffer.slice(0, 100);
+            }
+        }
+        
+        /**
+         * Добавляет новую активность в таблицу исторических активностей в real-time
+         */
+        function addActivityToHistoricalTable(activity) {
+            const tableBody = document.querySelector('.historical-activities-table tbody');
+            if (!tableBody) {
+                return;
+            }
+            
+            // Удаляем сообщение "нет данных" если оно есть
+            const noDataRow = tableBody.querySelector('td[colspan="6"]');
+            if (noDataRow) {
+                noDataRow.parentElement.remove();
+            }
+            
+            // Создаем новую строку с анимацией fade-in
+            const newRow = createHistoricalActivityRow(activity);
+            newRow.classList.add('fade-in');
+            
+            // Вставляем в начало таблицы
+            if (tableBody.firstChild) {
+                tableBody.insertBefore(newRow, tableBody.firstChild);
+            } else {
+                tableBody.appendChild(newRow);
+            }
+            
+            // Ограничиваем количество строк в таблице (до 50 последних)
+            const rows = tableBody.querySelectorAll('tr');
+            if (rows.length > 50) {
+                // Удаляем последние строки
+                for (let i = 50; i < rows.length; i++) {
+                    rows[i].remove();
+                }
             }
         }
         
@@ -1055,31 +1129,227 @@
             }
         }
         
+        function updateStatisticsCounters(activity) {
+            // Используем правильные имена полей (snake_case из backend)
+            const logCategory = activity.log_category || activity.logCategory;
+            const isKeyAction = activity.is_key_action || activity.isKeyAction;
+            
+            // ДИАГНОСТИКА: Логирование перед увеличением локальных дельт
+            console.log('COUNTER_DEBUG: Before local delta increment', {
+                logCategory: logCategory,
+                isKeyAction: isKeyAction,
+                currentCategory: currentCategory,
+                timestamp: new Date().toISOString(),
+                currentDeltas: { ...localCounterDeltas },
+                currentCounters: {
+                    total: document.getElementById('totalLogsCount')?.textContent,
+                    application: document.getElementById('applicationLogsCount')?.textContent,
+                    telegram: document.getElementById('telegramLogsCount')?.textContent,
+                    key: document.getElementById('keyLogsCount')?.textContent
+                }
+            });
+            
+            // ИСПРАВЛЕНИЕ: Проверяем соответствие активности текущей категории
+            const shouldCount = currentCategory === 'ALL' ||
+                               (currentCategory === 'APPLICATION' && logCategory === 'APPLICATION') ||
+                               (currentCategory === 'TELEGRAM_BOT' && logCategory === 'TELEGRAM_BOT');
+            
+            if (!shouldCount) {
+                console.log('COUNTER_DEBUG: Активность не соответствует текущей категории, пропускаем счетчик', {
+                    activityCategory: logCategory,
+                    currentCategory: currentCategory
+                });
+                return;
+            }
+            
+            // Увеличиваем локальные дельты вместо прямого DOM обновления
+            localCounterDeltas.total += 1;
+            
+            if (logCategory === 'APPLICATION') {
+                localCounterDeltas.application += 1;
+            }
+            
+            if (logCategory === 'TELEGRAM_BOT') {
+                localCounterDeltas.telegram += 1;
+            }
+            
+            if (isKeyAction) {
+                localCounterDeltas.key += 1;
+            }
+            
+            // Применяем дельты к отображению
+            applyLocalDeltas();
+            
+            // ДИАГНОСТИКА: Логирование после увеличения локальных дельт
+            console.log('COUNTER_DEBUG: After local delta increment', {
+                logCategory: logCategory,
+                isKeyAction: isKeyAction,
+                currentCategory: currentCategory,
+                timestamp: new Date().toISOString(),
+                newDeltas: { ...localCounterDeltas },
+                newCounters: {
+                    total: document.getElementById('totalLogsCount')?.textContent,
+                    application: document.getElementById('applicationLogsCount')?.textContent,
+                    telegram: document.getElementById('telegramLogsCount')?.textContent,
+                    key: document.getElementById('keyLogsCount')?.textContent
+                }
+            });
+        }
+        
+        function applyLocalDeltas() {
+            // Применяем локальные дельты к текущим счетчикам в DOM
+            if (categoryStatistics) {
+                const totalElement = document.getElementById('totalLogsCount');
+                const appElement = document.getElementById('applicationLogsCount');
+                const telegramElement = document.getElementById('telegramLogsCount');
+                const keyElement = document.getElementById('keyLogsCount');
+                
+                if (totalElement) {
+                    totalElement.textContent = (categoryStatistics.totalLogs || 0) + localCounterDeltas.total;
+                }
+                if (appElement) {
+                    appElement.textContent = (categoryStatistics.applicationLogs || 0) + localCounterDeltas.application;
+                }
+                if (telegramElement) {
+                    telegramElement.textContent = (categoryStatistics.telegramBotLogs || 0) + localCounterDeltas.telegram;
+                }
+                if (keyElement) {
+                    keyElement.textContent = (categoryStatistics.keyLogs || 0) + localCounterDeltas.key;
+                }
+            }
+        }
+        
+        function resetLocalDeltas() {
+            // ДИАГНОСТИКА: Логирование сброса локальных дельт
+            console.log('COUNTER_DEBUG: Resetting local deltas', {
+                oldDeltas: { ...localCounterDeltas },
+                timestamp: new Date().toISOString()
+            });
+            
+            localCounterDeltas = { total: 0, application: 0, telegram: 0, key: 0 };
+        }
+        
         function loadCategoryStatistics() {
-            fetch('/admin/api/category-statistics')
+            // ДИАГНОСТИКА: Логирование перед загрузкой статистики с сервера
+            console.log('COUNTER_DEBUG: Before server statistics load', {
+                timestamp: new Date().toISOString(),
+                currentCategory: currentCategory,
+                currentCounters: {
+                    total: document.getElementById('totalLogsCount')?.textContent,
+                    application: document.getElementById('applicationLogsCount')?.textContent,
+                    telegram: document.getElementById('telegramLogsCount')?.textContent,
+                    key: document.getElementById('keyLogsCount')?.textContent
+                },
+                currentDeltas: { ...localCounterDeltas }
+            });
+            
+            // ИСПРАВЛЕНИЕ: Передаем текущую категорию в запросе
+            const apiUrl = `/admin/api/category-statistics?category=${currentCategory}`;
+            
+            fetch(apiUrl)
                 .then(response => response.json())
                 .then(data => {
+                    // ДИАГНОСТИКА: Логирование полученных данных с сервера
+                    console.log('COUNTER_DEBUG: Server statistics received', {
+                        serverData: data,
+                        timestamp: new Date().toISOString(),
+                        currentCategory: currentCategory,
+                        localDeltas: { ...localCounterDeltas },
+                        apiUrl: apiUrl
+                    });
+                    
+                    // ИСПРАВЛЕНИЕ: Сохраняем старые значения для сравнения
+                    const oldStatistics = categoryStatistics ? { ...categoryStatistics } : null;
                     categoryStatistics = data;
+                    
+                    // ИСПРАВЛЕНИЕ: Проверяем на конфликты между серверными и локальными данными
+                    if (oldStatistics && localCounterDeltas.total > 0) {
+                        console.log('COUNTER_DEBUG: Проверка конфликтов при обновлении статистики', {
+                            oldStatistics: oldStatistics,
+                            newStatistics: categoryStatistics,
+                            localDeltas: { ...localCounterDeltas },
+                            hasConflict: categoryStatistics.totalLogs < (oldStatistics.totalLogs + localCounterDeltas.total)
+                        });
+                    }
+                    
+                    // Обновляем карточки с учетом локальных дельт
                     updateStatisticsCards();
                 })
                 .catch(error => {
-                    console.error('Ошибка загрузки статистики категорий:', error);
+                    console.error('COUNTER_DEBUG: Ошибка загрузки статистики категорий:', error);
+                    // ИСПРАВЛЕНИЕ: При ошибке не сбрасываем локальные дельты
+                    console.log('COUNTER_DEBUG: Локальные дельты сохранены при ошибке загрузки', {
+                        preservedDeltas: { ...localCounterDeltas }
+                    });
                 });
         }
         
         function updateStatisticsCards() {
-            // Обновить карточки статистики
+            // ДИАГНОСТИКА: Логирование перед обновлением счетчиков с локальными дельтами
+            console.log('COUNTER_DEBUG: Before server data + local deltas update', {
+                timestamp: new Date().toISOString(),
+                currentCategory: currentCategory,
+                currentCounters: {
+                    total: document.getElementById('totalLogsCount')?.textContent,
+                    application: document.getElementById('applicationLogsCount')?.textContent,
+                    telegram: document.getElementById('telegramLogsCount')?.textContent,
+                    key: document.getElementById('keyLogsCount')?.textContent
+                },
+                serverData: categoryStatistics,
+                localDeltas: { ...localCounterDeltas }
+            });
+            
+            // ИСПРАВЛЕНИЕ: Проверяем наличие серверных данных перед обновлением
+            if (!categoryStatistics) {
+                console.warn('COUNTER_DEBUG: Серверные данные отсутствуют, пропускаем обновление счетчиков');
+                return;
+            }
+            
+            // Применяем формулу: серверные_данные + локальные_дельты
             const totalElement = document.getElementById('totalLogsCount');
             const appElement = document.getElementById('applicationLogsCount');
             const telegramElement = document.getElementById('telegramLogsCount');
             const keyElement = document.getElementById('keyLogsCount');
             
-            if (categoryStatistics) {
-                if (totalElement) totalElement.textContent = categoryStatistics.totalLogs || 0;
-                if (appElement) appElement.textContent = categoryStatistics.applicationLogs || 0;
-                if (telegramElement) telegramElement.textContent = categoryStatistics.telegramBotLogs || 0;
-                if (keyElement) keyElement.textContent = categoryStatistics.keyLogs || 0;
+            // ИСПРАВЛЕНИЕ: Используем новый формат API ответа
+            if (totalElement && categoryStatistics.totalLogs !== undefined) {
+                const newTotal = (categoryStatistics.totalLogs || 0) + localCounterDeltas.total;
+                totalElement.textContent = Math.max(0, newTotal);
             }
+            
+            if (appElement && categoryStatistics.applicationLogs !== undefined) {
+                const newApp = (categoryStatistics.applicationLogs || 0) + localCounterDeltas.application;
+                appElement.textContent = Math.max(0, newApp);
+            }
+            
+            if (telegramElement && categoryStatistics.telegramBotLogs !== undefined) {
+                const newTelegram = (categoryStatistics.telegramBotLogs || 0) + localCounterDeltas.telegram;
+                telegramElement.textContent = Math.max(0, newTelegram);
+            }
+            
+            if (keyElement && categoryStatistics.keyLogs !== undefined) {
+                const newKey = (categoryStatistics.keyLogs || 0) + localCounterDeltas.key;
+                keyElement.textContent = Math.max(0, newKey);
+            }
+            
+            // ДИАГНОСТИКА: Логирование после обновления счетчиков с сохранением локальных дельт
+            console.log('COUNTER_DEBUG: After server data + local deltas update - LOCAL COUNTERS PRESERVED!', {
+                timestamp: new Date().toISOString(),
+                currentCategory: currentCategory,
+                newCounters: {
+                    total: document.getElementById('totalLogsCount')?.textContent,
+                    application: document.getElementById('applicationLogsCount')?.textContent,
+                    telegram: document.getElementById('telegramLogsCount')?.textContent,
+                    key: document.getElementById('keyLogsCount')?.textContent
+                },
+                appliedDeltas: { ...localCounterDeltas },
+                serverData: {
+                    total: categoryStatistics.totalLogs,
+                    application: categoryStatistics.applicationLogs,
+                    telegram: categoryStatistics.telegramBotLogs,
+                    key: categoryStatistics.keyLogs
+                }
+            });
         }
         
         function setupEventHandlers() {
@@ -1158,6 +1428,28 @@
                 timestamp: new Date().toISOString()
             });
             
+            // ИСПРАВЛЕНИЕ: Проверяем, действительно ли категория изменилась
+            if (currentCategory === category) {
+                console.log('LIVE_FEED_DEBUG: Category unchanged, skipping update');
+                return;
+            }
+            
+            // ДИАГНОСТИКА: Логирование счетчиков перед сменой категории
+            console.log('COUNTER_DEBUG: Counters before category change', {
+                category: category,
+                timestamp: new Date().toISOString(),
+                countersBeforeChange: {
+                    total: document.getElementById('totalLogsCount')?.textContent,
+                    application: document.getElementById('applicationLogsCount')?.textContent,
+                    telegram: document.getElementById('telegramLogsCount')?.textContent,
+                    key: document.getElementById('keyLogsCount')?.textContent
+                },
+                localDeltasBeforeReset: { ...localCounterDeltas }
+            });
+            
+            // ИСПРАВЛЕНИЕ: Сбрасываем локальные дельты при смене категории
+            resetLocalDeltas();
+            
             currentCategory = category;
             
             // Обновить активный фильтр
@@ -1172,6 +1464,9 @@
             
             // Обновить отображение
             updateCategoryDisplay();
+            
+            // ИСПРАВЛЕНИЕ: Сбрасываем пагинацию при смене категории ПЕРЕД сохранением предпочтений
+            currentPage = 0;
             
             // Сохранить предпочтения
             savePreferences();
@@ -1199,14 +1494,29 @@
             // ДИАГНОСТИКА: Логирование перед загрузкой исторических данных
             console.log('LIVE_FEED_DEBUG: Loading historical data', {
                 category: category,
+                currentPage: currentPage,
                 timestamp: new Date().toISOString()
             });
             
-            // ИСПРАВЛЕНИЕ: Загружаем исторические данные через AJAX вместо перезагрузки страницы
-            loadHistoricalData(category);
+            // ИСПРАВЛЕНИЕ: Принудительно загружаем исторические данные через AJAX
+            loadHistoricalData(category, currentPage, currentPageSize);
+            
+            // ДИАГНОСТИКА: Логирование счетчиков после смены категории
+            setTimeout(() => {
+                console.log('COUNTER_DEBUG: Counters after category change and data load', {
+                    category: category,
+                    timestamp: new Date().toISOString(),
+                    countersAfterChange: {
+                        total: document.getElementById('totalLogsCount')?.textContent,
+                        application: document.getElementById('applicationLogsCount')?.textContent,
+                        telegram: document.getElementById('telegramLogsCount')?.textContent,
+                        key: document.getElementById('keyLogsCount')?.textContent
+                    }
+                });
+            }, 1000);
             
             // Обновляем URL без перезагрузки страницы
-            updateUrlWithoutReload(category);
+            updateUrlWithoutReload(category, currentPage);
         }
         
         function applyFilters() {
@@ -1221,7 +1531,9 @@
                 window.location.href = url.toString();
             } else {
                 // Если поиск пустой, просто обновляем данные без перезагрузки
-                loadHistoricalData(currentCategory);
+                // Сбрасываем пагинацию при применении фильтров
+                currentPage = 0;
+                loadHistoricalData(currentCategory, 0, currentPageSize);
             }
         }
         
@@ -1233,40 +1545,290 @@
             selectCategory('ALL');
             
             // Обновить URL без перезагрузки
-            updateUrlWithoutReload('ALL');
+            updateUrlWithoutReload('ALL', 0);
         }
         
         /**
-         * Загружает исторические данные по выбранной категории через AJAX
+         * Загружает исторические данные по выбранной категории через AJAX с поддержкой пагинации
          */
-        function loadHistoricalData(category) {
+        function loadHistoricalData(category, page = 0, size = 20) {
+            console.log('PAGINATION_DEBUG: Начинаем загрузку исторических данных', {
+                category: category,
+                page: page,
+                size: size,
+                timestamp: new Date().toISOString()
+            });
+            
             // Показываем индикатор загрузки
             showLoadingMessage();
             
-            const apiUrl = category === 'ALL'
+            // Сохраняем текущие параметры пагинации
+            currentPage = page;
+            currentPageSize = size;
+            
+            // Строим URL с параметрами пагинации
+            let apiUrl = category === 'ALL'
                 ? '/admin/api/activity-logs-by-category'
                 : `/admin/api/activity-logs-by-category?category=${category}`;
             
-            fetch(apiUrl)
+            // Добавляем параметры пагинации
+            const urlObj = new URL(apiUrl, window.location.origin);
+            urlObj.searchParams.set('page', page);
+            urlObj.searchParams.set('size', size);
+            
+            console.log('PAGINATION_DEBUG: Запрос на сервер', {
+                url: urlObj.toString(),
+                method: 'GET'
+            });
+            
+            fetch(urlObj.toString())
                 .then(response => {
+                    console.log('PAGINATION_DEBUG: Получен ответ от сервера', {
+                        status: response.status,
+                        statusText: response.statusText,
+                        ok: response.ok
+                    });
+                    
                     if (!response.ok) {
                         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
                     return response.json();
                 })
                 .then(data => {
+                    console.log('PAGINATION_DEBUG: Данные от сервера', {
+                        success: data.success,
+                        activitiesCount: data.activities ? data.activities.length : (data.content ? data.content.length : 0),
+                        pageData: data.pageData || {
+                            page: data.page,
+                            size: data.size,
+                            totalElements: data.totalElements,
+                            totalPages: data.totalPages
+                        }
+                    });
+                    
                     if (data.success) {
-                        updateHistoricalActivitiesTable(data.activities);
-                        console.log(`Загружены исторические данные для категории: ${category}, количество записей: ${data.activities ? data.activities.length : 0}`);
+                        // Обновляем таблицу
+                        updateHistoricalActivitiesTable(data.activities || data.content);
+                        
+                        // ИСПРАВЛЕНИЕ: Всегда пытаемся обновить пагинацию, даже если данных мало
+                        const pageData = data.pageData || {
+                            number: data.page !== undefined ? data.page : page,
+                            size: data.size !== undefined ? data.size : size,
+                            totalElements: data.totalElements !== undefined ? data.totalElements : (data.activities || data.content || []).length,
+                            totalPages: data.totalPages !== undefined ? data.totalPages : Math.ceil((data.totalElements || (data.activities || data.content || []).length) / size),
+                            first: data.first !== undefined ? data.first : page === 0,
+                            last: data.last !== undefined ? data.last : false
+                        };
+                        
+                        console.log('PAGINATION_DEBUG: Обновляем пагинацию с исправленными данными', {
+                            pageData: pageData,
+                            originalResponse: {
+                                page: data.page,
+                                size: data.size,
+                                totalElements: data.totalElements,
+                                totalPages: data.totalPages
+                            }
+                        });
+                        
+                        // ИСПРАВЛЕНИЕ: Принудительно вызываем обновление пагинации
+                        updatePagination(pageData);
+                        
+                        console.log(`PAGINATION_DEBUG: Загружены исторические данные для категории: ${category}, страница: ${page}, размер: ${size}, количество записей: ${data.activities ? data.activities.length : (data.content ? data.content.length : 0)}`);
                     } else {
-                        console.error('Ошибка загрузки исторических данных:', data.error);
-                        showErrorMessage('Ошибка загрузки данных: ' + data.error);
+                        console.error('PAGINATION_DEBUG: Ошибка загрузки исторических данных:', data.error);
+                        showErrorMessage('Ошибка загрузки данных: ' + (data.error || 'Неизвестная ошибка'));
                     }
                 })
                 .catch(error => {
-                    console.error('Ошибка запроса исторических данных:', error);
+                    console.error('PAGINATION_DEBUG: Ошибка запроса исторических данных:', error);
                     showErrorMessage('Ошибка сети при загрузке данных: ' + error.message);
                 });
+        }
+        
+        /**
+         * Обновляет пагинацию на основе данных страницы
+         */
+        function updatePagination(pageData) {
+            // Сохраняем данные пагинации
+            currentPage = pageData.number || 0;
+            totalPages = pageData.totalPages || 0;
+            totalElements = pageData.totalElements || 0;
+            
+            // Скрываем статическую пагинацию при AJAX загрузке
+            const staticPagination = document.getElementById('static-pagination');
+            if (staticPagination) {
+                staticPagination.style.display = 'none';
+            }
+            
+            // Находим контейнер динамической пагинации
+            let paginationContainer = document.getElementById('dynamic-pagination');
+            
+            if (!paginationContainer) {
+                console.error('Контейнер динамической пагинации не найден');
+                return;
+            }
+            
+            // ИСПРАВЛЕНИЕ: Добавляем диагностику и правильное отображение пагинации
+            console.log('PAGINATION_DEBUG: Проверка отображения пагинации', {
+                totalPages: totalPages,
+                totalElements: totalElements,
+                currentPage: currentPage,
+                shouldShowPagination: totalPages > 1,
+                timestamp: new Date().toISOString()
+            });
+            
+            // ИСПРАВЛЕНИЕ: Показываем пагинацию если есть более одной страницы
+            if (totalPages <= 1 && totalElements <= currentPageSize) {
+                paginationContainer.innerHTML = '';
+                paginationContainer.style.display = 'none';
+                console.log('PAGINATION_DEBUG: Пагинация скрыта', {
+                    reason: 'totalPages <= 1 and totalElements <= pageSize',
+                    totalPages: totalPages,
+                    totalElements: totalElements,
+                    pageSize: currentPageSize
+                });
+                return;
+            }
+            
+            // Показываем контейнер динамической пагинации
+            paginationContainer.style.display = 'block';
+            console.log('Пагинация отображается: totalPages =', totalPages, 'currentPage =', currentPage);
+            
+            // Создаем HTML пагинации
+            let paginationHtml = '<ul class="pagination justify-content-center">';
+            
+            // Кнопка "Предыдущая"
+            const hasPrevious = !pageData.first && currentPage > 0;
+            paginationHtml += `
+                <li class="page-item ${!hasPrevious ? 'disabled' : ''}">
+                    <a class="page-link" href="#" data-page="${currentPage - 1}" ${!hasPrevious ? 'tabindex="-1"' : ''}>
+                        Предыдущая
+                    </a>
+                </li>
+            `;
+            
+            // Номера страниц
+            const startPage = Math.max(0, currentPage - 2);
+            const endPage = Math.min(totalPages - 1, currentPage + 2);
+            
+            // Показываем первую страницу если мы далеко от начала
+            if (startPage > 0) {
+                paginationHtml += `
+                    <li class="page-item">
+                        <a class="page-link" href="#" data-page="0">1</a>
+                    </li>
+                `;
+                if (startPage > 1) {
+                    paginationHtml += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+                }
+            }
+            
+            // Показываем страницы вокруг текущей
+            for (let i = startPage; i <= endPage; i++) {
+                paginationHtml += `
+                    <li class="page-item ${i === currentPage ? 'active' : ''}">
+                        <a class="page-link" href="#" data-page="${i}">${i + 1}</a>
+                    </li>
+                `;
+            }
+            
+            // Показываем последнюю страницу если мы далеко от конца
+            if (endPage < totalPages - 1) {
+                if (endPage < totalPages - 2) {
+                    paginationHtml += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+                }
+                paginationHtml += `
+                    <li class="page-item">
+                        <a class="page-link" href="#" data-page="${totalPages - 1}">${totalPages}</a>
+                    </li>
+                `;
+            }
+            
+            // Кнопка "Следующая"
+            const hasNext = !pageData.last && currentPage < totalPages - 1;
+            paginationHtml += `
+                <li class="page-item ${!hasNext ? 'disabled' : ''}">
+                    <a class="page-link" href="#" data-page="${currentPage + 1}" ${!hasNext ? 'tabindex="-1"' : ''}>
+                        Следующая
+                    </a>
+                </li>
+            `;
+            
+            paginationHtml += '</ul>';
+            
+            paginationContainer.innerHTML = paginationHtml;
+            
+            // Добавляем обработчики событий для кнопок пагинации
+            setupPaginationHandlers();
+        }
+        
+        /**
+         * Устанавливает обработчики событий для кнопок пагинации
+         */
+        function setupPaginationHandlers() {
+            const paginationLinks = document.querySelectorAll('#dynamic-pagination .pagination .page-link[data-page]');
+            
+            console.log('PAGINATION_DEBUG: Настройка обработчиков пагинации', {
+                foundLinks: paginationLinks.length,
+                currentPage: currentPage,
+                totalPages: totalPages,
+                timestamp: new Date().toISOString()
+            });
+            
+            paginationLinks.forEach((link, index) => {
+                const page = parseInt(link.dataset.page);
+                console.log('PAGINATION_DEBUG: Добавляем обработчик для кнопки', {
+                    index: index,
+                    page: page,
+                    linkText: link.textContent.trim(),
+                    href: link.href
+                });
+                
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    
+                    const targetPage = parseInt(this.dataset.page);
+                    
+                    console.log('PAGINATION_DEBUG: Клик по кнопке пагинации', {
+                        targetPage: targetPage,
+                        currentPage: currentPage,
+                        totalPages: totalPages,
+                        isValidPage: !isNaN(targetPage) && targetPage !== currentPage && targetPage >= 0 && targetPage < totalPages
+                    });
+                    
+                    if (!isNaN(targetPage) && targetPage !== currentPage && targetPage >= 0 && targetPage < totalPages) {
+                        console.log('PAGINATION_DEBUG: Переходим на страницу', targetPage);
+                        
+                        // Загружаем данные для новой страницы
+                        loadHistoricalData(currentCategory, targetPage, currentPageSize);
+                        
+                        // Сохраняем состояние
+                        savePreferences();
+                        
+                        // Обновляем URL
+                        updateUrlWithoutReload(currentCategory, targetPage);
+                    } else {
+                        console.warn('PAGINATION_DEBUG: Переход на страницу отклонен', {
+                            reason: isNaN(targetPage) ? 'invalid page number' :
+                                   targetPage === currentPage ? 'same page' :
+                                   targetPage < 0 ? 'negative page' :
+                                   targetPage >= totalPages ? 'page out of range' : 'unknown'
+                        });
+                    }
+                });
+            });
+            
+            if (paginationLinks.length === 0) {
+                console.warn('PAGINATION_DEBUG: Обработчики пагинации не найдены. Проверяем DOM...');
+                const dynamicPagination = document.getElementById('dynamic-pagination');
+                const allLinks = document.querySelectorAll('.page-link');
+                console.log('PAGINATION_DEBUG: Состояние DOM', {
+                    dynamicPaginationExists: !!dynamicPagination,
+                    dynamicPaginationVisible: dynamicPagination ? dynamicPagination.style.display : 'not found',
+                    dynamicPaginationContent: dynamicPagination ? dynamicPagination.innerHTML : 'not found',
+                    allPageLinks: allLinks.length
+                });
+            }
         }
         
         /**
@@ -1299,110 +1861,8 @@
                 const row = createHistoricalActivityRow(activity);
                 tableBody.appendChild(row);
             });
-            
-            // Инициализируем кнопки toggle для новых строк
-            initializeStaticToggleButtons();
         }
         
-        /**
-         * Обрабатывает длинный текст для показа/скрытия
-         */
-        function processDescriptionText(text, maxLength = 100) {
-            if (!text || text.length <= maxLength) {
-                return { short: text || '', full: text || '', needsToggle: false };
-            }
-            
-            const shortText = text.substring(0, maxLength) + '...';
-            return { short: shortText, full: text, needsToggle: true };
-        }
-        
-        /**
-         * Инициализирует кнопки toggle для статической таблицы
-         */
-        function initializeStaticToggleButtons() {
-            // Находим все кнопки toggle в статической таблице
-            const staticButtons = document.querySelectorAll('.historical-activities-table .description-toggle');
-            console.log(`Найдено ${staticButtons.length} статических кнопок toggle`);
-            
-            staticButtons.forEach(button => {
-                // Проверяем, что кнопка еще не инициализирована
-                if (!button.hasAttribute('data-initialized')) {
-                    button.setAttribute('data-initialized', 'true');
-                    
-                    // Убираем inline onclick и добавляем event listener
-                    button.removeAttribute('onclick');
-                    button.addEventListener('click', function() {
-                        toggleDescription(this);
-                    });
-                    
-                    // Обеспечиваем правильную структуру кнопки для старых кнопок
-                    if (!button.querySelector('i')) {
-                        const icon = document.createElement('i');
-                        icon.className = 'fas fa-chevron-down';
-                        icon.setAttribute('aria-hidden', 'true');
-                        
-                        const textSpan = document.createElement('span');
-                        textSpan.className = 'description-toggle-text';
-                        textSpan.textContent = button.textContent.trim();
-                        
-                        button.innerHTML = '';
-                        button.appendChild(icon);
-                        button.appendChild(textSpan);
-                    }
-                }
-            });
-        }
-        
-        /**
-         * Переключает отображение полного/сокращенного текста с анимациями
-         */
-        function toggleDescription(button) {
-            const textDiv = button.previousElementSibling;
-            const fullText = textDiv.dataset.fullText;
-            const shortText = textDiv.dataset.shortText;
-            const isExpanded = textDiv.dataset.expanded === 'true';
-            const icon = button.querySelector('i');
-            const textSpan = button.querySelector('.description-toggle-text');
-            
-            // Добавляем анимацию
-            textDiv.classList.remove('expanding', 'collapsing');
-            textDiv.classList.add(isExpanded ? 'collapsing' : 'expanding');
-            
-            if (isExpanded) {
-                // Сворачиваем
-                setTimeout(() => {
-                    textDiv.textContent = shortText;
-                }, 200);
-                textDiv.dataset.expanded = 'false';
-                
-                // Обновляем кнопку
-                if (textSpan) textSpan.textContent = 'Показать больше';
-                if (icon) {
-                    icon.className = 'fas fa-chevron-down';
-                }
-                button.setAttribute('aria-expanded', 'false');
-                button.title = 'Показать полное описание';
-            } else {
-                // Разворачиваем
-                setTimeout(() => {
-                    textDiv.textContent = fullText;
-                }, 200);
-                textDiv.dataset.expanded = 'true';
-                
-                // Обновляем кнопку
-                if (textSpan) textSpan.textContent = 'Показать меньше';
-                if (icon) {
-                    icon.className = 'fas fa-chevron-up';
-                }
-                button.setAttribute('aria-expanded', 'true');
-                button.title = 'Скрыть полное описание';
-            }
-            
-            // Убираем классы анимации после завершения
-            setTimeout(() => {
-                textDiv.classList.remove('expanding', 'collapsing');
-            }, 400);
-        }
         
         /**
          * Создает строку для таблицы исторических активностей
@@ -1434,33 +1894,9 @@
             const orderInfo = orderId ? activity.orderDisplayInfo || `Заказ #${orderId}` : '-';
             const username = activity.username ? `<small class="text-muted">@${activity.username}</small>` : '';
             
-            // Обработка длинного описания
+            // ИСПРАВЛЕНИЕ: Простое ограничение описания до 100 символов без кнопок toggle
             const description = actionDescription || 'Нет описания';
-            const processedDescription = processDescriptionText(description, 100);
-            
-            // Создаем HTML для колонки с описанием
-            let descriptionHtml = '';
-            if (processedDescription.needsToggle) {
-                descriptionHtml = `
-                    <div class="activity-description">
-                        <div class="description-text"
-                             data-full-text="${processedDescription.full.replace(/"/g, '&quot;')}"
-                             data-short-text="${processedDescription.short.replace(/"/g, '&quot;')}"
-                             data-expanded="false">
-                            ${processedDescription.short}
-                        </div>
-                        <button class="description-toggle"
-                                onclick="toggleDescription(this)"
-                                aria-expanded="false"
-                                title="Показать полное описание">
-                            <i class="fas fa-chevron-down" aria-hidden="true"></i>
-                            <span class="description-toggle-text">Показать больше</span>
-                        </button>
-                    </div>
-                `;
-            } else {
-                descriptionHtml = `<div class="activity-description">${description}</div>`;
-            }
+            const limitedDescription = description.length > 100 ? description.substring(0, 100) + '...' : description;
             
             row.innerHTML = `
                 <td>
@@ -1472,10 +1908,14 @@
                     ${username}
                 </td>
                 <td>
-                    <span class="badge bg-primary">${activity.actionDisplayName || actionDescription}</span>
+                    <span class="badge bg-primary">${((activity.actionDisplayName || actionDescription) || '').length > 30 ? ((activity.actionDisplayName || actionDescription) || '').substring(0, 30) + '...' : (activity.actionDisplayName || actionDescription) || 'Нет действия'}</span>
                     ${keyBadge}
                 </td>
-                <td>${descriptionHtml}</td>
+                <td>
+                    <div class="activity-description">
+                        <span class="badge bg-light text-dark">${limitedDescription}</span>
+                    </div>
+                </td>
                 <td>
                     <span class="${orderId ? '' : 'text-muted'}">${orderInfo}</span>
                 </td>
@@ -1487,7 +1927,7 @@
         /**
          * Обновляет URL без перезагрузки страницы
          */
-        function updateUrlWithoutReload(category) {
+        function updateUrlWithoutReload(category, page = 0) {
             const url = new URL(window.location);
             
             if (category === 'ALL') {
@@ -1502,11 +1942,15 @@
                 url.searchParams.delete('search');
             }
             
-            // Сбрасываем пагинацию
-            url.searchParams.delete('page');
+            // Обновляем пагинацию
+            if (page > 0) {
+                url.searchParams.set('page', page);
+            } else {
+                url.searchParams.delete('page');
+            }
             
             // Обновляем URL без перезагрузки
-            history.pushState({ category: category }, '', url.toString());
+            history.pushState({ category: category, page: page }, '', url.toString());
         }
         
         /**
@@ -1555,16 +1999,478 @@
             if (event.state && event.state.category) {
                 // Восстанавливаем состояние из истории браузера
                 currentCategory = event.state.category;
+                currentPage = event.state.page || 0;
                 initializeCategoryFilter();
                 connectToActivityStream();
-                loadHistoricalData(currentCategory);
+                loadHistoricalData(currentCategory, currentPage, currentPageSize);
             }
         });
         
-        // Обновление статистики каждые 30 секунд
+        // ==================== РАСШИРЕННЫЕ ДИАГНОСТИЧЕСКИЕ ФУНКЦИИ ДЛЯ ТЕСТИРОВАНИЯ ====================
+        
+        /**
+         * ДИАГНОСТИКА: Детальное логирование состояния системы
+         */
+        function logSystemState(context) {
+            const timestamp = new Date().toISOString();
+            const state = {
+                context: context,
+                timestamp: timestamp,
+                currentCategory: currentCategory,
+                currentPage: currentPage,
+                totalPages: totalPages,
+                totalElements: totalElements,
+                counters: {
+                    total: document.getElementById('totalLogsCount')?.textContent,
+                    application: document.getElementById('applicationLogsCount')?.textContent,
+                    telegram: document.getElementById('telegramLogsCount')?.textContent,
+                    key: document.getElementById('keyLogsCount')?.textContent
+                },
+                localDeltas: { ...localCounterDeltas },
+                serverStatistics: categoryStatistics ? { ...categoryStatistics } : null,
+                sseConnections: !!eventSource ? 'active' : 'inactive',
+                staticPaginationVisible: document.getElementById('static-pagination')?.style.display,
+                dynamicPaginationVisible: document.getElementById('dynamic-pagination')?.style.display,
+                tableRowCount: document.querySelectorAll('.historical-activities-table tbody tr').length,
+                activeFilters: {
+                    categoryFilter: document.querySelector('.category-filter.active')?.dataset.category,
+                    searchValue: document.getElementById('searchInput')?.value
+                }
+            };
+            
+            console.log(`🔧 SYSTEM_STATE_DEBUG [${context}]:`, state);
+            return state;
+        }
+        
+        /**
+         * ДИАГНОСТИКА: Тестирование функций при инициализации
+         */
+        function runInitializationTests() {
+            console.log('🧪 TESTING: Starting initialization tests...');
+            
+            // Тест 1: Проверка статических данных
+            const hasStatic = checkForStaticData();
+            console.log('🧪 TEST_1: Static data check result:', hasStatic);
+            
+            // Тест 2: Проверка счетчиков
+            const countersTest = {
+                beforeLoad: {
+                    total: document.getElementById('totalLogsCount')?.textContent,
+                    application: document.getElementById('applicationLogsCount')?.textContent,
+                    telegram: document.getElementById('telegramLogsCount')?.textContent,
+                    key: document.getElementById('keyLogsCount')?.textContent
+                },
+                localDeltas: { ...localCounterDeltas }
+            };
+            console.log('🧪 TEST_2: Counters state:', countersTest);
+            
+            // Тест 3: Проверка DOM элементов
+            const domTest = {
+                staticPagination: !!document.getElementById('static-pagination'),
+                dynamicPagination: !!document.getElementById('dynamic-pagination'),
+                tableBody: !!document.querySelector('.historical-activities-table tbody'),
+                categoryFilters: document.querySelectorAll('.category-filter').length,
+                activityFeed: !!document.getElementById('activityFeed')
+            };
+            console.log('🧪 TEST_3: DOM elements check:', domTest);
+            
+            return { hasStatic, countersTest, domTest };
+        }
+        
+        /**
+         * ИСПРАВЛЕНИЕ: Тестирование пагинации с правильными источниками данных
+         */
+        function testPaginationLogic(pageData) {
+            console.log('🧪 PAGINATION_TEST: Testing pagination logic with data:', pageData);
+            
+            // ИСПРАВЛЕНИЕ: Читаем данные из правильных источников
+            const actualTotalPages = pageData ? pageData.totalPages : totalPages;
+            const actualTotalElements = pageData ? pageData.totalElements : totalElements;
+            const actualCurrentPage = pageData ? pageData.number : currentPage;
+            
+            // ДИАГНОСТИКА: Сравниваем источники данных
+            console.log('🧪 PAGINATION_TEST: Data sources comparison:', {
+                pageDataSource: pageData ? {
+                    totalPages: pageData.totalPages,
+                    totalElements: pageData.totalElements,
+                    number: pageData.number
+                } : 'no pageData',
+                globalVariables: {
+                    totalPages: totalPages,
+                    totalElements: totalElements,
+                    currentPage: currentPage
+                },
+                usingPageData: !!pageData
+            });
+            
+            const tests = {
+                shouldShow: actualTotalPages > 1,
+                totalPagesCheck: actualTotalPages,
+                totalElementsCheck: actualTotalElements,
+                currentPageCheck: actualCurrentPage,
+                pageDataValidation: {
+                    hasNumber: pageData && pageData.hasOwnProperty('number'),
+                    hasSize: pageData && pageData.hasOwnProperty('size'),
+                    hasTotalElements: pageData && pageData.hasOwnProperty('totalElements'),
+                    hasTotalPages: pageData && pageData.hasOwnProperty('totalPages')
+                },
+                calculatedCondition: actualTotalPages <= 1 && actualTotalElements <= currentPageSize,
+                shouldHide: actualTotalPages <= 1 && actualTotalElements <= currentPageSize,
+                dataSource: pageData ? 'pageData' : 'globalVariables'
+            };
+            
+            console.log('🧪 PAGINATION_TEST: Results:', tests);
+            return tests;
+        }
+        
+        /**
+         * ДИАГНОСТИКА: Тестирование SSE фильтрации
+         */
+        function testSseFiltering() {
+            console.log('🧪 SSE_TEST: Testing SSE connection and filtering...');
+            
+            const test = {
+                connectionExists: !!eventSource,
+                connectionState: eventSource ? eventSource.readyState : 'none',
+                currentCategory: currentCategory,
+                expectedUrl: `/admin/api/activity-stream-categorized?category=${currentCategory}`,
+                timestamp: new Date().toISOString()
+            };
+            
+            console.log('🧪 SSE_TEST: Results:', test);
+            return test;
+        }
+        
+        /**
+         * ДИАГНОСТИКА: Тестирование синхронизации счетчиков
+         */
+        function testCounterSynchronization(newActivity) {
+            if (!newActivity) return;
+            
+            console.log('🧪 COUNTER_TEST: Testing counter synchronization with activity:', newActivity);
+            
+            const beforeState = {
+                counters: {
+                    total: document.getElementById('totalLogsCount')?.textContent,
+                    application: document.getElementById('applicationLogsCount')?.textContent,
+                    telegram: document.getElementById('telegramLogsCount')?.textContent,
+                    key: document.getElementById('keyLogsCount')?.textContent
+                },
+                localDeltas: { ...localCounterDeltas },
+                serverData: categoryStatistics ? { ...categoryStatistics } : null
+            };
+            
+            // Симулируем логику updateStatisticsCounters
+            const logCategory = newActivity.log_category || newActivity.logCategory;
+            const isKeyAction = newActivity.is_key_action || newActivity.isKeyAction;
+            const shouldCount = currentCategory === 'ALL' ||
+                               (currentCategory === 'APPLICATION' && logCategory === 'APPLICATION') ||
+                               (currentCategory === 'TELEGRAM_BOT' && logCategory === 'TELEGRAM_BOT');
+                               
+            const expectedDeltas = { ...localCounterDeltas };
+            if (shouldCount) {
+                expectedDeltas.total += 1;
+                if (logCategory === 'APPLICATION') expectedDeltas.application += 1;
+                if (logCategory === 'TELEGRAM_BOT') expectedDeltas.telegram += 1;
+                if (isKeyAction) expectedDeltas.key += 1;
+            }
+            
+            const test = {
+                activity: {
+                    category: logCategory,
+                    isKey: isKeyAction,
+                    shouldCount: shouldCount
+                },
+                beforeState: beforeState,
+                expectedDeltas: expectedDeltas,
+                currentCategory: currentCategory
+            };
+            
+            console.log('🧪 COUNTER_TEST: Results:', test);
+            return test;
+        }
+        
+        /**
+         * ДИАГНОСТИКА: Запуск всех тестов для комплексной проверки
+         */
+        function runAllTests() {
+            console.log('🧪🧪🧪 COMPREHENSIVE_TESTING: Starting all tests...');
+            
+            // Фиксируем время начала тестирования
+            const testStartTime = performance.now();
+            
+            // Логируем исходное состояние
+            const initialState = logSystemState('COMPREHENSIVE_TEST_START');
+            
+            // Запускаем все тесты
+            const initTests = runInitializationTests();
+            const sseTests = testSseFiltering();
+            
+            // Симулируем тестовую активность для проверки счетчиков
+            const mockActivity = {
+                log_category: 'APPLICATION',
+                is_key_action: true,
+                actionType: 'TEST_ACTION',
+                actionDescription: 'Test activity for diagnostics'
+            };
+            const counterTests = testCounterSynchronization(mockActivity);
+            
+            // Тестируем пагинацию с mock данными
+            const mockPageData = {
+                number: 0,
+                size: 20,
+                totalElements: 50,
+                totalPages: 3,
+                first: true,
+                last: false
+            };
+            const paginationTests = testPaginationLogic(mockPageData);
+            
+            const testEndTime = performance.now();
+            const testDuration = testEndTime - testStartTime;
+            
+            const comprehensiveResults = {
+                testDuration: `${testDuration.toFixed(2)}ms`,
+                initialState: initialState,
+                initializationTests: initTests,
+                sseTests: sseTests,
+                counterTests: counterTests,
+                paginationTests: paginationTests,
+                timestamp: new Date().toISOString()
+            };
+            
+            console.log('🧪🧪🧪 COMPREHENSIVE_TESTING: All tests completed!', comprehensiveResults);
+            
+            // Добавляем результаты в глобальную переменную для доступа из консоли
+            window.testResults = comprehensiveResults;
+            
+            return comprehensiveResults;
+        }
+        
+        // ==================== АВТОМАТИЧЕСКОЕ ТЕСТИРОВАНИЕ ПРИ СОБЫТИЯХ ====================
+        
+        // Перехватываем ключевые функции для добавления тестирования
+        const originalLoadHistoricalData = loadHistoricalData;
+        const originalSelectCategory = selectCategory;
+        const originalUpdatePagination = updatePagination;
+        const originalUpdateStatisticsCounters = updateStatisticsCounters;
+        
+        // Обертка для loadHistoricalData с тестированием
+        loadHistoricalData = function(category, page = 0, size = 20) {
+            logSystemState('BEFORE_LOAD_HISTORICAL_DATA');
+            console.log('🧪 AUTO_TEST: loadHistoricalData called', { category, page, size });
+            return originalLoadHistoricalData.call(this, category, page, size);
+        };
+        
+        // Обертка для selectCategory с тестированием
+        selectCategory = function(category) {
+            logSystemState('BEFORE_SELECT_CATEGORY');
+            console.log('🧪 AUTO_TEST: selectCategory called', { newCategory: category, oldCategory: currentCategory });
+            return originalSelectCategory.call(this, category);
+        };
+        
+        // Обертка для updatePagination с тестированием
+        updatePagination = function(pageData) {
+            logSystemState('BEFORE_UPDATE_PAGINATION');
+            console.log('🧪 AUTO_TEST: updatePagination called', pageData);
+            
+            // ИСПРАВЛЕНИЕ: Вызываем testPaginationLogic с правильными данными
+            const testResult = testPaginationLogic(pageData);
+            console.log('🧪 PAGINATION_TEST: Test result after updatePagination call:', testResult);
+            
+            const result = originalUpdatePagination.call(this, pageData);
+            
+            // ДИАГНОСТИКА: Проверяем состояние после обновления пагинации
+            setTimeout(() => {
+                console.log('🧪 PAGINATION_TEST: Post-update validation');
+                const postUpdateTest = testPaginationLogic(pageData);
+                console.log('🧪 PAGINATION_TEST: Post-update test result:', postUpdateTest);
+                
+                // Проверяем что данные корректно обновились
+                if (postUpdateTest.totalPagesCheck === 0 && pageData && pageData.totalPages > 0) {
+                    console.error('🧪 PAGINATION_ERROR: Global variables not updated after pagination update!', {
+                        pageDataTotalPages: pageData.totalPages,
+                        globalTotalPages: totalPages,
+                        pageDataTotalElements: pageData.totalElements,
+                        globalTotalElements: totalElements
+                    });
+                }
+            }, 100);
+            
+            return result;
+        };
+        
+        // Обертка для updateStatisticsCounters с тестированием
+        updateStatisticsCounters = function(activity) {
+            console.log('🧪 AUTO_TEST: updateStatisticsCounters called');
+            testCounterSynchronization(activity);
+            return originalUpdateStatisticsCounters.call(this, activity);
+        };
+        
+        // ИСПРАВЛЕНИЕ: Улучшенное обновление статистики каждые 30 секунд с учетом категории
         setInterval(function() {
-            loadCategoryStatistics();
+            // Обновляем статистику только если нет активных изменений
+            if (localCounterDeltas.total === 0 && localCounterDeltas.application === 0 &&
+                localCounterDeltas.telegram === 0 && localCounterDeltas.key === 0) {
+                console.log('COUNTER_DEBUG: Плановое обновление статистики (локальные дельты отсутствуют)', {
+                    currentCategory: currentCategory,
+                    timestamp: new Date().toISOString()
+                });
+                loadCategoryStatistics();
+            } else {
+                console.log('COUNTER_DEBUG: Пропуск планового обновления (есть локальные дельты)', {
+                    localDeltas: { ...localCounterDeltas },
+                    currentCategory: currentCategory,
+                    timestamp: new Date().toISOString()
+                });
+            }
         }, 30000);
+        
+        // ==================== ДОПОЛНИТЕЛЬНЫЕ СПЕЦИАЛИЗИРОВАННЫЕ ТЕСТЫ ====================
+        
+        /**
+         * 🧪 Тест проблемы исчезновения логов при перезагрузке
+         */
+        function testLogPersistenceOnReload() {
+            console.log('🧪 PERSISTENCE_TEST: Testing log persistence on reload...');
+            
+            const beforeReload = {
+                tableRows: document.querySelectorAll('.historical-activities-table tbody tr').length,
+                visibleLogs: document.querySelectorAll('.historical-activities-table tbody tr:not([style*="display: none"])').length,
+                currentCategory: currentCategory,
+                staticPaginationVisible: document.getElementById('static-pagination')?.style.display !== 'none',
+                dynamicPaginationVisible: document.getElementById('dynamic-pagination')?.style.display !== 'none',
+                hasStaticData: checkForStaticData()
+            };
+            
+            console.log('🧪 PERSISTENCE_TEST: State before reload simulation:', beforeReload);
+            window.persistenceTestBeforeState = beforeReload;
+            return beforeReload;
+        }
+        
+        /**
+         * 🧪 Тест проблемы отсутствия пагинации
+         */
+        function testPaginationVisibility() {
+            console.log('🧪 PAGINATION_VISIBILITY_TEST: Testing pagination visibility issues...');
+            
+            const testScenarios = [
+                {
+                    name: 'Few items, one page',
+                    pageData: { number: 0, size: 20, totalElements: 5, totalPages: 1, first: true, last: true },
+                    shouldShowPagination: false
+                },
+                {
+                    name: 'Multiple pages',
+                    pageData: { number: 0, size: 20, totalElements: 45, totalPages: 3, first: true, last: false },
+                    shouldShowPagination: true
+                },
+                {
+                    name: 'Just over one page',
+                    pageData: { number: 0, size: 20, totalElements: 21, totalPages: 2, first: true, last: false },
+                    shouldShowPagination: true
+                }
+            ];
+            
+            const results = testScenarios.map(scenario => {
+                console.log(`🧪 Testing scenario: ${scenario.name}`);
+                
+                // Симулируем условия
+                const mockTotalPages = scenario.pageData.totalPages;
+                const mockTotalElements = scenario.pageData.totalElements;
+                const mockPageSize = scenario.pageData.size;
+                
+                const shouldShow = mockTotalPages > 1;
+                const shouldHideCondition = mockTotalPages > 1 && mockTotalElements > mockPageSize;
+                
+                return {
+                    scenario: scenario.name,
+                    expected: scenario.shouldShowPagination,
+                    actual: shouldShow,
+                    passed: scenario.shouldShowPagination === shouldShow,
+                    hideCondition: shouldHideCondition,
+                    pageData: scenario.pageData
+                };
+            });
+            
+            console.log('🧪 PAGINATION_VISIBILITY_TEST: Results:', results);
+            window.paginationVisibilityTestResults = results;
+            return results;
+        }
+        
+        /**
+         * 🧪 Тест проблемы синхронизации счетчиков
+         */
+        function testCounterSyncIssues() {
+            console.log('🧪 COUNTER_SYNC_TEST: Testing counter synchronization...');
+            
+            const initialCounters = {
+                total: parseInt(document.getElementById('totalLogsCount')?.textContent || '0'),
+                application: parseInt(document.getElementById('applicationLogsCount')?.textContent || '0'),
+                telegram: parseInt(document.getElementById('telegramLogsCount')?.textContent || '0'),
+                key: parseInt(document.getElementById('keyLogsCount')?.textContent || '0')
+            };
+            
+            const mockActivities = [
+                { log_category: 'APPLICATION', is_key_action: true, actionType: 'ORDER_CREATED' },
+                { log_category: 'TELEGRAM_BOT', is_key_action: false, actionType: 'BOT_MESSAGE_SENT' }
+            ];
+            
+            const testResult = {
+                initialCounters: initialCounters,
+                localDeltas: { ...localCounterDeltas },
+                mockActivitiesCount: mockActivities.length,
+                currentCategory: currentCategory,
+                timestamp: new Date().toISOString()
+            };
+            
+            console.log('🧪 COUNTER_SYNC_TEST: Results:', testResult);
+            window.counterSyncTestResult = testResult;
+            return testResult;
+        }
+        
+        /**
+         * 🧪 ГЛАВНАЯ ФУНКЦИЯ ТЕСТИРОВАНИЯ - вызывается из консоли браузера
+         */
+        function runCompleteSystemTest() {
+            console.log('🧪🧪🧪 COMPLETE_SYSTEM_TEST: Starting comprehensive system testing...');
+            
+            const testResults = {
+                systemState: logSystemState('COMPLETE_TEST_START'),
+                initializationTests: runInitializationTests(),
+                persistenceTest: testLogPersistenceOnReload(),
+                paginationTest: testPaginationVisibility(),
+                counterSyncTest: testCounterSyncIssues(),
+                sseTest: testSseFiltering(),
+                timestamp: new Date().toISOString()
+            };
+            
+            // Сохраняем результаты в глобальную переменную
+            window.completeTestResults = testResults;
+            
+            console.log('🧪🧪🧪 COMPLETE_SYSTEM_TEST: All tests completed!');
+            console.log('📊 ACCESS TEST RESULTS: window.completeTestResults');
+            console.log('📊 ACCESS INDIVIDUAL RESULTS: window.persistenceTestBeforeState, window.paginationVisibilityTestResults, etc.');
+            
+            // Выводим краткий отчет
+            const summary = {
+                testsCompleted: Object.keys(testResults).length - 1, // -1 для timestamp
+                hasSystemState: !!testResults.systemState,
+                hasInitData: !!testResults.initializationTests,
+                paginationScenarios: testResults.paginationTest?.length || 0,
+                sseConnectionActive: testResults.sseTest?.connectionExists || false,
+                recommendedActions: [
+                    'Проверьте console для детальных логов',
+                    'Изучите window.completeTestResults для анализа',
+                    'Обратите внимание на failed тесты',
+                    'Проверьте Network tab для API запросов'
+                ]
+            };
+            
+            console.log('📋 TEST SUMMARY:', summary);
+            
+            return testResults;
+        }
     </script>
 </th:block>
 </html>

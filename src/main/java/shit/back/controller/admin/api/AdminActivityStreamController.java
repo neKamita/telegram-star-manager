@@ -145,14 +145,15 @@ public class AdminActivityStreamController {
     }
 
     /**
-     * ИСПРАВЛЕНИЕ: Получение статистики по категориям
+     * ИСПРАВЛЕНИЕ: Получение статистики по категориям с поддержкой фильтрации
      */
     @GetMapping(value = "/category-statistics", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Object> getCategoryStatistics(
             @RequestParam(defaultValue = "24") int hours,
+            @RequestParam(value = "category", required = false) String categoryParam,
             HttpServletRequest request) {
         try {
-            log.info("🔧 DEBUG: Category statistics request - hours: {}", hours);
+            log.info("🔧 DEBUG: Category statistics request - hours: {}, category: {}", hours, categoryParam);
 
             // Аутентификация
             if (!adminAuthenticationService.validateApiRequest(request)) {
@@ -161,19 +162,47 @@ public class AdminActivityStreamController {
                         .body(Map.of("error", "Unauthorized access"));
             }
 
+            // ИСПРАВЛЕНИЕ: Получаем полную статистику для правильного отображения счетчиков
             UserActivityLogService.CategoryStatistics stats = userActivityLogService.getCategoryStatistics(hours);
 
             if (stats != null) {
-                adminSecurityHelper.logAdminActivity(request, "API_CATEGORY_STATS",
-                        "Получение статистики категорий за " + hours + " часов");
+                // ИСПРАВЛЕНИЕ: Создаем адаптированный ответ с учетом текущей категории
+                Map<String, Object> response = new java.util.HashMap<>();
 
-                return ResponseEntity.ok(stats);
+                // Всегда возвращаем полную статистику для корректного отображения всех
+                // счетчиков
+                response.put("totalLogs", stats.getTelegramBotActivities() + stats.getApplicationActivities()
+                        + stats.getSystemActivities());
+                response.put("telegramBotLogs", stats.getTelegramBotActivities());
+                response.put("applicationLogs", stats.getApplicationActivities());
+                response.put("systemLogs", stats.getSystemActivities());
+                response.put("keyLogs", stats.getTelegramBotKeyActivities() + stats.getApplicationKeyActivities()
+                        + stats.getSystemKeyActivities());
+                response.put("periodHours", hours);
+                response.put("currentCategory", categoryParam != null ? categoryParam : "ALL");
+
+                // ДИАГНОСТИКА: Логируем детали статистики
+                log.debug(
+                        "🔧 COUNTER_DEBUG: Category statistics response - category: {}, total: {}, telegram: {}, app: {}, system: {}, key: {}",
+                        categoryParam, response.get("totalLogs"), response.get("telegramBotLogs"),
+                        response.get("applicationLogs"), response.get("systemLogs"), response.get("keyLogs"));
+
+                adminSecurityHelper.logAdminActivity(request, "API_CATEGORY_STATS",
+                        "Получение статистики категорий за " + hours + " часов для категории: " + categoryParam);
+
+                return ResponseEntity.ok(response);
             } else {
-                return ResponseEntity.ok(Map.of(
-                        "telegramBotActivities", 0,
-                        "applicationActivities", 0,
-                        "systemActivities", 0,
-                        "periodHours", hours));
+                // ИСПРАВЛЕНИЕ: Возвращаем нулевую статистику в правильном формате
+                Map<String, Object> response = Map.of(
+                        "totalLogs", 0,
+                        "telegramBotLogs", 0,
+                        "applicationLogs", 0,
+                        "systemLogs", 0,
+                        "keyLogs", 0,
+                        "periodHours", hours,
+                        "currentCategory", categoryParam != null ? categoryParam : "ALL");
+
+                return ResponseEntity.ok(response);
             }
 
         } catch (Exception e) {

@@ -393,19 +393,38 @@ public class CachedMetricsCollectionStrategy implements MetricsCollectionStrateg
      */
     private Integer calculateCacheMissRatio() {
         try {
+            log.warn("🔍 ДИАГНОСТИКА CACHED STRATEGY: Начинаем расчет cache miss ratio");
+
             if (cacheMetricsService != null && cacheMetricsService.isAvailable()) {
+                log.warn("🔍 ДИАГНОСТИКА: CacheMetricsService доступен, вызываем getRealCacheMissRatio()");
                 int realMissRatio = cacheMetricsService.getRealCacheMissRatio();
-                log.debug("✅ CACHED STRATEGY: Используем реальный cache miss ratio = {}%", realMissRatio);
+                log.error("🚨 ДИАГНОСТИКА CACHED STRATEGY: Получен РЕАЛЬНЫЙ cache miss ratio = {}%", realMissRatio);
+
+                // КРИТИЧЕСКАЯ ПРОВЕРКА: если здесь мы получаем нормальное значение, но где-то
+                // дальше оно становится 100%
+                if (realMissRatio >= 0 && realMissRatio <= 30) {
+                    log.error(
+                            "🚨 ДИАГНОСТИКА: Miss ratio выглядит НОРМАЛЬНО ({}%), но система показывает 100% - ищем проблему дальше!",
+                            realMissRatio);
+                } else if (realMissRatio > 80) {
+                    log.error("🚨 ДИАГНОСТИКА: Miss ratio ВЫСОКИЙ ({}%) - возможно кэш действительно не работает!",
+                            realMissRatio);
+                }
+
                 return realMissRatio;
+            } else {
+                log.error("🚨 ДИАГНОСТИКА: CacheMetricsService НЕ доступен или isAvailable() == false");
             }
         } catch (Exception e) {
-            log.warn("⚠️ CACHED STRATEGY: Ошибка получения реального cache miss ratio: {}", e.getMessage());
+            log.error("🚨 ДИАГНОСТИКА CACHED STRATEGY: Критическая ошибка получения реального cache miss ratio: {}",
+                    e.getMessage(), e);
         }
 
         // Fallback: вычисляем из hit ratio
+        log.warn("🔍 ДИАГНОСТИКА: Переходим к fallback расчету из hit ratio");
         int cacheHitRatio = calculateOptimizedCacheHitRatio();
         int fallbackMissRatio = 100 - cacheHitRatio;
-        log.debug("🔄 CACHED STRATEGY: Fallback cache miss ratio = {}% (от hit ratio: {}%)",
+        log.error("🚨 ДИАГНОСТИКА CACHED STRATEGY: FALLBACK cache miss ratio = {}% (от hit ratio: {}%)",
                 fallbackMissRatio, cacheHitRatio);
         return fallbackMissRatio;
     }

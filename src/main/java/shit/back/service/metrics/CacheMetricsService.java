@@ -49,29 +49,34 @@ public class CacheMetricsService {
      */
     public int getRealCacheHitRatio() {
         try {
-            log.debug("Calculating real cache hit ratio");
+            log.warn("🔍 ДИАГНОСТИКА CACHE MISS 100%: Начинаем расчет real cache hit ratio");
 
             // Попытка получить статистику из Redis
             Integer redisHitRatio = getRedisHitRatio();
             if (redisHitRatio != null) {
-                log.debug("Using Redis cache hit ratio: {}%", redisHitRatio);
+                log.warn("🔍 ДИАГНОСТИКА: Redis cache hit ratio = {}% (МОЖЕТ БЫТЬ ФИКТИВНЫМ)", redisHitRatio);
                 return redisHitRatio;
+            } else {
+                log.error("🚨 ДИАГНОСТИКА: Redis НЕ ДОСТУПЕН - redisTemplate == null");
             }
 
             // Использование Spring Cache Manager статистики
             Integer springCacheHitRatio = getSpringCacheHitRatio();
             if (springCacheHitRatio != null) {
-                log.debug("Using Spring Cache hit ratio: {}%", springCacheHitRatio);
+                log.warn("🔍 ДИАГНОСТИКА: Spring Cache hit ratio = {}%", springCacheHitRatio);
                 return springCacheHitRatio;
+            } else {
+                log.error("🚨 ДИАГНОСТИКА: Spring Cache статистика НЕ ДОСТУПНА - счетчики пустые");
             }
 
             // Fallback: высокий hit ratio для оптимизированной системы
             int fallbackRatio = 85 + (int) (Math.random() * 15); // 85-100%
-            log.debug("Using fallback cache hit ratio: {}%", fallbackRatio);
+            log.error("🚨 ДИАГНОСТИКА: Используется ФИКТИВНЫЙ fallback cache hit ratio = {}% - ПРОБЛЕМА НАЙДЕНА!",
+                    fallbackRatio);
             return fallbackRatio;
 
         } catch (Exception e) {
-            log.error("Error calculating cache hit ratio: {}", e.getMessage(), e);
+            log.error("🚨 ДИАГНОСТИКА: Критическая ошибка расчета cache hit ratio: {}", e.getMessage(), e);
             return 88; // Безопасное fallback значение
         }
     }
@@ -84,7 +89,21 @@ public class CacheMetricsService {
     public int getRealCacheMissRatio() {
         int hitRatio = getRealCacheHitRatio();
         int missRatio = 100 - hitRatio;
-        log.debug("Calculated cache miss ratio: {}% (from hit ratio: {}%)", missRatio, hitRatio);
+        log.warn("🔍 ДИАГНОСТИКА CACHE MISS: Calculated cache miss ratio = {}% (от hit ratio: {}%)", missRatio,
+                hitRatio);
+
+        // КРИТИЧЕСКАЯ ПРОВЕРКА: Если missRatio выходит нормальным (5-20%), но система
+        // показывает 100%,
+        // значит проблема в другом месте цепочки
+        if (missRatio >= 0 && missRatio <= 20) {
+            log.error(
+                    "🚨 ДИАГНОСТИКА: Miss ratio рассчитан КОРРЕКТНО ({}%), но система показывает 100% - ПРОБЛЕМА В ДРУГОМ МЕСТЕ!",
+                    missRatio);
+        } else if (missRatio > 80) {
+            log.error("🚨 ДИАГНОСТИКА: Miss ratio слишком высокий ({}%) - возможно кэш действительно не работает!",
+                    missRatio);
+        }
+
         return missRatio;
     }
 

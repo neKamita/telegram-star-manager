@@ -1028,7 +1028,7 @@
                 console.log('🔍 ДИАГНОСТИКА DB&CACHE JS: pool-efficiency элемент найден:', !!efficiencyEl);
                 
                 if (efficiencyEl) {
-                    const displayValue = Math.round(metrics.connectionPoolEfficiency) + '%';
+                    const displayValue = Math.round(metrics.connectionPoolEfficiency * 100) + '%';
                     efficiencyEl.textContent = displayValue;
                     console.log('✅ ДИАГНОСТИКА DB&CACHE JS: pool-efficiency обновлен на:', displayValue);
                     
@@ -1403,7 +1403,7 @@
                         console.log('✅ Fast endpoint pool performance level updated:', data.connectionPoolPerformanceLevel);
                     }
                     if (efficiencyEl && data.connectionPoolEfficiency !== undefined && data.connectionPoolEfficiency !== null) {
-                        efficiencyEl.textContent = Math.round(data.connectionPoolEfficiency) + '%';
+                        efficiencyEl.textContent = Math.round(data.connectionPoolEfficiency * 100) + '%';
                         console.log('✅ Fast endpoint pool efficiency updated:', data.connectionPoolEfficiency + '%');
                     }
                     
@@ -2047,7 +2047,7 @@
                             performanceLevelEl.textContent = data.connectionPoolPerformanceLevel;
                         }
                         if (efficiencyEl && data.connectionPoolEfficiency !== undefined && data.connectionPoolEfficiency !== null) {
-                            efficiencyEl.textContent = Math.round(data.connectionPoolEfficiency) + '%';
+                            efficiencyEl.textContent = Math.round(data.connectionPoolEfficiency * 100) + '%';
                         }
                         
                         // Обновляем время последнего обновления

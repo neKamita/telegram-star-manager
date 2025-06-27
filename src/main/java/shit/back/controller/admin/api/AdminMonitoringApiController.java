@@ -277,19 +277,39 @@ public class AdminMonitoringApiController implements AdminControllerOperations {
      */
     private int calculateCacheMissRatio() {
         try {
+            log.error("🔍 ДИАГНОСТИКА MONITORING API: Финальный расчет cache miss ratio для отправки в UI");
+
             if (cacheMetricsService != null && cacheMetricsService.isAvailable()) {
+                log.warn(
+                        "🔍 ДИАГНОСТИКА: CacheMetricsService доступен в Monitoring API, вызываем getRealCacheMissRatio()");
                 int realMissRatio = cacheMetricsService.getRealCacheMissRatio();
-                log.debug("✅ РЕАЛЬНЫЕ ДАННЫЕ: Cache miss ratio = {}%", realMissRatio);
+                log.error("🚨 ДИАГНОСТИКА MONITORING API: Получен cache miss ratio = {}% - ЭТО ЗНАЧЕНИЕ ПОЙДЕТ В UI!",
+                        realMissRatio);
+
+                // ПРОВЕРЯЕМ: это нормальное значение или проблемное?
+                if (realMissRatio == 100) {
+                    log.error(
+                            "🚨 КРИТИЧЕСКАЯ ПРОБЛЕМА НАЙДЕНА: Cache miss ratio = 100% в Monitoring API - ЭТО ИСТОЧНИК ПРОБЛЕМЫ!");
+                } else if (realMissRatio >= 0 && realMissRatio <= 30) {
+                    log.warn("🔍 ДИАГНОСТИКА: Miss ratio нормальный ({}%) в Monitoring API - проблема НЕ здесь",
+                            realMissRatio);
+                }
+
                 return realMissRatio;
+            } else {
+                log.error("🚨 ДИАГНОСТИКА: CacheMetricsService НЕ доступен в Monitoring API");
             }
         } catch (Exception e) {
-            log.warn("⚠️ Ошибка получения реальных cache метрик: {}", e.getMessage());
+            log.error("🚨 ДИАГНОСТИКА MONITORING API: Критическая ошибка: {}", e.getMessage(), e);
         }
 
         // Fallback: вычисляем из hit ratio
+        log.warn("🔍 ДИАГНОСТИКА: Переходим к fallback расчету в Monitoring API");
         int cacheHitRatio = calculateCacheHitRatio();
         int fallbackMissRatio = 100 - cacheHitRatio;
-        log.debug("🔄 FALLBACK: Cache miss ratio = {}% (от hit ratio: {}%)", fallbackMissRatio, cacheHitRatio);
+        log.error(
+                "🚨 ДИАГНОСТИКА MONITORING API: FALLBACK cache miss ratio = {}% (от hit ratio: {}%) - ЭТО ЗНАЧЕНИЕ ПОЙДЕТ В UI!",
+                fallbackMissRatio, cacheHitRatio);
         return fallbackMissRatio;
     }
 

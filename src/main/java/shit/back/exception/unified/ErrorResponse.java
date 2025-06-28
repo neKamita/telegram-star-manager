@@ -97,7 +97,6 @@ public class ErrorResponse {
         private String details;
 
         /** Временная метка возникновения ошибки */
-        @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss'Z'")
         private LocalDateTime timestamp;
 
         /** Уникальный ID для трассировки ошибки */

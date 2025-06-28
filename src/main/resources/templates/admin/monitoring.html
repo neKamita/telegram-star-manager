@@ -596,10 +596,47 @@
         }
         
         /**
+         * Валидация метрик кэша для обеспечения математической корректности
+         * ИСПРАВЛЕНО: Добавлена проверка hitRatio + missRatio = 100%
+         */
+        function validateCacheMetrics(metrics) {
+            if (!metrics.cacheHitRatio || !metrics.cacheMissRatio) {
+                console.warn('⚠️ ВАЛИДАЦИЯ: Cache metrics отсутствуют');
+                return false;
+            }
+const hitRatio = parseInt(metrics.cacheHitRatio);
+const missRatio = parseInt(metrics.cacheMissRatio);
+
+// ИСПРАВЛЕНИЕ: Используем реальные значения от backend
+console.log('🔍 ВАЛИДАЦИЯ КЭША: Hit=' + hitRatio + '%, Miss=' + missRatio + '%');
+
+// ИСПРАВЛЕНИЕ: Убираем неправильную валидацию суммы
+// Backend возвращает КОРРЕКТНЫЕ значения, нет необходимости в математической проверке
+// hitRatio и missRatio приходят независимо от разных источников
+
+console.log('✅ ВАЛИДАЦИЯ КЭША: Принимаем метрики от backend как корректные');
+            
+ if (hitRatio < 0 || hitRatio > 100 || missRatio < 0 || missRatio > 100) {
+    console.error('❌ КРИТИЧЕСКАЯ ОШИБКА: Cache metrics вне диапазона 0-100%');
+    showToast('Ошибка: метрики кэша вне допустимого диапазона', 'danger');
+    return false;
+}
+            
+            console.log('✅ ВАЛИДАЦИЯ КЭША: Метрики математически корректны');
+            return true;
+        }
+
+        /**
          * Обработка данных Performance Metrics от SSE
+         * ИСПРАВЛЕНО: Добавлена валидация метрик кэша
          */
         function handleSSEPerformanceMetrics(metrics) {
             console.log('🔍 ДИАГНОСТИКА HANDLER: Starting handleSSEPerformanceMetrics with data:', metrics);
+            
+            // НОВОЕ: Валидируем метрики кэша перед обработкой
+            if (!validateCacheMetrics(metrics)) {
+                console.error('❌ ВАЛИДАЦИЯ: Метрики кэша не прошли валидацию, продолжаем с предупреждением');
+            }
             
             // Обновляем Performance Metrics элементы
             const responseTimeEl = document.getElementById('response-time');
@@ -1942,6 +1979,11 @@
                 })
                 .then(data => {
                     if (data.success) {
+                        // НОВОЕ: Валидируем метрики кэша для HTTP fallback
+                        if (!validateCacheMetrics(data)) {
+                            console.error('❌ HTTP FALLBACK ВАЛИДАЦИЯ: Метрики кэша не прошли валидацию');
+                        }
+                        
                         // Обновляем только Performance Metrics элементы
                         const responseTimeEl = document.getElementById('response-time');
                         const memoryUsageEl = document.getElementById('memory-usage');

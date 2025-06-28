@@ -92,7 +92,13 @@ public class AdminAnalyticsService {
         // ИСПРАВЛЕНИЕ: Используем Builder паттерн вместо неправильного конструктора
         log.debug("🔍 DEBUG: Creating PerformanceMetrics with totalOrders: {}", totalOrders);
 
-        return shit.back.dto.monitoring.PerformanceMetrics.builder()
+        // 🚨 ДИАГНОСТИКА КРИТИЧЕСКОЙ ПРОБЛЕМЫ: ПРОВЕРЯЕМ ЧТО СОЗДАЕТСЯ В
+        // AdminAnalyticsService
+        log.error("🚨 ДИАГНОСТИКА AdminAnalyticsService: Создаем PerformanceMetrics БЕЗ cache полей!");
+        log.error(
+                "🚨 ДИАГНОСТИКА: AdminAnalyticsService НЕ устанавливает cacheHitRatio и cacheMissRatio - ЭТО ИСТОЧНИК ПРОБЛЕМЫ!");
+
+        shit.back.dto.monitoring.PerformanceMetrics result = shit.back.dto.monitoring.PerformanceMetrics.builder()
                 .cpuUsage(0.0)
                 .memoryUsage(0.0)
                 .responseTime(0.0)
@@ -103,6 +109,16 @@ public class AdminAnalyticsService {
                 .timestamp(LocalDateTime.now())
                 .source("AdminAnalyticsService")
                 .build();
+
+        // 🚨 КРИТИЧЕСКАЯ ДИАГНОСТИКА: Логируем что получилось
+        log.error("🚨 ДИАГНОСТИКА AdminAnalyticsService: Созданный объект PerformanceMetrics:");
+        log.error("🚨 - source: {}", result.getSource());
+        log.error("🚨 - cacheHitRatio: {} (должно быть null или 0)", result.getCacheHitRatio());
+        log.error("🚨 - cacheMissRatio: {} (должно быть null или default)", result.getCacheMissRatio());
+        log.error("🚨 - responseTime: {}", result.getResponseTime());
+        log.error("🚨 ДИАГНОСТИКА: Если эти cache поля null/0, то ЭТО ИСТОЧНИК cacheMissRatio=100%!");
+
+        return result;
     }
 
     /**

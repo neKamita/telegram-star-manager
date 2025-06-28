@@ -9,8 +9,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import shit.back.service.metrics.MetricsCollectionStrategy;
 import shit.back.config.MetricsConfigurationProperties;
+import shit.back.util.CacheMetricsValidator;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -51,9 +51,9 @@ public class BackgroundMetricsService {
     @Autowired(required = true) // ИСПРАВЛЕНИЕ: Убеждаемся в корректной инжекции для Database метрик
     private ConnectionPoolMonitoringService connectionPoolMonitoringService;
 
-    // JSON serialization - ИСПРАВЛЕНИЕ: Добавляем ObjectMapper для безопасной JSON
-    // сериализации
-    private final ObjectMapper objectMapper;
+    // Глобальный ObjectMapper из JacksonConfig
+    @Autowired
+    private ObjectMapper objectMapper;
 
     // SSE connections management
     private final Set<SseEmitter> activeConnections = ConcurrentHashMap.newKeySet();
@@ -63,13 +63,6 @@ public class BackgroundMetricsService {
     private final AtomicLong lastCollectionDuration = new AtomicLong(0);
     private volatile LocalDateTime lastSuccessfulCollection;
     private volatile PerformanceMetricsData lastMetrics;
-
-    // ИСПРАВЛЕНИЕ: Инициализация ObjectMapper в конструкторе
-    public BackgroundMetricsService() {
-        this.objectMapper = new ObjectMapper();
-        this.objectMapper.registerModule(new JavaTimeModule());
-        this.objectMapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-    }
 
     /**
      * ОПТИМИЗИРОВАННЫЙ scheduled метод для сбора метрик каждые 15 секунд
@@ -136,19 +129,30 @@ public class BackgroundMetricsService {
             log.debug("✅ СТРАТЕГИЯ: Метрики собраны через стратегию успешно");
 
             // ДИАГНОСТИЧЕСКОЕ ЛОГИРОВАНИЕ: Проверяем данные из стратегии
-            log.info(
-                    "🔍 ДИАГНОСТИКА НОВЫХ ПОЛЕЙ: Данные из strategyMetrics - dbPoolUsage={}, cacheMissRatio={}, activeDbConnections={}",
-                    strategyMetrics.dbPoolUsage(), strategyMetrics.cacheMissRatio(),
-                    strategyMetrics.activeDbConnections());
+            log.error("🚨 ДИАГНОСТИКА BackgroundMetricsService: Данные из strategyMetrics:");
+            log.error("🚨 dbPoolUsage = {}", strategyMetrics.dbPoolUsage());
+            log.error("🚨 cacheMissRatio = {} (КРИТИЧНО!)", strategyMetrics.cacheMissRatio());
+            log.error("🚨 activeDbConnections = {}", strategyMetrics.activeDbConnections());
+
+            // КРИТИЧЕСКАЯ ПРОВЕРКА: откуда приходит cacheMissRatio из стратегии?
+            if (strategyMetrics.cacheMissRatio() != null && strategyMetrics.cacheMissRatio() >= 90) {
+                log.error("🚨 ИСТОЧНИК ПРОБЛЕМЫ НАЙДЕН: strategyMetrics возвращает cacheMissRatio = {}%!",
+                        strategyMetrics.cacheMissRatio());
+            } else if (strategyMetrics.cacheMissRatio() != null && strategyMetrics.cacheMissRatio() <= 30) {
+                log.error("🎯 strategyMetrics возвращает НОРМАЛЬНОЕ cacheMissRatio = {}% - проблема в другом месте",
+                        strategyMetrics.cacheMissRatio());
+            } else {
+                log.error("🚨 strategyMetrics.cacheMissRatio() == NULL - будет использоваться fallback!");
+            }
 
             // КРИТИЧЕСКАЯ ДИАГНОСТИКА: Проверяем новые расширенные поля из стратегии
-            log.info("🔍 ДИАГНОСТИКА РАСШИРЕННЫХ ПОЛЕЙ из strategyMetrics:");
-            log.info("🔍 averageConnectionAcquisitionTimeMs = {}",
+            log.debug("🔍 ДИАГНОСТИКА РАСШИРЕННЫХ ПОЛЕЙ из strategyMetrics:");
+            log.debug("🔍 averageConnectionAcquisitionTimeMs = {}",
                     strategyMetrics.averageConnectionAcquisitionTimeMs());
-            log.info("🔍 totalConnectionRequests = {}", strategyMetrics.totalConnectionRequests());
-            log.info("🔍 connectionLeaksDetected = {}", strategyMetrics.connectionLeaksDetected());
-            log.info("🔍 connectionPoolPerformanceLevel = {}", strategyMetrics.connectionPoolPerformanceLevel());
-            log.info("🔍 connectionPoolEfficiency = {}", strategyMetrics.connectionPoolEfficiency());
+            log.debug("🔍 totalConnectionRequests = {}", strategyMetrics.totalConnectionRequests());
+            log.debug("🔍 connectionLeaksDetected = {}", strategyMetrics.connectionLeaksDetected());
+            log.debug("🔍 connectionPoolPerformanceLevel = {}", strategyMetrics.connectionPoolPerformanceLevel());
+            log.debug("🔍 connectionPoolEfficiency = {}", strategyMetrics.connectionPoolEfficiency());
 
             // Конвертируем данные стратегии в PerformanceMetricsData
             PerformanceMetricsData finalMetrics = PerformanceMetricsData.builder()
@@ -240,10 +244,17 @@ public class BackgroundMetricsService {
 
     /**
      * Расчет коэффициента промахов кэша (Cache Miss Ratio)
+     * ИСПРАВЛЕНО: Использует CacheMetricsValidator для обеспечения корректности
      */
     private Integer calculateCacheMissRatio() {
         int cacheHitRatio = calculateCacheHitRatio();
-        return 100 - cacheHitRatio;
+        int missRatio = CacheMetricsValidator.calculateCacheMissRatio(cacheHitRatio);
+
+        // Дополнительная валидация через валидатор
+        CacheMetricsValidator.validateCacheMetrics(cacheHitRatio, missRatio);
+
+        log.debug("✅ Cache metrics: Hit={}%, Miss={}% (корректно)", cacheHitRatio, missRatio);
+        return missRatio;
     }
 
     /**
@@ -407,12 +418,27 @@ public class BackgroundMetricsService {
 
     /**
      * Создание fallback метрик при критических ошибках
+     * ИСПРАВЛЕНО: Обеспечиваем математическую корректность метрик кэша
      */
     private PerformanceMetricsData createOptimizedFallbackMetrics() {
+        // Генерируем cacheHitRatio сначала
+        int cacheHitRatio = 85 + (int) (Math.random() * 15); // 85-100% для оптимизированной версии
+        // Вычисляем cacheMissRatio математически корректно
+        int cacheMissRatio = 100 - cacheHitRatio;
+
+        // Валидация для Fail-Fast
+        if (cacheMissRatio < 0 || cacheMissRatio > 15) {
+            log.error("🚨 FALLBACK ОШИБКА: Некорректный fallback cache miss ratio: {}%", cacheMissRatio);
+            cacheMissRatio = 10; // Безопасное fallback значение
+            cacheHitRatio = 90;
+        }
+
+        log.debug("✅ Fallback cache metrics: Hit={}%, Miss={}%", cacheHitRatio, cacheMissRatio);
+
         return PerformanceMetricsData.builder()
                 .responseTime(75.0 + (Math.random() * 25)) // 75-100ms
                 .memoryUsage(65 + (int) (Math.random() * 20)) // 65-85%
-                .cacheHitRatio(85 + (int) (Math.random() * 15)) // 85-100% для оптимизированной версии
+                .cacheHitRatio(cacheHitRatio) // Используем вычисленное значение
                 .totalUsers(0L)
                 .activeUsers(0L)
                 .onlineUsers(0L)
@@ -423,7 +449,7 @@ public class BackgroundMetricsService {
                 .collectionNumber(metricsCollectionCount.get())
                 // НОВЫЕ FALLBACK ЗНАЧЕНИЯ для Database & Cache
                 .dbPoolUsage(50 + (int) (Math.random() * 20)) // 50-70%
-                .cacheMissRatio(5 + (int) (Math.random() * 10)) // 5-15%
+                .cacheMissRatio(cacheMissRatio) // ИСПРАВЛЕНО: используем математически корректное значение
                 .activeDbConnections(4 + (int) (Math.random() * 3)) // 4-7 соединений
                 // НОВЫЕ РАСШИРЕННЫЕ FALLBACK ЗНАЧЕНИЯ Connection Pool Metrics
                 .averageConnectionAcquisitionTimeMs(35.0 + (Math.random() * 40)) // 35-75ms
@@ -634,6 +660,7 @@ public class BackgroundMetricsService {
 
     /**
      * Создание fallback JSON в случае ошибки
+     * ИСПРАВЛЕНО: Обеспечиваем математическую корректность метрик кэша
      */
     private String createFallbackJson() {
         try {
@@ -647,9 +674,13 @@ public class BackgroundMetricsService {
             fallbackMap.put("connectionPoolPerformanceLevel", "ACCEPTABLE");
             fallbackMap.put("connectionPoolEfficiency", 0.80);
 
+            // ИСПРАВЛЕНО: Обеспечиваем математическую корректность cache метрик
+            int cacheHitRatio = 80; // Fallback значение
+            int cacheMissRatio = 100 - cacheHitRatio; // Математически корректно
+
             // НОВЫЕ FALLBACK ЗНАЧЕНИЯ для Database & Cache
             fallbackMap.put("dbPoolUsage", 60);
-            fallbackMap.put("cacheMissRatio", 10);
+            fallbackMap.put("cacheMissRatio", cacheMissRatio); // ИСПРАВЛЕНО: математически корректное значение
             fallbackMap.put("activeDbConnections", 5);
 
             // Основные fallback поля
@@ -657,7 +688,7 @@ public class BackgroundMetricsService {
             fallbackMap.put("averageResponseTime", 100.0);
             fallbackMap.put("memoryUsage", 70);
             fallbackMap.put("memoryUsagePercent", 70);
-            fallbackMap.put("cacheHitRatio", 80);
+            fallbackMap.put("cacheHitRatio", cacheHitRatio); // Используем переменную для консистентности
             fallbackMap.put("totalUsers", 0L);
             fallbackMap.put("activeUsers", 0L);
             fallbackMap.put("onlineUsers", 0L);
@@ -670,12 +701,13 @@ public class BackgroundMetricsService {
             fallbackMap.put("success", false);
             fallbackMap.put("error", "JSON serialization failed");
 
+            log.debug("✅ Fallback JSON cache metrics: Hit={}%, Miss={}%", cacheHitRatio, cacheMissRatio);
+
             return objectMapper.writeValueAsString(fallbackMap);
         } catch (Exception e) {
             log.error("❌ Даже fallback JSON не удалось создать: {}", e.getMessage());
-            // ИСПРАВЛЕНИЕ ПОРЯДКА: Последний резерв - минимальный JSON с новыми полями В
-            // НАЧАЛЕ
-            return "{\"averageConnectionAcquisitionTimeMs\":45.0,\"totalConnectionRequests\":1000,\"connectionLeaksDetected\":0,\"connectionPoolPerformanceLevel\":\"ACCEPTABLE\",\"connectionPoolEfficiency\":0.80,\"dbPoolUsage\":60,\"cacheMissRatio\":10,\"activeDbConnections\":5,\"error\":\"Critical JSON serialization failure\",\"success\":false}";
+            // ИСПРАВЛЕНО: Последний резерв с математически корректными значениями
+            return "{\"averageConnectionAcquisitionTimeMs\":45.0,\"totalConnectionRequests\":1000,\"connectionLeaksDetected\":0,\"connectionPoolPerformanceLevel\":\"ACCEPTABLE\",\"connectionPoolEfficiency\":0.80,\"dbPoolUsage\":60,\"cacheHitRatio\":80,\"cacheMissRatio\":20,\"activeDbConnections\":5,\"error\":\"Critical JSON serialization failure\",\"success\":false}";
         }
     }
 

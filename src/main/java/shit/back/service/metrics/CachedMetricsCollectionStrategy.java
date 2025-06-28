@@ -7,6 +7,7 @@ import shit.back.config.MetricsConfigurationProperties;
 import shit.back.service.AdminDashboardCacheService;
 import shit.back.service.ConnectionPoolMonitoringService;
 import shit.back.service.metrics.CacheMetricsService;
+import shit.back.util.CacheMetricsValidator;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -268,14 +269,30 @@ public class CachedMetricsCollectionStrategy implements MetricsCollectionStrateg
 
     /**
      * Создать fallback метрики при ошибках
+     * ИСПРАВЛЕНО: Обеспечиваем математическую корректность метрик кэша
      */
     private PerformanceMetrics createFallbackMetrics(long collectionNumber, LocalDateTime timestamp) {
         int baseHealth = metricsConfig.getFallback().getBaseHealthScore();
 
+        // Генерируем cacheHitRatio сначала
+        int cacheHitRatio = 80 + (int) (Math.random() * 20); // 80-100%
+        // Вычисляем cacheMissRatio математически корректно
+        int cacheMissRatio = 100 - cacheHitRatio;
+
+        // Валидация для Fail-Fast
+        if (cacheMissRatio < 0 || cacheMissRatio > 20) {
+            log.error("🚨 CACHED STRATEGY FALLBACK ОШИБКА: Некорректный fallback cache miss ratio: {}%",
+                    cacheMissRatio);
+            cacheMissRatio = 15; // Безопасное fallback значение
+            cacheHitRatio = 85;
+        }
+
+        log.debug("✅ Cached Strategy fallback cache metrics: Hit={}%, Miss={}%", cacheHitRatio, cacheMissRatio);
+
         return PerformanceMetrics.builder()
                 .responseTime(60.0 + (Math.random() * 40)) // 60-100ms
                 .memoryUsage(50 + (int) (Math.random() * 30)) // 50-80%
-                .cacheHitRatio(80 + (int) (Math.random() * 20)) // 80-100%
+                .cacheHitRatio(cacheHitRatio) // Используем вычисленное значение
                 .totalUsers(0L)
                 .activeUsers(0L)
                 .onlineUsers(0L)
@@ -289,7 +306,7 @@ public class CachedMetricsCollectionStrategy implements MetricsCollectionStrateg
                         "errorRecovery", true))
                 // Database & Cache fallback метрики
                 .dbPoolUsage(getFallbackDbPoolUsage())
-                .cacheMissRatio(5 + (int) (Math.random() * 10)) // 5-15% - более реалистично
+                .cacheMissRatio(cacheMissRatio) // ИСПРАВЛЕНО: используем математически корректное значение
                 .activeDbConnections(getFallbackActiveConnections())
                 .build();
     }
@@ -420,10 +437,14 @@ public class CachedMetricsCollectionStrategy implements MetricsCollectionStrateg
                     e.getMessage(), e);
         }
 
-        // Fallback: вычисляем из hit ratio
+        // Fallback: вычисляем из hit ratio через валидатор
         log.warn("🔍 ДИАГНОСТИКА: Переходим к fallback расчету из hit ratio");
         int cacheHitRatio = calculateOptimizedCacheHitRatio();
-        int fallbackMissRatio = 100 - cacheHitRatio;
+        int fallbackMissRatio = CacheMetricsValidator.calculateCacheMissRatio(cacheHitRatio);
+
+        // Валидация через валидатор
+        CacheMetricsValidator.validateCacheMetrics(cacheHitRatio, fallbackMissRatio);
+
         log.error("🚨 ДИАГНОСТИКА CACHED STRATEGY: FALLBACK cache miss ratio = {}% (от hit ratio: {}%)",
                 fallbackMissRatio, cacheHitRatio);
         return fallbackMissRatio;

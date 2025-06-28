@@ -29,39 +29,47 @@ public class CacheEventListener {
 
     /**
      * Перехватывает методы с @Cacheable аннотацией
+     * ИСПРАВЛЕНО: Теперь правильно интегрируется со Spring Cache
      */
     @Around("@annotation(org.springframework.cache.annotation.Cacheable)")
     public Object aroundCacheable(ProceedingJoinPoint joinPoint) throws Throwable {
-        Object result = null;
         String cacheName = extractCacheNameFromCacheable(joinPoint);
         Object key = generateCacheKey(joinPoint);
+        String methodName = joinPoint.getSignature().getName();
 
         try {
-            // Проверяем наличие в кэше
+            // Проверяем наличие в кэше ПЕРЕД выполнением метода
             Cache cache = cacheManager.getCache(cacheName);
             if (cache != null) {
                 Cache.ValueWrapper valueWrapper = cache.get(key);
                 if (valueWrapper != null) {
                     // Cache Hit
-                    result = valueWrapper.get();
-                    cacheMetricsInterceptor.onCacheLookup(cache, key, result);
-                    log.trace("✅ Cache HIT для @Cacheable метода: {}", joinPoint.getSignature().getName());
-                    return result;
+                    Object cachedResult = valueWrapper.get();
+                    cacheMetricsInterceptor.onCacheLookup(cache, key, cachedResult);
+                    log.info("✅ CACHE HIT: Метод {} использует кэш {}", methodName, cacheName);
+                    return cachedResult;
                 }
             }
 
-            // Cache Miss - выполняем метод
-            result = joinPoint.proceed();
+            // Cache Miss - выполняем метод и кэшируем результат
+            log.info("❌ CACHE MISS: Выполняем метод {} и кэшируем в {}", methodName, cacheName);
+            Object result = joinPoint.proceed();
 
+            // Записываем в кэш после выполнения
+            if (cache != null && result != null) {
+                cache.put(key, result);
+                log.info("💾 CACHE PUT: Результат метода {} сохранен в кэш {}", methodName, cacheName);
+            }
+
+            // Регистрируем miss
             if (cache != null) {
                 cacheMetricsInterceptor.onCacheLookup(cache, key, null); // Miss
-                log.trace("❌ Cache MISS для @Cacheable метода: {}", joinPoint.getSignature().getName());
             }
 
             return result;
 
         } catch (Exception e) {
-            log.debug("Error in cache AOP: {}", e.getMessage());
+            log.warn("⚠️ CACHE ERROR: Ошибка в кэш AOP для метода {}: {}", methodName, e.getMessage());
             return joinPoint.proceed();
         }
     }

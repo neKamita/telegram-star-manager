@@ -7,8 +7,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import shit.back.service.BackgroundMetricsService;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -28,20 +26,13 @@ public class PerformanceMetricsSSEController {
         @Autowired
         private BackgroundMetricsService backgroundMetricsService;
 
-        // ИСПРАВЛЕНИЕ: ObjectMapper для безопасной JSON сериализации
-        private final ObjectMapper objectMapper;
+        // Глобальный ObjectMapper из JacksonConfig
+        @Autowired
+        private ObjectMapper objectMapper;
 
         // Статистика подключений
         private final AtomicLong totalConnections = new AtomicLong(0);
         private final AtomicLong activeConnections = new AtomicLong(0);
-
-        // ИСПРАВЛЕНИЕ: Инициализация ObjectMapper в конструкторе
-        public PerformanceMetricsSSEController() {
-                this.objectMapper = new ObjectMapper();
-                this.objectMapper.registerModule(new JavaTimeModule());
-                this.objectMapper
-                                .disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-        }
 
         /**
          * SSE endpoint для real-time Performance Metrics

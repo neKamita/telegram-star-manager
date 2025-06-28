@@ -2,9 +2,9 @@ package shit.back.service;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -21,13 +21,9 @@ public class JsonValidationService {
 
     private static final Logger log = LoggerFactory.getLogger(JsonValidationService.class);
 
-    private final ObjectMapper objectMapper;
-
-    public JsonValidationService() {
-        this.objectMapper = new ObjectMapper();
-        this.objectMapper.registerModule(new JavaTimeModule());
-        this.objectMapper.disable(com.fasterxml.jackson.databind.SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-    }
+    // Глобальный ObjectMapper из JacksonConfig
+    @Autowired
+    private ObjectMapper objectMapper;
 
     /**
      * Валидация JSON строки на корректность
@@ -84,17 +80,41 @@ public class JsonValidationService {
             Object cacheMissRatioInput = metricsData.get("cacheMissRatio");
             Object activeDbConnectionsInput = metricsData.get("activeDbConnections");
 
-            log.info(
-                    "🔍 JSON VALIDATION ДИАГНОСТИКА: Input DB fields - dbPoolUsage={}, cacheMissRatio={}, activeDbConnections={}",
-                    dbPoolUsageInput, cacheMissRatioInput, activeDbConnectionsInput);
+            log.error("🚨 JSON VALIDATION КРИТИЧЕСКАЯ ДИАГНОСТИКА: Input DB cache fields:");
+            log.error("🚨 dbPoolUsageInput = {} (type: {})", dbPoolUsageInput,
+                    dbPoolUsageInput != null ? dbPoolUsageInput.getClass().getSimpleName() : "null");
+            log.error("🚨 cacheMissRatioInput = {} (type: {})", cacheMissRatioInput,
+                    cacheMissRatioInput != null ? cacheMissRatioInput.getClass().getSimpleName() : "null");
+            log.error("🚨 activeDbConnectionsInput = {} (type: {})", activeDbConnectionsInput,
+                    activeDbConnectionsInput != null ? activeDbConnectionsInput.getClass().getSimpleName() : "null");
 
-            safeData.put("dbPoolUsage", validateIntegerField(dbPoolUsageInput, 50));
-            safeData.put("cacheMissRatio", validateIntegerField(cacheMissRatioInput, 10));
-            safeData.put("activeDbConnections", validateIntegerField(activeDbConnectionsInput, 3));
+            // КРИТИЧЕСКАЯ ПРОВЕРКА: если cacheMissRatioInput == null, то будет default = 10
+            if (cacheMissRatioInput == null) {
+                log.error("🚨 НАЙДЕН ИСТОЧНИК ПРОБЛЕМЫ: cacheMissRatioInput == NULL!");
+                log.error("🚨 JsonValidationService будет использовать default значение 10, но откуда тогда 100%?");
+            }
 
-            log.info(
-                    "🔍 JSON VALIDATION ДИАГНОСТИКА: Output DB fields - dbPoolUsage={}, cacheMissRatio={}, activeDbConnections={}",
-                    safeData.get("dbPoolUsage"), safeData.get("cacheMissRatio"), safeData.get("activeDbConnections"));
+            Integer validatedDbPoolUsage = validateIntegerField(dbPoolUsageInput, 50);
+            Integer validatedCacheMissRatio = validateIntegerField(cacheMissRatioInput, 10);
+            Integer validatedActiveDbConnections = validateIntegerField(activeDbConnectionsInput, 3);
+
+            safeData.put("dbPoolUsage", validatedDbPoolUsage);
+            safeData.put("cacheMissRatio", validatedCacheMissRatio);
+            safeData.put("activeDbConnections", validatedActiveDbConnections);
+
+            log.error("🚨 JSON VALIDATION КРИТИЧЕСКАЯ ДИАГНОСТИКА: Output validated fields:");
+            log.error("🚨 validatedDbPoolUsage = {}", validatedDbPoolUsage);
+            log.error("🚨 validatedCacheMissRatio = {} (ЭТО КРИТИЧНО!)", validatedCacheMissRatio);
+            log.error("🚨 validatedActiveDbConnections = {}", validatedActiveDbConnections);
+
+            // ПРОВЕРЯЕМ: если validatedCacheMissRatio = 10, но в UI приходит 100, значит
+            // проблема в другом месте!
+            if (validatedCacheMissRatio != null && validatedCacheMissRatio == 10) {
+                log.error("🎯 JsonValidationService возвращает КОРРЕКТНОЕ cacheMissRatio = 10% - проблема НЕ здесь!");
+            } else if (validatedCacheMissRatio != null && validatedCacheMissRatio >= 90) {
+                log.error("🚨 JsonValidationService возвращает ВЫСОКОЕ cacheMissRatio = {}% - ПРОБЛЕМА НАЙДЕНА!",
+                        validatedCacheMissRatio);
+            }
 
             // ДОБАВЛЯЕМ НОВЫЕ CONNECTION POOL ПОЛЯ В SAFEDATA
             Object avgConnectionAcquisitionTimeInput = metricsData.get("averageConnectionAcquisitionTimeMs");

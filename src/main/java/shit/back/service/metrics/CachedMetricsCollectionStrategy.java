@@ -582,13 +582,44 @@ public class CachedMetricsCollectionStrategy implements MetricsCollectionStrateg
                 @SuppressWarnings("unchecked")
                 Map<String, Object> performanceMetrics = (Map<String, Object>) detailedStats.get("performanceMetrics");
 
-                // Извлекаем время получения соединения
-                Long acquisitionTimeMs = (Long) performanceMetrics.get("averageConnectionAcquisitionTimeMs");
-                queryStats.put("averageConnectionAcquisitionTimeMs",
-                        acquisitionTimeMs != null ? acquisitionTimeMs.doubleValue() : 0.0);
+                // ДИАГНОСТИКА: Проверяем типы данных перед приведением
+                Object acquisitionTimeObj = performanceMetrics.get("averageConnectionAcquisitionTimeMs");
+                log.error("🔍 TYPE DEBUG: averageConnectionAcquisitionTimeMs тип: {}, значение: {}",
+                        acquisitionTimeObj != null ? acquisitionTimeObj.getClass().getSimpleName() : "NULL",
+                        acquisitionTimeObj);
 
-                // Извлекаем общее количество запросов
-                Long totalRequests = (Long) performanceMetrics.get("totalConnectionRequests");
+                Object totalRequestsObj = performanceMetrics.get("totalConnectionRequests");
+                log.error("🔍 TYPE DEBUG: totalConnectionRequests тип: {}, значение: {}",
+                        totalRequestsObj != null ? totalRequestsObj.getClass().getSimpleName() : "NULL",
+                        totalRequestsObj);
+
+                // Безопасное приведение с проверкой типов
+                Double acquisitionTimeMs = null;
+                if (acquisitionTimeObj instanceof Double) {
+                    acquisitionTimeMs = (Double) acquisitionTimeObj;
+                } else if (acquisitionTimeObj instanceof Long) {
+                    acquisitionTimeMs = ((Long) acquisitionTimeObj).doubleValue();
+                } else if (acquisitionTimeObj instanceof Integer) {
+                    acquisitionTimeMs = ((Integer) acquisitionTimeObj).doubleValue();
+                } else if (acquisitionTimeObj != null) {
+                    log.error("🚨 TYPE ERROR: Неожиданный тип для averageConnectionAcquisitionTimeMs: {}",
+                            acquisitionTimeObj.getClass().getSimpleName());
+                }
+                queryStats.put("averageConnectionAcquisitionTimeMs",
+                        acquisitionTimeMs != null ? acquisitionTimeMs : 0.0);
+
+                // Безопасное приведение для totalConnectionRequests
+                Long totalRequests = null;
+                if (totalRequestsObj instanceof Long) {
+                    totalRequests = (Long) totalRequestsObj;
+                } else if (totalRequestsObj instanceof Integer) {
+                    totalRequests = ((Integer) totalRequestsObj).longValue();
+                } else if (totalRequestsObj instanceof Double) {
+                    totalRequests = ((Double) totalRequestsObj).longValue();
+                } else if (totalRequestsObj != null) {
+                    log.error("🚨 TYPE ERROR: Неожиданный тип для totalConnectionRequests: {}",
+                            totalRequestsObj.getClass().getSimpleName());
+                }
                 queryStats.put("totalConnectionRequests", totalRequests != null ? totalRequests : 0L);
 
                 // ИСПРАВЛЕНИЕ НАЗВАНИЙ ПОЛЕЙ: Извлекаем уровень производительности с правильным

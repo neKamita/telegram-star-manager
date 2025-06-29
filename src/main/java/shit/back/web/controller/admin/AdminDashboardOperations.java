@@ -1,23 +1,20 @@
-package shit.back.controller.admin;
+package shit.back.web.controller.admin;
 
-import org.springframework.http.ResponseEntity;
-import shit.back.service.AdminDashboardService;
+import shit.back.dto.monitoring.PerformanceMetrics;
+import shit.back.dto.monitoring.SystemHealth;
 import shit.back.service.AdminDashboardCacheService;
+import shit.back.service.AdminDashboardService;
 import shit.back.service.UserActivityLogService;
+import shit.back.service.activity.UserActivityStatisticsService;
 
-import java.time.LocalDateTime;
 import java.util.Map;
 
-import shit.back.dto.monitoring.SystemHealth;
-import shit.back.dto.monitoring.PerformanceMetrics;
-
 /**
- * Базовый интерфейс для операций админ панели
+ * Интерфейс для операций админ dashboard'а
  * Определяет общие методы для UI и API контроллеров
- * Создан для устранения дублирования между AdminController и
- * OptimizedAdminController
+ * Следует принципу Interface Segregation (ISP) из SOLID
  */
-public interface AdminControllerOperations {
+public interface AdminDashboardOperations {
 
     /**
      * Получение данных dashboard
@@ -52,12 +49,12 @@ public interface AdminControllerOperations {
     /**
      * Получение статистики активности
      */
-    UserActivityLogService.ActivityStatistics getActivityStatistics(int hours);
+    UserActivityStatisticsService.ActivityStatistics getActivityStatistics(int hours);
 
     /**
      * Получение статуса платежей
      */
-    UserActivityLogService.PaymentStatusDashboard getPaymentStatusDashboard();
+    UserActivityStatisticsService.PaymentStatusDashboard getPaymentStatusDashboard();
 
     /**
      * Получение полных данных dashboard (кэшированных)

@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import shit.back.service.UserActivityLogService;
+import shit.back.service.activity.UserActivityStatisticsService;
 import shit.back.service.admin.shared.AdminAuthenticationService;
 import shit.back.service.admin.shared.AdminSecurityHelper;
 import shit.back.entity.UserActivityLogEntity;
@@ -163,7 +164,8 @@ public class AdminActivityStreamController {
             }
 
             // ИСПРАВЛЕНИЕ: Получаем полную статистику для правильного отображения счетчиков
-            UserActivityLogService.CategoryStatistics stats = userActivityLogService.getCategoryStatistics(hours);
+            UserActivityStatisticsService.CategoryStatistics stats = userActivityLogService
+                    .getCategoryStatistics(hours);
 
             if (stats != null) {
                 // ИСПРАВЛЕНИЕ: Создаем адаптированный ответ с учетом текущей категории

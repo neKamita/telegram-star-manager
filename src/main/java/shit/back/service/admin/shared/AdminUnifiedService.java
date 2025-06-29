@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import shit.back.service.AdminDashboardService;
 import shit.back.service.AdminDashboardCacheService;
 import shit.back.service.UserActivityLogService;
+import shit.back.service.activity.UserActivityStatisticsService;
 import shit.back.service.OrderService;
 import shit.back.service.StarPackageService;
 import shit.back.dto.monitoring.PerformanceMetrics;
@@ -112,11 +113,12 @@ public class AdminUnifiedService {
             log.debug("Getting system statistics");
 
             // Активность пользователей
-            UserActivityLogService.ActivityStatistics activityStats = userActivityLogService.getActivityStatistics(24);
+            UserActivityStatisticsService.ActivityStatistics activityStats = userActivityLogService
+                    .getActivityStatistics(24);
             statistics.put("activityStats", activityStats);
 
             // Статус платежей
-            UserActivityLogService.PaymentStatusDashboard paymentDashboard = userActivityLogService
+            UserActivityStatisticsService.PaymentStatusDashboard paymentDashboard = userActivityLogService
                     .getPaymentStatusDashboard();
             statistics.put("paymentDashboard", paymentDashboard);
 
@@ -317,7 +319,7 @@ public class AdminUnifiedService {
 
     private boolean checkActivityService() {
         try {
-            UserActivityLogService.ActivityStatistics stats = userActivityLogService.getActivityStatistics(1);
+            UserActivityStatisticsService.ActivityStatistics stats = userActivityLogService.getActivityStatistics(1);
             return stats != null;
         } catch (Exception e) {
             log.debug("Activity service health check failed", e);

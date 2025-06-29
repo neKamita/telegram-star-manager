@@ -12,7 +12,7 @@ import org.springframework.ui.Model;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import shit.back.controller.admin.shared.AdminControllerOperations;
+import shit.back.web.controller.admin.AdminBaseController;
 import shit.back.entity.OrderEntity;
 import shit.back.entity.UserActivityLogEntity.ActionType;
 import shit.back.service.OrderService;
@@ -35,7 +35,7 @@ import shit.back.dto.order.OrderStatistics;
 @Controller
 @RequestMapping("/admin/orders")
 @Validated
-public class AdminOrdersUIController implements AdminControllerOperations {
+public class AdminOrdersUIController extends AdminBaseController {
 
     private static final Logger log = LoggerFactory.getLogger(AdminOrdersUIController.class);
 
@@ -46,13 +46,7 @@ public class AdminOrdersUIController implements AdminControllerOperations {
     private UserActivityLogService activityLogService;
 
     @Autowired
-    private AdminAuthenticationService adminAuthenticationService;
-
-    @Autowired
     private AdminValidationService adminValidationService;
-
-    @Autowired
-    private AdminSecurityHelper adminSecurityHelper;
 
     /**
      * Главная страница со списком заказов
@@ -75,15 +69,13 @@ public class AdminOrdersUIController implements AdminControllerOperations {
         try {
             log.info("Loading orders list page - page: {}, size: {}, search: {}", page, size, search);
 
-            // Проверка аутентификации через унифицированный сервис
-            if (!adminAuthenticationService.validateAuthentication(request)) {
-                log.warn("Unauthorized access attempt to orders page from IP: {}",
-                        adminSecurityHelper.getClientIpAddress(request));
-                return "redirect:/admin/login";
+            // Проверка аутентификации через базовый контроллер
+            if (!validateAuthentication(request)) {
+                return handleAuthenticationFailure(request);
             }
 
             // Проверка подозрительной активности
-            if (adminSecurityHelper.isSuspiciousActivity(request)) {
+            if (isSuspiciousActivity(request)) {
                 log.warn("Suspicious activity detected on orders page");
                 model.addAttribute("warning", "Подозрительная активность обнаружена");
             }
@@ -151,8 +143,8 @@ public class AdminOrdersUIController implements AdminControllerOperations {
             model.addAttribute("loadTime", loadTime);
             log.info("Orders list page loaded in {}ms", loadTime);
 
-            // Логирование просмотра через security helper
-            adminSecurityHelper.logAdminActivity(request, "VIEW_ORDERS_LIST",
+            // Логирование просмотра через базовый контроллер
+            logAdminActivity(request, "VIEW_ORDERS_LIST",
                     "Просмотр списка заказов, фильтры: " + buildFiltersDescription(status, search, startDate, endDate));
 
             return "admin/orders";
@@ -177,10 +169,8 @@ public class AdminOrdersUIController implements AdminControllerOperations {
             log.info("Loading order detail page for orderId: {}", orderId);
 
             // Проверка аутентификации
-            if (!adminAuthenticationService.validateAuthentication(request)) {
-                log.warn("Unauthorized access attempt to order detail from IP: {}",
-                        adminSecurityHelper.getClientIpAddress(request));
-                return "redirect:/admin/login";
+            if (!validateAuthentication(request)) {
+                return handleAuthenticationFailure(request);
             }
 
             // Валидация orderId через унифицированный сервис
@@ -212,11 +202,11 @@ public class AdminOrdersUIController implements AdminControllerOperations {
             model.addAttribute("availableStatuses", Arrays.asList(OrderEntity.OrderStatus.values()));
 
             // Добавление контекста безопасности
-            Map<String, Object> securityContext = adminSecurityHelper.createSecurityContext(request);
+            Map<String, Object> securityContext = createSecurityContext(request);
             model.addAttribute("securityContext", securityContext);
 
-            // Логирование просмотра через security helper
-            adminSecurityHelper.logAdminActivity(request, "VIEW_ORDER_DETAIL",
+            // Логирование просмотра через базовый контроллер
+            logAdminActivity(request, "VIEW_ORDER_DETAIL",
                     "Просмотр деталей заказа " + orderId);
 
             return "admin/order-detail";
@@ -241,8 +231,8 @@ public class AdminOrdersUIController implements AdminControllerOperations {
             log.info("Loading order edit page for orderId: {}", orderId);
 
             // Проверка аутентификации
-            if (!adminAuthenticationService.validateAuthentication(request)) {
-                return "redirect:/admin/login";
+            if (!validateAuthentication(request)) {
+                return handleAuthenticationFailure(request);
             }
 
             // Валидация orderId
@@ -268,7 +258,7 @@ public class AdminOrdersUIController implements AdminControllerOperations {
             model.addAttribute("action", "edit");
 
             // Логирование доступа к форме редактирования
-            adminSecurityHelper.logAdminActivity(request, "ACCESS_ORDER_EDIT",
+            logAdminActivity(request, "ACCESS_ORDER_EDIT",
                     "Доступ к форме редактирования заказа " + orderId);
 
             return "admin/order-edit";
@@ -296,8 +286,8 @@ public class AdminOrdersUIController implements AdminControllerOperations {
             log.info("Updating order {} via UI form", orderId);
 
             // Проверка аутентификации
-            if (!adminAuthenticationService.validateAuthentication(request)) {
-                return "redirect:/admin/login";
+            if (!validateAuthentication(request)) {
+                return handleAuthenticationFailure(request);
             }
 
             // Валидация orderId
@@ -306,7 +296,7 @@ public class AdminOrdersUIController implements AdminControllerOperations {
                 return "redirect:/admin/orders";
             }
 
-            // Санитизация входных данных
+            // Санитизация входных данных через базовый контроллер
             notes = adminSecurityHelper.sanitizeInput(notes);
             reason = adminSecurityHelper.sanitizeInput(reason);
 
@@ -344,7 +334,7 @@ public class AdminOrdersUIController implements AdminControllerOperations {
                         "Заказ успешно обновлен: " + updateLog.toString());
 
                 // Логирование общего обновления
-                adminSecurityHelper.logAdminActivity(request, "UPDATE_ORDER",
+                logAdminActivity(request, "UPDATE_ORDER",
                         "Обновление заказа " + orderId + ": " + updateLog.toString());
             } else {
                 redirectAttributes.addFlashAttribute("info", "Изменения не внесены");
@@ -415,13 +405,4 @@ public class AdminOrdersUIController implements AdminControllerOperations {
         return filters.isEmpty() ? "без фильтров" : String.join(", ", filters);
     }
 
-    @Override
-    public Map<String, Object> createErrorResponse(String message, Exception e) {
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", false);
-        response.put("error", message);
-        response.put("message", e != null ? e.getMessage() : "Unknown error");
-        response.put("timestamp", LocalDateTime.now());
-        return response;
-    }
 }

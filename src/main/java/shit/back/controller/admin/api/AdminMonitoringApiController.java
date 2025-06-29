@@ -7,7 +7,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-import shit.back.controller.admin.shared.AdminControllerOperations;
+import shit.back.web.controller.admin.AdminBaseController;
 import shit.back.service.AdminDashboardService;
 import shit.back.service.BackgroundMetricsService;
 import shit.back.service.ConnectionPoolMonitoringService;
@@ -34,7 +34,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/admin/api")
-public class AdminMonitoringApiController implements AdminControllerOperations {
+public class AdminMonitoringApiController extends AdminBaseController {
 
     private static final Logger log = LoggerFactory.getLogger(AdminMonitoringApiController.class);
 
@@ -46,12 +46,6 @@ public class AdminMonitoringApiController implements AdminControllerOperations {
 
     @Autowired
     private Environment environment;
-
-    @Autowired
-    private AdminAuthenticationService adminAuthenticationService;
-
-    @Autowired
-    private AdminSecurityHelper adminSecurityHelper;
 
     @Autowired
     private ConnectionPoolMonitoringService connectionPoolMonitoringService;
@@ -81,7 +75,7 @@ public class AdminMonitoringApiController implements AdminControllerOperations {
             log.info("🚀 ИСПРАВЛЕНИЕ КРИТИЧЕСКОЙ ПРОБЛЕМЫ: monitoring-fast endpoint вызван");
 
             // Аутентификация
-            if (!adminAuthenticationService.validateApiRequest(request)) {
+            if (!validateApiAuthentication(request)) {
                 log.warn("🔧 МОНИТОРИНГ: Authentication failed for monitoring-fast");
                 return ResponseEntity.status(401)
                         .body(createErrorResponse("Unauthorized access", null));
@@ -130,7 +124,7 @@ public class AdminMonitoringApiController implements AdminControllerOperations {
             response.put("source", "monitoring-fast-endpoint");
 
             // Логирование доступа
-            adminSecurityHelper.logAdminActivity(request, "API_MONITORING_FAST",
+            logAdminActivity(request, "API_MONITORING_FAST",
                     "Получение быстрых метрик мониторинга");
 
             log.info("✅ ИСПРАВЛЕНИЕ: monitoring-fast endpoint успешно обработан, возвращены совместимые данные");
@@ -156,7 +150,7 @@ public class AdminMonitoringApiController implements AdminControllerOperations {
             log.info("🌍 ИСПРАВЛЕНИЕ КРИТИЧЕСКОЙ ПРОБЛЕМЫ: environment-info endpoint вызван");
 
             // Аутентификация
-            if (!adminAuthenticationService.validateApiRequest(request)) {
+            if (!validateApiAuthentication(request)) {
                 log.warn("🔧 МОНИТОРИНГ: Authentication failed for environment-info");
                 return ResponseEntity.status(401)
                         .body(createErrorResponse("Unauthorized access", null));
@@ -177,7 +171,7 @@ public class AdminMonitoringApiController implements AdminControllerOperations {
                     "success", true);
 
             // Логирование доступа
-            adminSecurityHelper.logAdminActivity(request, "API_ENVIRONMENT_INFO",
+            logAdminActivity(request, "API_ENVIRONMENT_INFO",
                     "Получение информации об окружении");
 
             log.info("✅ ИСПРАВЛЕНИЕ: environment-info endpoint успешно обработан");
@@ -199,7 +193,7 @@ public class AdminMonitoringApiController implements AdminControllerOperations {
             log.debug("🔧 МОНИТОРИНГ: system-health endpoint вызван");
 
             // Аутентификация
-            if (!adminAuthenticationService.validateApiRequest(request)) {
+            if (!validateApiAuthentication(request)) {
                 return ResponseEntity.status(401)
                         .body(createErrorResponse("Unauthorized access", null));
             }
@@ -209,7 +203,7 @@ public class AdminMonitoringApiController implements AdminControllerOperations {
 
             if (systemHealth != null) {
                 // Логирование доступа
-                adminSecurityHelper.logAdminActivity(request, "API_SYSTEM_HEALTH",
+                logAdminActivity(request, "API_SYSTEM_HEALTH",
                         "Получение состояния системы");
 
                 return ResponseEntity.ok(systemHealth);
@@ -596,16 +590,6 @@ public class AdminMonitoringApiController implements AdminControllerOperations {
         return "3.4+"; // Fallback версия
     }
 
-    @Override
-    public Map<String, Object> createErrorResponse(String message, Exception e) {
-        Map<String, Object> response = new java.util.HashMap<>();
-        response.put("success", false);
-        response.put("error", message);
-        response.put("message", e != null ? e.getMessage() : "Unknown error");
-        response.put("timestamp", LocalDateTime.now());
-        return response;
-    }
-
     /**
      * ДИАГНОСТИЧЕСКИЙ ENDPOINT: Тестирование новых Database & Cache метрик
      * Позволяет проверить работу ConnectionPoolMonitoringService и валидацию метрик
@@ -616,7 +600,7 @@ public class AdminMonitoringApiController implements AdminControllerOperations {
             log.info("🔍 ДИАГНОСТИКА DB&CACHE: Test endpoint для новых метрик вызван");
 
             // Аутентификация
-            if (!adminAuthenticationService.validateApiRequest(request)) {
+            if (!validateApiAuthentication(request)) {
                 log.warn("🔧 ДИАГНОСТИКА DB&CACHE: Authentication failed");
                 return ResponseEntity.status(401)
                         .body(createErrorResponse("Unauthorized access", null));
@@ -676,7 +660,7 @@ public class AdminMonitoringApiController implements AdminControllerOperations {
             response.put("timestamp", LocalDateTime.now());
 
             // Логирование доступа
-            adminSecurityHelper.logAdminActivity(request, "API_TEST_DB_CACHE_METRICS",
+            logAdminActivity(request, "API_TEST_DB_CACHE_METRICS",
                     "Тестирование новых Database & Cache метрик");
 
             log.info(
@@ -701,7 +685,7 @@ public class AdminMonitoringApiController implements AdminControllerOperations {
             log.info("🔍 ДИАГНОСТИКА CACHE: Detailed cache stats endpoint вызван");
 
             // Аутентификация
-            if (!adminAuthenticationService.validateApiRequest(request)) {
+            if (!validateApiAuthentication(request)) {
                 log.warn("🔧 ДИАГНОСТИКА CACHE: Authentication failed");
                 return ResponseEntity.status(401)
                         .body(createErrorResponse("Unauthorized access", null));
@@ -732,7 +716,7 @@ public class AdminMonitoringApiController implements AdminControllerOperations {
             response.put("timestamp", LocalDateTime.now());
 
             // Логирование доступа
-            adminSecurityHelper.logAdminActivity(request, "API_CACHE_DETAILED_STATS",
+            logAdminActivity(request, "API_CACHE_DETAILED_STATS",
                     "Получение детальной статистики кэша");
 
             log.info("✅ ДИАГНОСТИКА CACHE: Detailed cache stats endpoint успешно выполнен");
@@ -755,7 +739,7 @@ public class AdminMonitoringApiController implements AdminControllerOperations {
             log.info("🧪 ТЕСТ CACHE OPS: Test cache operations endpoint вызван");
 
             // Аутентификация
-            if (!adminAuthenticationService.validateApiRequest(request)) {
+            if (!validateApiAuthentication(request)) {
                 log.warn("🔧 ТЕСТ CACHE OPS: Authentication failed");
                 return ResponseEntity.status(401)
                         .body(createErrorResponse("Unauthorized access", null));
@@ -790,7 +774,7 @@ public class AdminMonitoringApiController implements AdminControllerOperations {
             response.put("timestamp", LocalDateTime.now());
 
             // Логирование доступа
-            adminSecurityHelper.logAdminActivity(request, "API_TEST_CACHE_OPERATIONS",
+            logAdminActivity(request, "API_TEST_CACHE_OPERATIONS",
                     "Тестирование cache операций");
 
             log.info("✅ ТЕСТ CACHE OPS: Test cache operations endpoint успешно выполнен");
@@ -898,7 +882,7 @@ public class AdminMonitoringApiController implements AdminControllerOperations {
             log.info("🔍 DB DETAILED STATS: Database detailed statistics endpoint вызван");
 
             // Аутентификация
-            if (!adminAuthenticationService.validateApiRequest(request)) {
+            if (!validateApiAuthentication(request)) {
                 log.warn("🔧 DB DETAILED STATS: Authentication failed");
                 return ResponseEntity.status(401)
                         .body(createErrorResponse("Unauthorized access", null));
@@ -926,7 +910,7 @@ public class AdminMonitoringApiController implements AdminControllerOperations {
             response.put("timestamp", LocalDateTime.now());
 
             // Логирование доступа
-            adminSecurityHelper.logAdminActivity(request, "API_DATABASE_DETAILED_STATS",
+            logAdminActivity(request, "API_DATABASE_DETAILED_STATS",
                     "Получение детальной статистики базы данных");
 
             log.info("✅ DB DETAILED STATS: Database detailed statistics endpoint успешно выполнен");
@@ -949,7 +933,7 @@ public class AdminMonitoringApiController implements AdminControllerOperations {
             log.info("🔍 DB DIAGNOSTICS: Database diagnostics endpoint вызван");
 
             // Аутентификация
-            if (!adminAuthenticationService.validateApiRequest(request)) {
+            if (!validateApiAuthentication(request)) {
                 log.warn("🔧 DB DIAGNOSTICS: Authentication failed");
                 return ResponseEntity.status(401)
                         .body(createErrorResponse("Unauthorized access", null));
@@ -974,7 +958,7 @@ public class AdminMonitoringApiController implements AdminControllerOperations {
             response.put("timestamp", LocalDateTime.now());
 
             // Логирование доступа
-            adminSecurityHelper.logAdminActivity(request, "API_DATABASE_DIAGNOSTICS",
+            logAdminActivity(request, "API_DATABASE_DIAGNOSTICS",
                     "Диагностика проблем базы данных");
 
             log.info("✅ DB DIAGNOSTICS: Database diagnostics endpoint успешно выполнен, severity: {}", severityLevel);
@@ -997,7 +981,7 @@ public class AdminMonitoringApiController implements AdminControllerOperations {
             log.info("🔍 CONNECTION LEAKS: Connection leaks monitor endpoint вызван");
 
             // Аутентификация
-            if (!adminAuthenticationService.validateApiRequest(request)) {
+            if (!validateApiAuthentication(request)) {
                 log.warn("🔧 CONNECTION LEAKS: Authentication failed");
                 return ResponseEntity.status(401)
                         .body(createErrorResponse("Unauthorized access", null));
@@ -1037,7 +1021,7 @@ public class AdminMonitoringApiController implements AdminControllerOperations {
             response.put("timestamp", LocalDateTime.now());
 
             // Логирование доступа
-            adminSecurityHelper.logAdminActivity(request, "API_CONNECTION_LEAKS_MONITOR",
+            logAdminActivity(request, "API_CONNECTION_LEAKS_MONITOR",
                     "Мониторинг утечек соединений");
 
             log.info("✅ CONNECTION LEAKS: Connection leaks monitor endpoint успешно выполнен");

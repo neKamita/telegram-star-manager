@@ -11,7 +11,9 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
-import shit.back.controller.admin.shared.AdminControllerOperations;
+import shit.back.service.activity.UserActivityStatisticsService;
+import shit.back.web.controller.admin.AdminBaseController;
+import shit.back.web.controller.admin.AdminDashboardOperations;
 import shit.back.entity.OrderEntity;
 import shit.back.entity.StarPackageEntity;
 import shit.back.entity.UserSessionEntity;
@@ -23,12 +25,11 @@ import shit.back.service.OrderService;
 import shit.back.service.StarPackageService;
 import shit.back.service.UserSessionUnifiedService;
 import shit.back.service.UserActivityLogService;
-import shit.back.service.admin.shared.AdminAuthenticationService;
-import shit.back.service.admin.shared.AdminSecurityHelper;
 
 // Импорт корректных DTO
 import shit.back.dto.order.OrderStatistics;
 import shit.back.dto.monitoring.SystemHealth;
+import shit.back.dto.monitoring.PerformanceMetrics;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.LocalDateTime;
@@ -40,10 +41,12 @@ import java.util.HashMap;
  * UI контроллер для дашборда админ панели
  * Содержит только HTML представления для дашборда
  * Следует принципам SOLID и чистой архитектуры
+ * Наследуется от AdminBaseController для общей логики
+ * Реализует AdminDashboardOperations для dashboard операций
  */
 @Controller
 @RequestMapping("/admin")
-public class AdminDashboardUIController implements AdminControllerOperations {
+public class AdminDashboardUIController extends AdminBaseController implements AdminDashboardOperations {
 
     private static final Logger log = LoggerFactory.getLogger(AdminDashboardUIController.class);
 
@@ -65,12 +68,6 @@ public class AdminDashboardUIController implements AdminControllerOperations {
     @Autowired
     private UserActivityLogService activityLogService;
 
-    @Autowired
-    private AdminAuthenticationService adminAuthenticationService;
-
-    @Autowired
-    private AdminSecurityHelper adminSecurityHelper;
-
     /**
      * Главная страница админ панели - объединяет логику дашборда
      */
@@ -81,15 +78,13 @@ public class AdminDashboardUIController implements AdminControllerOperations {
         try {
             log.info("Loading unified admin dashboard");
 
-            // Проверка аутентификации через унифицированный сервис
-            if (!adminAuthenticationService.validateAuthentication(request)) {
-                log.warn("Unauthorized access attempt to dashboard from IP: {}",
-                        adminSecurityHelper.getClientIpAddress(request));
-                return "redirect:/admin/login";
+            // Проверка аутентификации через базовый класс
+            if (!validateAuthentication(request)) {
+                return handleAuthenticationFailure(request);
             }
 
             // Проверка подозрительной активности
-            if (adminSecurityHelper.isSuspiciousActivity(request)) {
+            if (isSuspiciousActivity(request)) {
                 log.warn("Suspicious activity detected on dashboard");
                 model.addAttribute("warning", "Подозрительная активность обнаружена");
             }
@@ -159,7 +154,7 @@ public class AdminDashboardUIController implements AdminControllerOperations {
             }
 
             // Добавление контекста безопасности
-            Map<String, Object> securityContext = adminSecurityHelper.createSecurityContext(request);
+            Map<String, Object> securityContext = createSecurityContext(request);
             model.addAttribute("securityContext", securityContext);
 
             // Поддержка прогрессивной загрузки
@@ -173,8 +168,8 @@ public class AdminDashboardUIController implements AdminControllerOperations {
             model.addAttribute("loadTime", loadTime);
             log.info("Unified admin dashboard loaded in {}ms", loadTime);
 
-            // Логирование просмотра через security helper
-            adminSecurityHelper.logAdminActivity(request, "VIEW_DASHBOARD",
+            // Логирование просмотра через базовый класс
+            logAdminActivity(request, "VIEW_DASHBOARD",
                     "Просмотр главной страницы дашборда");
 
             return "admin/dashboard";
@@ -203,8 +198,8 @@ public class AdminDashboardUIController implements AdminControllerOperations {
             log.info("Loading users management page");
 
             // Проверка аутентификации
-            if (!adminAuthenticationService.validateAuthentication(request)) {
-                return "redirect:/admin/login";
+            if (!validateAuthentication(request)) {
+                return handleAuthenticationFailure(request);
             }
 
             // Создание параметров сортировки
@@ -225,7 +220,7 @@ public class AdminDashboardUIController implements AdminControllerOperations {
             model.addAttribute("sortDir", sortDir);
 
             // Логирование просмотра
-            adminSecurityHelper.logAdminActivity(request, "VIEW_USERS",
+            logAdminActivity(request, "VIEW_USERS",
                     "Просмотр страницы управления пользователями");
 
             return "admin/users";
@@ -253,8 +248,8 @@ public class AdminDashboardUIController implements AdminControllerOperations {
             log.info("Loading packages management page");
 
             // Проверка аутентификации
-            if (!adminAuthenticationService.validateAuthentication(request)) {
-                return "redirect:/admin/login";
+            if (!validateAuthentication(request)) {
+                return handleAuthenticationFailure(request);
             }
 
             Sort sort = sortDir.equalsIgnoreCase("desc") ? Sort.by(sortBy).descending() : Sort.by(sortBy).ascending();
@@ -273,7 +268,7 @@ public class AdminDashboardUIController implements AdminControllerOperations {
             model.addAttribute("sortDir", sortDir);
 
             // Логирование просмотра
-            adminSecurityHelper.logAdminActivity(request, "VIEW_PACKAGES",
+            logAdminActivity(request, "VIEW_PACKAGES",
                     "Просмотр страницы управления пакетами");
 
             return "admin/packages";
@@ -298,8 +293,8 @@ public class AdminDashboardUIController implements AdminControllerOperations {
             log.info("Loading analytics page for {} days", days);
 
             // Проверка аутентификации
-            if (!adminAuthenticationService.validateAuthentication(request)) {
-                return "redirect:/admin/login";
+            if (!validateAuthentication(request)) {
+                return handleAuthenticationFailure(request);
             }
 
             // TODO: Реализовать DTO для AnalyticsData и TopPerformers, если потребуется
@@ -313,7 +308,7 @@ public class AdminDashboardUIController implements AdminControllerOperations {
             model.addAttribute("days", days);
 
             // Логирование просмотра
-            adminSecurityHelper.logAdminActivity(request, "VIEW_ANALYTICS",
+            logAdminActivity(request, "VIEW_ANALYTICS",
                     "Просмотр аналитики за " + days + " дней");
 
             return "admin/analytics";
@@ -334,8 +329,8 @@ public class AdminDashboardUIController implements AdminControllerOperations {
             log.info("Loading system monitoring page");
 
             // Проверка аутентификации
-            if (!adminAuthenticationService.validateAuthentication(request)) {
-                return "redirect:/admin/login";
+            if (!validateAuthentication(request)) {
+                return handleAuthenticationFailure(request);
             }
 
             model.addAttribute("title", "System Monitoring");
@@ -355,7 +350,7 @@ public class AdminDashboardUIController implements AdminControllerOperations {
             model.addAttribute("fastLoadMode", true);
 
             // Логирование просмотра
-            adminSecurityHelper.logAdminActivity(request, "VIEW_MONITORING",
+            logAdminActivity(request, "VIEW_MONITORING",
                     "Просмотр страницы мониторинга системы");
 
             return "admin/monitoring";
@@ -384,8 +379,8 @@ public class AdminDashboardUIController implements AdminControllerOperations {
             log.info("Loading activity logs page - showAll: {}, search: {}", showAll, search);
 
             // Проверка аутентификации
-            if (!adminAuthenticationService.validateAuthentication(request)) {
-                return "redirect:/admin/login";
+            if (!validateAuthentication(request)) {
+                return handleAuthenticationFailure(request);
             }
 
             Pageable pageable = PageRequest.of(page, size, Sort.by("timestamp").descending());
@@ -395,10 +390,10 @@ public class AdminDashboardUIController implements AdminControllerOperations {
 
             List<UserActivityLogEntity> recentActivities = activityLogService.getRecentActivities(1);
 
-            UserActivityLogService.PaymentStatusDashboard paymentDashboard = activityLogService
+            UserActivityStatisticsService.PaymentStatusDashboard paymentDashboard = activityLogService
                     .getPaymentStatusDashboard();
 
-            UserActivityLogService.ActivityStatistics stats = activityLogService.getActivityStatistics(24);
+            UserActivityStatisticsService.ActivityStatistics stats = activityLogService.getActivityStatistics(24);
 
             model.addAttribute("title", "Activity Logs");
             model.addAttribute("subtitle", "Real-time User Activity & Payment Status Dashboard");
@@ -420,7 +415,7 @@ public class AdminDashboardUIController implements AdminControllerOperations {
             model.addAttribute("progressiveLoading", true);
 
             // Логирование просмотра
-            adminSecurityHelper.logAdminActivity(request, "VIEW_ACTIVITY_LOGS",
+            logAdminActivity(request, "VIEW_ACTIVITY_LOGS",
                     "Просмотр логов активности, фильтры: showAll=" + showAll +
                             ", search=" + (search != null ? search : "none"));
 
@@ -440,15 +435,15 @@ public class AdminDashboardUIController implements AdminControllerOperations {
     public String refreshCache(RedirectAttributes redirectAttributes, HttpServletRequest request) {
         try {
             // Проверка аутентификации
-            if (!adminAuthenticationService.validateAuthentication(request)) {
-                return "redirect:/admin/login";
+            if (!validateAuthentication(request)) {
+                return handleAuthenticationFailure(request);
             }
 
             adminDashboardCacheService.clearAllCache();
             redirectAttributes.addFlashAttribute("success", "Cache refreshed successfully");
 
             // Логирование действия
-            adminSecurityHelper.logAdminActivity(request, "REFRESH_CACHE",
+            logAdminActivity(request, "REFRESH_CACHE",
                     "Обновление кэша через UI форму");
 
             return "redirect:/admin";
@@ -527,13 +522,132 @@ public class AdminDashboardUIController implements AdminControllerOperations {
                 "conversionRate", 0.0);
     }
 
+    // ==================== РЕАЛИЗАЦИЯ AdminDashboardOperations ====================
+
     @Override
-    public Map<String, Object> createErrorResponse(String message, Exception e) {
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", false);
-        response.put("error", message);
-        response.put("message", e != null ? e.getMessage() : "Unknown error");
-        response.put("timestamp", LocalDateTime.now());
-        return response;
+    public AdminDashboardService.DashboardOverview getDashboardOverview() {
+        try {
+            return adminDashboardService.getDashboardOverview();
+        } catch (Exception e) {
+            log.error("Error getting dashboard overview", e);
+            return null;
+        }
+    }
+
+    @Override
+    public SystemHealth getSystemHealth() {
+        try {
+            return adminDashboardService.getSystemHealth();
+        } catch (Exception e) {
+            log.error("Error getting system health", e);
+            return null;
+        }
+    }
+
+    @Override
+    public AdminDashboardService.RecentActivity getRecentActivity() {
+        try {
+            return adminDashboardService.getRecentActivity();
+        } catch (Exception e) {
+            log.error("Error getting recent activity", e);
+            return null;
+        }
+    }
+
+    @Override
+    public PerformanceMetrics getPerformanceMetrics() {
+        try {
+            return adminDashboardCacheService.getPerformanceMetricsCached();
+        } catch (Exception e) {
+            log.error("Error getting performance metrics", e);
+            return null;
+        }
+    }
+
+    @Override
+    public Map<String, Object> refreshCache() {
+        try {
+            adminDashboardCacheService.clearAllCache();
+            return createSuccessResponse("Cache refreshed successfully", null);
+        } catch (Exception e) {
+            log.error("Error refreshing cache", e);
+            return createErrorResponse("Failed to refresh cache", e);
+        }
+    }
+
+    @Override
+    public Map<String, Object> getQuickStats() {
+        try {
+            Map<String, Object> stats = new HashMap<>();
+            AdminDashboardService.DashboardOverview overview = getDashboardOverview();
+            if (overview != null) {
+                // Используем рефлексию для доступа к полям
+                try {
+                    java.lang.reflect.Field totalUsersField = overview.getClass().getDeclaredField("totalUsersCount");
+                    totalUsersField.setAccessible(true);
+                    stats.put("totalUsersCount", totalUsersField.get(overview));
+
+                    java.lang.reflect.Field activeUsersField = overview.getClass().getDeclaredField("activeUsersCount");
+                    activeUsersField.setAccessible(true);
+                    stats.put("activeUsersCount", activeUsersField.get(overview));
+
+                    java.lang.reflect.Field onlineUsersField = overview.getClass().getDeclaredField("onlineUsersCount");
+                    onlineUsersField.setAccessible(true);
+                    stats.put("onlineUsersCount", onlineUsersField.get(overview));
+                } catch (Exception reflectionEx) {
+                    log.warn("Failed to extract user stats via reflection", reflectionEx);
+                    setDefaultStatsValues(stats);
+                }
+            } else {
+                setDefaultStatsValues(stats);
+            }
+            stats.put("timestamp", LocalDateTime.now());
+            return stats;
+        } catch (Exception e) {
+            log.error("Error getting quick stats", e);
+            Map<String, Object> errorStats = new HashMap<>();
+            setDefaultStatsValues(errorStats);
+            return errorStats;
+        }
+    }
+
+    @Override
+    public UserActivityStatisticsService.ActivityStatistics getActivityStatistics(int hours) {
+        try {
+            return activityLogService.getActivityStatistics(hours);
+        } catch (Exception e) {
+            log.error("Error getting activity statistics for {} hours", hours, e);
+            return null;
+        }
+    }
+
+    @Override
+    public UserActivityStatisticsService.PaymentStatusDashboard getPaymentStatusDashboard() {
+        try {
+            return activityLogService.getPaymentStatusDashboard();
+        } catch (Exception e) {
+            log.error("Error getting payment status dashboard", e);
+            return null;
+        }
+    }
+
+    @Override
+    public AdminDashboardCacheService.FullDashboardDataCached getFullDashboardData() {
+        try {
+            return adminDashboardCacheService.getFullDashboardDataCached();
+        } catch (Exception e) {
+            log.error("Error getting full dashboard data", e);
+            return null;
+        }
+    }
+
+    // ==================== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ====================
+
+    private void setDefaultStatsValues(Map<String, Object> stats) {
+        stats.put("totalUsersCount", 0L);
+        stats.put("activeUsersCount", 0L);
+        stats.put("onlineUsersCount", 0L);
+        stats.put("dataLoaded", false);
+        stats.put("lastUpdated", LocalDateTime.now());
     }
 }

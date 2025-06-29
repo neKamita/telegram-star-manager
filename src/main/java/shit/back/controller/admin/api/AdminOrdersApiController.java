@@ -11,7 +11,8 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-import shit.back.controller.admin.shared.AdminControllerOperations;
+import shit.back.web.controller.admin.AdminBaseController;
+import shit.back.web.controller.admin.AdminDashboardOperations;
 import shit.back.entity.OrderEntity;
 import shit.back.entity.UserActivityLogEntity.ActionType;
 import shit.back.service.OrderService;
@@ -37,16 +38,13 @@ import java.util.*;
 @RestController
 @RequestMapping("/admin/api/orders")
 @Validated
-public class AdminOrdersApiController implements AdminControllerOperations {
+public class AdminOrdersApiController extends AdminBaseController {
 
     @Autowired
     private OrderService orderService;
 
     @Autowired
     private UserActivityLogService activityLogService;
-
-    @Autowired
-    private AdminAuthenticationService adminAuthenticationService;
 
     @Autowired
     private AdminValidationService adminValidationService;
@@ -70,7 +68,7 @@ public class AdminOrdersApiController implements AdminControllerOperations {
             log.debug("API orders request - page: {}, size: {}, status: {}", page, size, status);
 
             // Аутентификация и rate limiting через унифицированный сервис
-            if (!adminAuthenticationService.validateApiRequest(request)) {
+            if (!validateApiAuthentication(request)) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(createErrorResponse("Unauthorized access", null));
             }
@@ -123,7 +121,7 @@ public class AdminOrdersApiController implements AdminControllerOperations {
             log.debug("Getting order by ID: {}", orderId);
 
             // Аутентификация
-            if (!adminAuthenticationService.validateApiRequest(request)) {
+            if (!validateApiAuthentication(request)) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(createErrorResponse("Unauthorized access", null));
             }
@@ -173,7 +171,7 @@ public class AdminOrdersApiController implements AdminControllerOperations {
             log.info("Updating order {} status to {}", orderId, request.getStatus());
 
             // Аутентификация
-            if (!adminAuthenticationService.validateApiRequest(httpRequest)) {
+            if (!validateApiAuthentication(httpRequest)) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(createErrorResponse("Unauthorized", null));
             }
@@ -225,7 +223,7 @@ public class AdminOrdersApiController implements AdminControllerOperations {
                     request.getOrderIds().size(), request.getStatus());
 
             // Аутентификация
-            if (!adminAuthenticationService.validateApiRequest(httpRequest)) {
+            if (!validateApiAuthentication(httpRequest)) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                         .body(createErrorResponse("Unauthorized", null));
             }
@@ -336,16 +334,6 @@ public class AdminOrdersApiController implements AdminControllerOperations {
                 "endDate", endDate,
                 "sortBy", sortBy,
                 "sortDir", sortDir);
-    }
-
-    @Override
-    public Map<String, Object> createErrorResponse(String message, Exception e) {
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", false);
-        response.put("error", message);
-        response.put("message", e != null ? e.getMessage() : "Unknown error");
-        response.put("timestamp", LocalDateTime.now());
-        return response;
     }
 
     // DTO классы

@@ -34,7 +34,8 @@ public class UserSession {
         TOPPING_UP_BALANCE, // Пополнение баланса
         SELECTING_PAYMENT_TYPE, // Выбор типа оплаты (баланс/внешняя)
         BALANCE_PAYMENT_PROCESSING, // Обработка платежа балансом
-        MIXED_PAYMENT_PROCESSING // Обработка смешанного платежа
+        MIXED_PAYMENT_PROCESSING, // Обработка смешанного платежа
+        ENTERING_CUSTOM_AMOUNT // Ввод пользовательской суммы пополнения
     }
 
     public UserSession(Long userId, String username, String firstName, String lastName) {
@@ -66,7 +67,8 @@ public class UserSession {
         return state == SessionState.TOPPING_UP_BALANCE ||
                 state == SessionState.SELECTING_PAYMENT_TYPE ||
                 state == SessionState.BALANCE_PAYMENT_PROCESSING ||
-                state == SessionState.MIXED_PAYMENT_PROCESSING;
+                state == SessionState.MIXED_PAYMENT_PROCESSING ||
+                state == SessionState.ENTERING_CUSTOM_AMOUNT;
     }
 
     /**

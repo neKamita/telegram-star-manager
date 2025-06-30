@@ -14,7 +14,6 @@ import java.time.Duration;
  * Централизует все настройки сбора и обработки метрик
  */
 @Data
-@Component
 @ConfigurationProperties(prefix = "app.metrics")
 @Validated
 public class MetricsConfigurationProperties {

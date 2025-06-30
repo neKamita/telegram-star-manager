@@ -12,11 +12,10 @@ import jakarta.validation.constraints.Min;
 
 /**
  * Конфигурационные свойства для платежных систем
- * 
+ *
  * Все конфиденциальные данные должны быть переданы через environment variables
  */
 @Data
-@Component
 @ConfigurationProperties(prefix = "payment")
 @Validated
 public class PaymentConfigurationProperties {
@@ -40,16 +39,16 @@ public class PaymentConfigurationProperties {
     private YooKassa yookassa = new YooKassa();
 
     /**
-     * Настройки Qiwi
+     * Настройки Telegram Fragment API
      */
     @NotNull
-    private Qiwi qiwi = new Qiwi();
+    private Fragment fragment = new Fragment();
 
     /**
-     * Настройки SberPay
+     * Настройки UZS платежной системы
      */
     @NotNull
-    private SberPay sberpay = new SberPay();
+    private UzsPayment uzsPayment = new UzsPayment();
 
     @Data
     public static class General {
@@ -161,9 +160,14 @@ public class PaymentConfigurationProperties {
         private String webhookUrl = "${YOOKASSA_WEBHOOK_URL:}";
 
         /**
-         * Поддерживаемые методы оплаты
+         * Поддерживаемые методы оплаты (только USD)
          */
-        private String[] supportedMethods = { "bank_card", "yoo_money", "sberbank", "qiwi" };
+        private String[] supportedMethods = { "bank_card" };
+
+        /**
+         * Поддерживаемые валюты (только USD)
+         */
+        private String[] supportedCurrencies = { "USD" };
 
         /**
          * Автоматическое подтверждение платежей
@@ -178,99 +182,130 @@ public class PaymentConfigurationProperties {
     }
 
     @Data
-    public static class Qiwi {
+    public static class Fragment {
 
         /**
-         * Включен ли Qiwi
+         * Включен ли Telegram Fragment API
          */
         private Boolean enabled = false;
 
         /**
-         * Публичный ключ Qiwi
+         * Токен для Telegram Fragment API
          */
-        private String publicKey = "${QIWI_PUBLIC_KEY:}";
+        private String token = "${FRAGMENT_API_TOKEN:}";
 
         /**
-         * Секретный ключ Qiwi
+         * URL для Telegram Fragment API
          */
-        private String secretKey = "${QIWI_SECRET_KEY:}";
+        @NotBlank(message = "Fragment API URL не может быть пустым")
+        private String apiUrl = "${FRAGMENT_API_URL:https://fragment.com/api}";
 
         /**
-         * URL для API Qiwi
+         * Webhook URL для уведомлений от Fragment
          */
-        @NotBlank(message = "Qiwi API URL не может быть пустым")
-        private String apiUrl = "${QIWI_API_URL:https://api.qiwi.com}";
+        private String webhookUrl = "${FRAGMENT_WEBHOOK_URL:}";
 
         /**
-         * Webhook URL для Qiwi
+         * Поддерживаемые методы оплаты
          */
-        private String webhookUrl = "${QIWI_WEBHOOK_URL:}";
+        private String[] supportedMethods = { "stars", "ton", "wallet" };
 
         /**
-         * ID сайта в системе Qiwi
+         * Валюты для Telegram Stars (XTR)
          */
-        private String siteId = "${QIWI_SITE_ID:}";
+        private String[] supportedCurrencies = { "XTR", "USD" };
 
         /**
-         * Валюта по умолчанию
+         * Минимальная сумма для покупки Stars
          */
-        private String defaultCurrency = "RUB";
+        @Positive(message = "Минимальная сумма должна быть положительной")
+        private Integer minStarsAmount = 1;
 
         /**
-         * Время жизни счета в минутах
+         * Максимальная сумма для покупки Stars
          */
-        @Positive(message = "Время жизни должно быть положительным")
-        private Integer billLifetimeMinutes = 60;
+        @Positive(message = "Максимальная сумма должна быть положительной")
+        private Integer maxStarsAmount = 2500;
+
+        /**
+         * Таймаут запроса в секундах
+         */
+        @Positive(message = "Таймаут должен быть положительным")
+        private Integer requestTimeoutSeconds = 30;
+
+        /**
+         * Включить тестовый режим
+         */
+        private Boolean testMode = true;
     }
 
     @Data
-    public static class SberPay {
+    public static class UzsPayment {
 
         /**
-         * Включен ли SberPay
+         * Включена ли UZS платежная система
          */
         private Boolean enabled = false;
 
         /**
-         * Merchant ID в SberPay
+         * Merchant ID для UZS системы
          */
-        private String merchantId = "${SBERPAY_MERCHANT_ID:}";
+        private String merchantId = "${UZS_MERCHANT_ID:}";
 
         /**
-         * Секретный ключ SberPay
+         * Секретный ключ для UZS системы
          */
-        private String secretKey = "${SBERPAY_SECRET_KEY:}";
+        private String secretKey = "${UZS_SECRET_KEY:}";
 
         /**
-         * URL для API SberPay
+         * URL для API UZS платежей
          */
-        @NotBlank(message = "SberPay API URL не может быть пустым")
-        private String apiUrl = "${SBERPAY_API_URL:https://securepayments.sberbank.ru}";
+        @NotBlank(message = "UZS API URL не может быть пустым")
+        private String apiUrl = "${UZS_API_URL:https://api.uzcard.uz}";
 
         /**
-         * Webhook URL для SberPay
+         * Webhook URL для UZS уведомлений
          */
-        private String webhookUrl = "${SBERPAY_WEBHOOK_URL:}";
+        private String webhookUrl = "${UZS_WEBHOOK_URL:}";
 
         /**
-         * Логин для доступа к API
+         * Поддерживаемые методы оплаты для UZS
          */
-        private String apiLogin = "${SBERPAY_API_LOGIN:}";
+        private String[] supportedMethods = { "uzcard", "humo", "visa", "mastercard" };
 
         /**
-         * Пароль для доступа к API
+         * Валюта по умолчанию (UZS)
          */
-        private String apiPassword = "${SBERPAY_API_PASSWORD:}";
+        private String defaultCurrency = "UZS";
 
         /**
-         * Режим тестирования
+         * Минимальная сумма платежа в UZS
+         */
+        @Positive(message = "Минимальная сумма должна быть положительной")
+        private Long minAmountUzs = 10000L;
+
+        /**
+         * Максимальная сумма платежа в UZS
+         */
+        @Positive(message = "Максимальная сумма должна быть положительной")
+        private Long maxAmountUzs = 50000000L;
+
+        /**
+         * Комиссия системы (в процентах)
+         */
+        @Min(value = 0, message = "Комиссия не может быть отрицательной")
+        private Double systemFeePercent = 2.0;
+
+        /**
+         * Таймаут запроса в секундах
+         */
+        @Positive(message = "Таймаут должен быть положительным")
+        private Integer requestTimeoutSeconds = 60;
+
+        /**
+         * Включить тестовый режим
          */
         private Boolean testMode = true;
-
-        /**
-         * Валюта по умолчанию (643 = RUB)
-         */
-        private String defaultCurrencyCode = "643";
     }
 
 }

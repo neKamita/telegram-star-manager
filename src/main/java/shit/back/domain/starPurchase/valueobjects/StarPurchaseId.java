@@ -1,0 +1,133 @@
+package shit.back.domain.starPurchase.valueobjects;
+
+import jakarta.persistence.Embeddable;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
+
+import java.util.Objects;
+import java.util.UUID;
+import java.util.regex.Pattern;
+
+/**
+ * Value Object для идентификаторов покупки звезд
+ * 
+ * Инкапсулирует логику генерации и валидации ID покупок звезд,
+ * обеспечивает неизменяемость и type safety.
+ */
+@Embeddable
+public final class StarPurchaseId {
+
+    private static final Pattern UUID_PATTERN = Pattern.compile(
+            "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
+
+    @NotBlank(message = "ID покупки звезд не может быть пустым")
+    @Size(min = 36, max = 36, message = "ID покупки звезд должен быть длиной 36 символов")
+    private final String value;
+
+    /**
+     * Приватный конструктор для создания экземпляра StarPurchaseId
+     */
+    private StarPurchaseId(String value) {
+        if (value == null || value.trim().isEmpty()) {
+            throw new IllegalArgumentException("ID покупки звезд не может быть пустым");
+        }
+        String normalizedValue = value.trim().toLowerCase();
+        if (!isValidUuidFormat(normalizedValue)) {
+            throw new IllegalArgumentException("Неверный формат ID покупки звезд: " + value);
+        }
+        this.value = normalizedValue;
+    }
+
+    /**
+     * Конструктор по умолчанию для JPA
+     */
+    protected StarPurchaseId() {
+        this.value = UUID.randomUUID().toString();
+    }
+
+    /**
+     * Factory method для создания StarPurchaseId из строки
+     */
+    public static StarPurchaseId of(String value) {
+        return new StarPurchaseId(value);
+    }
+
+    /**
+     * Factory method для генерации нового уникального StarPurchaseId
+     */
+    public static StarPurchaseId generate() {
+        return new StarPurchaseId(UUID.randomUUID().toString());
+    }
+
+    /**
+     * Factory method для создания StarPurchaseId из UUID
+     */
+    public static StarPurchaseId of(UUID uuid) {
+        if (uuid == null) {
+            throw new IllegalArgumentException("UUID не может быть null");
+        }
+        return new StarPurchaseId(uuid.toString());
+    }
+
+    /**
+     * Проверка валидности формата UUID
+     */
+    private static boolean isValidUuidFormat(String value) {
+        return value != null && UUID_PATTERN.matcher(value).matches();
+    }
+
+    /**
+     * Проверка валидности строки как потенциального StarPurchaseId
+     */
+    public static boolean isValid(String value) {
+        return value != null && !value.trim().isEmpty() && isValidUuidFormat(value.trim().toLowerCase());
+    }
+
+    /**
+     * Получение значения ID как строки
+     */
+    public String getValue() {
+        return value;
+    }
+
+    /**
+     * Получение значения ID как UUID
+     */
+    public UUID toUuid() {
+        return UUID.fromString(value);
+    }
+
+    /**
+     * Получение короткой версии ID для логов (первые 8 символов)
+     */
+    public String getShortValue() {
+        return value.length() >= 8 ? value.substring(0, 8) : value;
+    }
+
+    /**
+     * Получение форматированного представления для отображения
+     */
+    public String getDisplayValue() {
+        return value.toUpperCase();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o)
+            return true;
+        if (o == null || getClass() != o.getClass())
+            return false;
+        StarPurchaseId that = (StarPurchaseId) o;
+        return Objects.equals(value, that.value);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(value);
+    }
+
+    @Override
+    public String toString() {
+        return value;
+    }
+}

@@ -13,8 +13,7 @@ import org.telegram.telegrambots.meta.api.methods.updates.SetWebhook;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.Message;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
-import shit.back.handler.MessageHandler;
-import shit.back.handler.CallbackHandler;
+import shit.back.handler.TelegramHandlerFacade;
 
 import java.time.LocalDateTime;
 
@@ -39,10 +38,7 @@ public class TelegramWebhookBotService extends TelegramWebhookBot {
     private String webhookUrl;
 
     @Autowired(required = false)
-    private MessageHandler messageHandler;
-
-    @Autowired(required = false)
-    private CallbackHandler callbackHandler;
+    private TelegramHandlerFacade handlerFacade;
 
     private boolean webhookSet = false;
     private String botStatus = "INITIALIZING";
@@ -60,8 +56,7 @@ public class TelegramWebhookBotService extends TelegramWebhookBot {
                             : "NOT_SET");
             logger.info("👤 Bot Username: {}", botUsername);
             logger.info("🌐 Webhook URL: {}", webhookUrl);
-            logger.info("🔗 MessageHandler: {}", messageHandler != null ? "AVAILABLE" : "NULL");
-            logger.info("🔗 CallbackHandler: {}", callbackHandler != null ? "AVAILABLE" : "NULL");
+            logger.info("🔗 TelegramHandlerFacade: {}", handlerFacade != null ? "AVAILABLE" : "NULL");
 
             if (botToken == null || botToken.trim().isEmpty()) {
                 botStatus = "ERROR";
@@ -77,17 +72,10 @@ public class TelegramWebhookBotService extends TelegramWebhookBot {
                 return;
             }
 
-            if (messageHandler == null) {
+            if (handlerFacade == null) {
                 botStatus = "ERROR";
-                errorMessage = "MessageHandler не инициализирован";
-                logger.error("❌ MessageHandler не инициализирован!");
-                return;
-            }
-
-            if (callbackHandler == null) {
-                botStatus = "ERROR";
-                errorMessage = "CallbackHandler не инициализирован";
-                logger.error("❌ CallbackHandler не инициализирован!");
+                errorMessage = "TelegramHandlerFacade не инициализирован";
+                logger.error("❌ TelegramHandlerFacade не инициализирован!");
                 return;
             }
 
@@ -141,13 +129,13 @@ public class TelegramWebhookBotService extends TelegramWebhookBot {
                         message.getFrom().getFirstName(), message.getFrom().getId(),
                         message.hasText() ? message.getText() : "[не текст]");
 
-                if (messageHandler == null) {
-                    logger.error("❌ MessageHandler is NULL! Не могу обработать сообщение");
+                if (handlerFacade == null) {
+                    logger.error("❌ TelegramHandlerFacade is NULL! Не могу обработать сообщение");
                     return createErrorMessage(message.getChatId(), "Сервис временно недоступен");
                 }
 
-                BotApiMethod<?> response = messageHandler.handleMessage(message);
-                logger.info("✅ MessageHandler вернул ответ: {}",
+                BotApiMethod<?> response = handlerFacade.processMessage(message);
+                logger.info("✅ TelegramHandlerFacade вернул ответ: {}",
                         response != null ? response.getClass().getSimpleName() : "NULL");
                 return response;
             }
@@ -158,12 +146,12 @@ public class TelegramWebhookBotService extends TelegramWebhookBot {
                         update.getCallbackQuery().getFrom().getId(),
                         update.getCallbackQuery().getData());
 
-                if (callbackHandler == null) {
-                    logger.error("❌ CallbackHandler is NULL! Не могу обработать callback");
+                if (handlerFacade == null) {
+                    logger.error("❌ TelegramHandlerFacade is NULL! Не могу обработать callback");
                     return null;
                 }
 
-                return callbackHandler.handleCallback(update.getCallbackQuery());
+                return handlerFacade.processCallbackQuery(update.getCallbackQuery());
             }
 
             logger.warn("⚠️ Получен неподдерживаемый тип обновления: updateId={}, type={}",

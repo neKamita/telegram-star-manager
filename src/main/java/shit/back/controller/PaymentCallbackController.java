@@ -152,35 +152,35 @@ public class PaymentCallbackController {
     }
 
     /**
-     * Callback от Qiwi
+     * Callback от Telegram Fragment API
      */
-    @PostMapping("/qiwi")
-    public ResponseEntity<Map<String, Object>> handleQiwiCallback(
+    @PostMapping("/fragment")
+    public ResponseEntity<Map<String, Object>> handleFragmentCallback(
             @RequestBody Map<String, Object> payload,
             @RequestHeader Map<String, String> headers,
             HttpServletRequest request) {
 
-        log.info("🥝 Получен callback от Qiwi: {}", payload);
+        log.info("⭐ Получен callback от Telegram Fragment: {}", payload);
 
         try {
-            // Проверяем, что Qiwi включен
-            if (!paymentConfig.getQiwi().getEnabled()) {
-                log.warn("⚠️ Qiwi отключен, но получен callback");
-                return createErrorResponse("Qiwi отключен", HttpStatus.BAD_REQUEST);
+            // Проверяем, что Fragment включен
+            if (!paymentConfig.getFragment().getEnabled()) {
+                log.warn("⚠️ Telegram Fragment отключен, но получен callback");
+                return createErrorResponse("Telegram Fragment отключен", HttpStatus.BAD_REQUEST);
             }
 
             // Извлекаем данные из payload
-            Map<String, String> params = extractQiwiParams(payload);
+            Map<String, String> params = extractFragmentParams(payload);
             String paymentId = params.get("payment_id");
 
             if (paymentId == null || paymentId.isEmpty()) {
-                log.warn("⚠️ Не найден payment_id в Qiwi callback");
+                log.warn("⚠️ Не найден payment_id в Fragment callback");
                 return createErrorResponse("Отсутствует payment_id", HttpStatus.BAD_REQUEST);
             }
 
             // Верифицируем подпись
-            if (!verifyQiwiSignature(params, headers)) {
-                log.warn("❌ Неверная подпись Qiwi callback для платежа: {}", paymentId);
+            if (!verifyFragmentSignature(params, headers)) {
+                log.warn("❌ Неверная подпись Fragment callback для платежа: {}", paymentId);
                 return createErrorResponse("Неверная подпись", HttpStatus.UNAUTHORIZED);
             }
 
@@ -188,49 +188,49 @@ public class PaymentCallbackController {
             boolean success = paymentService.verifyPaymentCallback(paymentId, params);
 
             if (success) {
-                log.info("✅ Qiwi callback успешно обработан для платежа: {}", paymentId);
+                log.info("✅ Fragment callback успешно обработан для платежа: {}", paymentId);
                 return createSuccessResponse("OK");
             } else {
-                log.warn("❌ Ошибка при обработке Qiwi callback для платежа: {}", paymentId);
+                log.warn("❌ Ошибка при обработке Fragment callback для платежа: {}", paymentId);
                 return createErrorResponse("Ошибка обработки", HttpStatus.INTERNAL_SERVER_ERROR);
             }
 
         } catch (Exception e) {
-            log.error("❌ Исключение при обработке Qiwi callback: {}", e.getMessage(), e);
+            log.error("❌ Исключение при обработке Fragment callback: {}", e.getMessage(), e);
             return createErrorResponse("Внутренняя ошибка сервера", HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
     /**
-     * Callback от SberPay
+     * Callback от UZS платежной системы
      */
-    @PostMapping("/sberpay")
-    public ResponseEntity<Map<String, Object>> handleSberPayCallback(
+    @PostMapping("/uzs")
+    public ResponseEntity<Map<String, Object>> handleUzsCallback(
             @RequestBody Map<String, Object> payload,
             @RequestHeader Map<String, String> headers,
             HttpServletRequest request) {
 
-        log.info("🏦 Получен callback от SberPay: {}", payload);
+        log.info("🏧 Получен callback от UZS платежной системы: {}", payload);
 
         try {
-            // Проверяем, что SberPay включен
-            if (!paymentConfig.getSberpay().getEnabled()) {
-                log.warn("⚠️ SberPay отключен, но получен callback");
-                return createErrorResponse("SberPay отключен", HttpStatus.BAD_REQUEST);
+            // Проверяем, что UZS включена
+            if (!paymentConfig.getUzsPayment().getEnabled()) {
+                log.warn("⚠️ UZS платежная система отключена, но получен callback");
+                return createErrorResponse("UZS платежная система отключена", HttpStatus.BAD_REQUEST);
             }
 
             // Извлекаем данные из payload
-            Map<String, String> params = extractSberPayParams(payload);
+            Map<String, String> params = extractUzsParams(payload);
             String paymentId = params.get("payment_id");
 
             if (paymentId == null || paymentId.isEmpty()) {
-                log.warn("⚠️ Не найден payment_id в SberPay callback");
+                log.warn("⚠️ Не найден payment_id в UZS callback");
                 return createErrorResponse("Отсутствует payment_id", HttpStatus.BAD_REQUEST);
             }
 
             // Верифицируем подпись
-            if (!verifySberPaySignature(params, headers)) {
-                log.warn("❌ Неверная подпись SberPay callback для платежа: {}", paymentId);
+            if (!verifyUzsSignature(params, headers)) {
+                log.warn("❌ Неверная подпись UZS callback для платежа: {}", paymentId);
                 return createErrorResponse("Неверная подпись", HttpStatus.UNAUTHORIZED);
             }
 
@@ -238,15 +238,15 @@ public class PaymentCallbackController {
             boolean success = paymentService.verifyPaymentCallback(paymentId, params);
 
             if (success) {
-                log.info("✅ SberPay callback успешно обработан для платежа: {}", paymentId);
+                log.info("✅ UZS callback успешно обработан для платежа: {}", paymentId);
                 return createSuccessResponse("OK");
             } else {
-                log.warn("❌ Ошибка при обработке SberPay callback для платежа: {}", paymentId);
+                log.warn("❌ Ошибка при обработке UZS callback для платежа: {}", paymentId);
                 return createErrorResponse("Ошибка обработки", HttpStatus.INTERNAL_SERVER_ERROR);
             }
 
         } catch (Exception e) {
-            log.error("❌ Исключение при обработке SberPay callback: {}", e.getMessage(), e);
+            log.error("❌ Исключение при обработке UZS callback: {}", e.getMessage(), e);
             return createErrorResponse("Внутренняя ошибка сервера", HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
@@ -324,26 +324,28 @@ public class PaymentCallbackController {
         return params;
     }
 
-    private Map<String, String> extractQiwiParams(Map<String, Object> payload) {
+    private Map<String, String> extractFragmentParams(Map<String, Object> payload) {
         Map<String, String> params = new HashMap<>();
 
-        // TODO: Реальная реализация для Qiwi
-        // Пока заглушка для демонстрации
+        // Извлечение параметров из Telegram Fragment API
         params.put("payment_id", String.valueOf(payload.getOrDefault("payment_id", "")));
-        params.put("status", String.valueOf(payload.getOrDefault("status", "PAID")));
+        params.put("status", String.valueOf(payload.getOrDefault("status", "completed")));
         params.put("amount", String.valueOf(payload.getOrDefault("amount", "0")));
+        params.put("currency", String.valueOf(payload.getOrDefault("currency", "XTR")));
+        params.put("stars_amount", String.valueOf(payload.getOrDefault("stars_amount", "0")));
 
         return params;
     }
 
-    private Map<String, String> extractSberPayParams(Map<String, Object> payload) {
+    private Map<String, String> extractUzsParams(Map<String, Object> payload) {
         Map<String, String> params = new HashMap<>();
 
-        // TODO: Реальная реализация для SberPay
-        // Пока заглушка для демонстрации
+        // Извлечение параметров из UZS платежной системы
         params.put("payment_id", String.valueOf(payload.getOrDefault("payment_id", "")));
-        params.put("status", String.valueOf(payload.getOrDefault("status", "DEPOSITED")));
+        params.put("status", String.valueOf(payload.getOrDefault("status", "SUCCESS")));
         params.put("amount", String.valueOf(payload.getOrDefault("amount", "0")));
+        params.put("currency", String.valueOf(payload.getOrDefault("currency", "UZS")));
+        params.put("transaction_id", String.valueOf(payload.getOrDefault("transaction_id", "")));
 
         return params;
     }
@@ -484,16 +486,86 @@ public class PaymentCallbackController {
         return true; // Заглушка
     }
 
-    private boolean verifyQiwiSignature(Map<String, String> params, Map<String, String> headers) {
-        // TODO: Реальная верификация подписи Qiwi
-        log.info("🚧 Qiwi: Верификация подписи (заглушка)");
-        return true; // Заглушка
+    private boolean verifyFragmentSignature(Map<String, String> params, Map<String, String> headers) {
+        try {
+            String fragmentToken = paymentConfig.getFragment().getToken();
+            if (fragmentToken == null || fragmentToken.trim().isEmpty()) {
+                log.error("🔒 Fragment API token не настроен");
+                return false;
+            }
+
+            String providedSignature = headers.get("x-telegram-bot-api-secret-token");
+            if (providedSignature == null) {
+                providedSignature = headers.get("X-Telegram-Bot-Api-Secret-Token");
+            }
+
+            if (providedSignature == null || providedSignature.trim().isEmpty()) {
+                log.warn("⚠️ Fragment callback: Отсутствует подпись в заголовках");
+                return false;
+            }
+
+            // Telegram Fragment использует простое сравнение токенов
+            boolean isValid = constantTimeEquals(providedSignature, fragmentToken);
+
+            if (isValid) {
+                log.info("✅ Fragment signature успешно верифицирована для платежа: {}", params.get("payment_id"));
+            } else {
+                log.warn("❌ Fragment signature не прошла верификацию для платежа: {}", params.get("payment_id"));
+            }
+
+            return isValid;
+
+        } catch (Exception e) {
+            log.error("💥 Ошибка при верификации Fragment подписи: {}", e.getMessage(), e);
+            return false;
+        }
     }
 
-    private boolean verifySberPaySignature(Map<String, String> params, Map<String, String> headers) {
-        // TODO: Реальная верификация подписи SberPay
-        log.info("🚧 SberPay: Верификация подписи (заглушка)");
-        return true; // Заглушка
+    private boolean verifyUzsSignature(Map<String, String> params, Map<String, String> headers) {
+        try {
+            String uzsSecret = paymentConfig.getUzsPayment().getSecretKey();
+            if (uzsSecret == null || uzsSecret.trim().isEmpty()) {
+                log.error("🔒 UZS secret key не настроен");
+                return false;
+            }
+
+            String providedSignature = headers.get("x-signature");
+            if (providedSignature == null) {
+                providedSignature = headers.get("signature");
+            }
+
+            if (providedSignature == null || providedSignature.trim().isEmpty()) {
+                log.warn("⚠️ UZS callback: Отсутствует подпись в заголовках");
+                return false;
+            }
+
+            // Строим строку для подписи из параметров UZS
+            String signatureString = buildUzsSignatureString(params);
+            String computedSignature = computeHmacSha256(signatureString, uzsSecret);
+
+            boolean isValid = constantTimeEquals(providedSignature, computedSignature);
+
+            if (isValid) {
+                log.info("✅ UZS signature успешно верифицирована для платежа: {}", params.get("payment_id"));
+            } else {
+                log.warn("❌ UZS signature не прошла верификацию для платежа: {}", params.get("payment_id"));
+            }
+
+            return isValid;
+
+        } catch (Exception e) {
+            log.error("💥 Ошибка при верификации UZS подписи: {}", e.getMessage(), e);
+            return false;
+        }
+    }
+
+    private String buildUzsSignatureString(Map<String, String> params) {
+        return params.entrySet()
+                .stream()
+                .filter(entry -> entry.getKey() != null && entry.getValue() != null)
+                .sorted(Map.Entry.comparingByKey())
+                .map(entry -> entry.getKey() + "=" + entry.getValue())
+                .collect(Collectors.joining("&"));
     }
 
     // ===== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ =====

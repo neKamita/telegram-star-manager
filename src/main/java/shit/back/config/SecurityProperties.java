@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.ArrayList;
 
 @Data
-@Component
 @ConfigurationProperties(prefix = "security")
 public class SecurityProperties {
 
@@ -38,11 +37,14 @@ public class SecurityProperties {
         private boolean enabled = true;
         private int maxMessageLength = 4096;
         private int maxCallbackDataLength = 64;
-        private List<String> allowedCallbackPrefixes = new ArrayList<>();
+        private List<String> allowedCallbackPrefixes;
 
         // Инициализация значений по умолчанию
         public List<String> getAllowedCallbackPrefixes() {
-            if (allowedCallbackPrefixes.isEmpty()) {
+            if (allowedCallbackPrefixes == null) {
+
+                allowedCallbackPrefixes = new ArrayList<>();
+
                 allowedCallbackPrefixes.add("buy_stars");
                 allowedCallbackPrefixes.add("show_prices");
                 allowedCallbackPrefixes.add("help");
@@ -70,11 +72,12 @@ public class SecurityProperties {
                 // === ПЛАТЕЖНЫЕ СИСТЕМЫ ===
                 allowedCallbackPrefixes.add("topup_ton_");
                 allowedCallbackPrefixes.add("topup_yookassa_");
-                allowedCallbackPrefixes.add("topup_qiwi_");
-                allowedCallbackPrefixes.add("topup_sberpay_");
+                allowedCallbackPrefixes.add("topup_fragment_");
+                allowedCallbackPrefixes.add("topup_uzs_");
 
                 // === ТЕСТОВЫЕ CALLBACK'Ы ===
                 allowedCallbackPrefixes.add("test_payment_");
+
             }
             return allowedCallbackPrefixes;
         }

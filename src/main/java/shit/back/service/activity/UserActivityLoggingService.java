@@ -28,6 +28,10 @@ import java.math.BigDecimal;
 @Transactional
 public class UserActivityLoggingService {
 
+    static {
+        System.err.println("🔍 ДИАГНОСТИКА TM: UserActivityLoggingService класс загружен");
+    }
+
     @Autowired
     private UserActivityLogJpaRepository activityLogRepository;
 
@@ -35,9 +39,9 @@ public class UserActivityLoggingService {
     private UserActivitySSEService sseService;
 
     /**
-     * Логировать действие пользователя
+     * Логировать действие пользователя (ОПТИМИЗИРОВАНО)
      */
-    @Async
+    @Async("userActivityLoggingExecutor")
     public void logUserActivity(Long userId, String username, String firstName, String lastName,
             ActionType actionType, String actionDescription) {
         try {
@@ -55,39 +59,67 @@ public class UserActivityLoggingService {
     }
 
     /**
-     * Логировать действие с информацией о заказе (СИНХРОННО для критичных операций)
+     * Логировать действие с информацией о заказе (АСИНХРОННО для оптимизации
+     * производительности)
+     *
+     * КРИТИЧЕСКАЯ ОПТИМИЗАЦИЯ: Переведено в асинхронный режим для снижения нагрузки
      */
+    @Async("userActivityLoggingExecutor")
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public void logOrderActivity(Long userId, String username, String firstName, String lastName,
             ActionType actionType, String actionDescription,
             String orderId, BigDecimal orderAmount, Integer starCount, String paymentMethod) {
         long startTime = System.currentTimeMillis();
+        long connectionAcquireStart = 0;
+        long dbSaveStart = 0;
+        long sseStart = 0;
+
         try {
+            log.warn("🔍 ДИАГНОСТИКА DB PERF: OrderActivity - начало операции для userId={}", userId);
+
+            connectionAcquireStart = System.currentTimeMillis();
+            log.warn("🔍 ДИАГНОСТИКА DB PERF: Ожидание подключения к БД...");
+
             UserActivityLogEntity activity = new UserActivityLogEntity(
                     userId, username, firstName, lastName, actionType, actionDescription)
                     .withOrderInfo(orderId, orderAmount, starCount)
                     .withPaymentMethod(paymentMethod);
 
+            dbSaveStart = System.currentTimeMillis();
+            long connectionAcquireTime = dbSaveStart - connectionAcquireStart;
+            log.warn("🔍 ДИАГНОСТИКА DB PERF: Подключение получено за {}ms", connectionAcquireTime);
+
             UserActivityLogEntity saved = activityLogRepository.save(activity);
+
+            long dbSaveTime = System.currentTimeMillis() - dbSaveStart;
+            log.warn("🔍 ДИАГНОСТИКА DB PERF: БД сохранение завершено за {}ms", dbSaveTime);
+
+            sseStart = System.currentTimeMillis();
             sseService.addToRecentActivities(saved);
+            long sseAddTime = System.currentTimeMillis() - sseStart;
+            log.warn("🔍 ДИАГНОСТИКА DB PERF: SSE addToRecentActivities выполнено за {}ms", sseAddTime);
 
-            long dbTime = System.currentTimeMillis();
-            log.debug("Order activity saved to DB in {}ms", dbTime - startTime);
-
+            long broadcastStart = System.currentTimeMillis();
             sseService.broadcastActivity(saved);
+            long broadcastTime = System.currentTimeMillis() - broadcastStart;
+            log.warn("🔍 ДИАГНОСТИКА DB PERF: SSE broadcastActivity выполнено за {}ms", broadcastTime);
 
-            long totalTime = System.currentTimeMillis();
-            log.debug("Order activity broadcast completed in {}ms total", totalTime - startTime);
+            long totalTime = System.currentTimeMillis() - startTime;
+            log.error(
+                    "🚨 КРИТИЧЕСКАЯ ДИАГНОСТИКА: OrderActivity ОБЩЕЕ ВРЕМЯ={}ms (connection={}ms, db={}ms, sse_add={}ms, sse_broadcast={}ms)",
+                    totalTime, connectionAcquireTime, dbSaveTime, sseAddTime, broadcastTime);
 
         } catch (Exception e) {
-            log.error("Error logging order activity: {}", e.getMessage(), e);
+            long errorTime = System.currentTimeMillis() - startTime;
+            log.error("🚨 ДИАГНОСТИКА DB PERF: ОШИБКА после {}ms: {}", errorTime, e.getMessage(), e);
         }
     }
 
     /**
      * Асинхронная версия логирования заказов для обратной совместимости
+     * (ОПТИМИЗИРОВАНО)
      */
-    @Async
+    @Async("userActivityLoggingExecutor")
     public void logOrderActivityAsync(Long userId, String username, String firstName, String lastName,
             ActionType actionType, String actionDescription,
             String orderId, BigDecimal orderAmount, Integer starCount, String paymentMethod) {
@@ -96,8 +128,12 @@ public class UserActivityLoggingService {
     }
 
     /**
-     * Логировать изменение состояния сессии (СИНХРОННО для real-time обновлений)
+     * Логировать изменение состояния сессии (АСИНХРОННО для оптимизации
+     * производительности)
+     *
+     * КРИТИЧЕСКАЯ ОПТИМИЗАЦИЯ: Переведено в асинхронный режим для снижения нагрузки
      */
+    @Async("userActivityLoggingExecutor")
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public void logStateChange(UserSessionEntity userSession, String previousState, String newState) {
         long startTime = System.currentTimeMillis();
@@ -131,16 +167,17 @@ public class UserActivityLoggingService {
 
     /**
      * Асинхронная версия логирования изменения состояния для обратной совместимости
+     * (ОПТИМИЗИРОВАНО)
      */
-    @Async
+    @Async("userActivityLoggingExecutor")
     public void logStateChangeAsync(UserSessionEntity userSession, String previousState, String newState) {
         logStateChange(userSession, previousState, newState);
     }
 
     /**
-     * Логировать действие с заказом на основе OrderEntity
+     * Логировать действие с заказом на основе OrderEntity (ОПТИМИЗИРОВАНО)
      */
-    @Async
+    @Async("userActivityLoggingExecutor")
     public void logOrderAction(OrderEntity order, ActionType actionType, String description) {
         try {
             UserActivityLogEntity activity = new UserActivityLogEntity(
@@ -162,46 +199,75 @@ public class UserActivityLoggingService {
     }
 
     /**
-     * Логировать активность телеграм бота (СИНХРОННО для real-time обновлений)
+     * Логировать активность телеграм бота (АСИНХРОННО для оптимизации
+     * производительности)
+     *
+     * КРИТИЧЕСКАЯ ОПТИМИЗАЦИЯ: Переведено в асинхронный режим для снижения нагрузки
      */
+    @Async("userActivityLoggingExecutor")
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     public void logTelegramBotActivity(Long userId, String username, String firstName, String lastName,
             ActionType actionType, String actionDescription) {
         long startTime = System.currentTimeMillis();
+        long connectionAcquireStart = 0;
+        long dbSaveStart = 0;
+        long sseStart = 0;
+
         try {
+            log.warn("🔍 ДИАГНОСТИКА DB PERF: TelegramBotActivity - начало операции для userId={}", userId);
+
+            connectionAcquireStart = System.currentTimeMillis();
+            log.warn("🔍 ДИАГНОСТИКА DB PERF: Ожидание подключения к БД для Telegram активности...");
+
             UserActivityLogEntity activity = new UserActivityLogEntity(
                     userId, username, firstName, lastName, actionType, actionDescription)
                     .withLogCategory(LogCategory.TELEGRAM_BOT);
 
+            dbSaveStart = System.currentTimeMillis();
+            long connectionAcquireTime = dbSaveStart - connectionAcquireStart;
+            log.warn("🔍 ДИАГНОСТИКА DB PERF: Подключение для Telegram активности получено за {}ms",
+                    connectionAcquireTime);
+
             UserActivityLogEntity saved = activityLogRepository.save(activity);
+
+            long dbSaveTime = System.currentTimeMillis() - dbSaveStart;
+            log.warn("🔍 ДИАГНОСТИКА DB PERF: Telegram активность сохранена в БД за {}ms", dbSaveTime);
+
+            sseStart = System.currentTimeMillis();
             sseService.addToRecentActivities(saved);
+            long sseAddTime = System.currentTimeMillis() - sseStart;
+            log.warn("🔍 ДИАГНОСТИКА DB PERF: SSE addToRecentActivities для Telegram выполнено за {}ms", sseAddTime);
 
-            long dbTime = System.currentTimeMillis();
-            log.debug("Telegram bot activity saved to DB in {}ms", dbTime - startTime);
-
+            long broadcastStart = System.currentTimeMillis();
             sseService.broadcastActivity(saved);
+            long broadcastTime = System.currentTimeMillis() - broadcastStart;
+            log.warn("🔍 ДИАГНОСТИКА DB PERF: SSE broadcastActivity для Telegram выполнено за {}ms", broadcastTime);
 
-            long totalTime = System.currentTimeMillis();
-            log.debug("Telegram bot activity broadcast completed in {}ms total", totalTime - startTime);
+            long totalTime = System.currentTimeMillis() - startTime;
+            log.error(
+                    "🚨 КРИТИЧЕСКАЯ ДИАГНОСТИКА: TelegramBotActivity ОБЩЕЕ ВРЕМЯ={}ms (connection={}ms, db={}ms, sse_add={}ms, sse_broadcast={}ms)",
+                    totalTime, connectionAcquireTime, dbSaveTime, sseAddTime, broadcastTime);
 
         } catch (Exception e) {
-            log.error("Error logging Telegram bot activity: {}", e.getMessage(), e);
+            long errorTime = System.currentTimeMillis() - startTime;
+            log.error("🚨 ДИАГНОСТИКА DB PERF: ОШИБКА Telegram активности после {}ms: {}", errorTime, e.getMessage(),
+                    e);
         }
     }
 
     /**
-     * Асинхронная версия для обратной совместимости
+     * Асинхронная версия для обратной совместимости (ОПТИМИЗИРОВАНО)
      */
-    @Async
+    @Async("userActivityLoggingExecutor")
     public void logTelegramBotActivityAsync(Long userId, String username, String firstName, String lastName,
             ActionType actionType, String actionDescription) {
         logTelegramBotActivity(userId, username, firstName, lastName, actionType, actionDescription);
     }
 
     /**
-     * Логировать активность приложения
+     * Логировать активность приложения (ОПТИМИЗИРОВАНО)
      */
-    @Async
+    @Async("userActivityLoggingExecutor")
     public void logApplicationActivity(Long userId, String username, String firstName, String lastName,
             ActionType actionType, String actionDescription) {
         try {
@@ -224,9 +290,9 @@ public class UserActivityLoggingService {
     }
 
     /**
-     * Логировать системную активность
+     * Логировать системную активность (ОПТИМИЗИРОВАНО)
      */
-    @Async
+    @Async("userActivityLoggingExecutor")
     public void logSystemActivity(String description, ActionType actionType) {
         try {
             UserActivityLogEntity activity = new UserActivityLogEntity(
@@ -243,9 +309,9 @@ public class UserActivityLoggingService {
     }
 
     /**
-     * Логировать системную активность с дополнительными деталями
+     * Логировать системную активность с дополнительными деталями (ОПТИМИЗИРОВАНО)
      */
-    @Async
+    @Async("userActivityLoggingExecutor")
     public void logSystemActivityWithDetails(String description, ActionType actionType, String details) {
         try {
             UserActivityLogEntity activity = new UserActivityLogEntity(
@@ -264,9 +330,9 @@ public class UserActivityLoggingService {
     }
 
     /**
-     * Универсальный метод логирования с указанием категории
+     * Универсальный метод логирования с указанием категории (ОПТИМИЗИРОВАНО)
      */
-    @Async
+    @Async("userActivityLoggingExecutor")
     public void logActivityWithCategory(Long userId, String username, String firstName, String lastName,
             ActionType actionType, String actionDescription, LogCategory logCategory) {
         try {

@@ -31,7 +31,7 @@ public class OperationRequest {
     private BigDecimal amount;
 
     @NotBlank(message = "Валюта не может быть пустой")
-    @Pattern(regexp = "^(USD|EUR|RUB|STARS)$", message = "Поддерживаемые валюты: USD, EUR, RUB, STARS")
+    @Pattern(regexp = "^(USD|EUR|UAH|KZT|BYN|UZS|XTR)$", message = "Поддерживаемые валюты: USD, EUR, UAH, KZT, BYN, UZS, XTR")
     private String currency;
 
     // Опциональные поля для разных операций

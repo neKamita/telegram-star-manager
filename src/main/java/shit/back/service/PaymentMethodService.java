@@ -30,8 +30,8 @@ public class PaymentMethodService {
     public boolean hasEnabledPaymentMethods() {
         boolean hasRegularMethods = paymentConfig.getTon().getEnabled() ||
                 paymentConfig.getYookassa().getEnabled() ||
-                paymentConfig.getQiwi().getEnabled() ||
-                paymentConfig.getSberpay().getEnabled();
+                paymentConfig.getFragment().getEnabled() ||
+                paymentConfig.getUzsPayment().getEnabled();
 
         // Включаем TEST метод если тестовый режим активен
         boolean hasTestMethod = testPaymentService != null && testPaymentService.isTestModeEnabled();
@@ -49,10 +49,10 @@ public class PaymentMethodService {
             methods.add("TON");
         if (paymentConfig.getYookassa().getEnabled())
             methods.add("YooKassa");
-        if (paymentConfig.getQiwi().getEnabled())
-            methods.add("Qiwi");
-        if (paymentConfig.getSberpay().getEnabled())
-            methods.add("SberPay");
+        if (paymentConfig.getFragment().getEnabled())
+            methods.add("Fragment");
+        if (paymentConfig.getUzsPayment().getEnabled())
+            methods.add("UzsPayment");
 
         // Добавляем TEST метод если тестовый режим активен
         if (testPaymentService != null && testPaymentService.isTestModeEnabled()) {
@@ -81,14 +81,14 @@ public class PaymentMethodService {
             return false;
         }
 
-        if (paymentConfig.getQiwi().getEnabled() &&
-                (paymentConfig.getQiwi().getPublicKey() == null || paymentConfig.getQiwi().getPublicKey().isEmpty())) {
+        if (paymentConfig.getFragment().getEnabled() &&
+                (paymentConfig.getFragment().getToken() == null || paymentConfig.getFragment().getToken().isEmpty())) {
             return false;
         }
 
-        if (paymentConfig.getSberpay().getEnabled() &&
-                (paymentConfig.getSberpay().getMerchantId() == null
-                        || paymentConfig.getSberpay().getMerchantId().isEmpty())) {
+        if (paymentConfig.getUzsPayment().getEnabled() &&
+                (paymentConfig.getUzsPayment().getMerchantId() == null
+                        || paymentConfig.getUzsPayment().getMerchantId().isEmpty())) {
             return false;
         }
 

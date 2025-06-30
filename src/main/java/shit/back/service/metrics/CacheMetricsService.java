@@ -2,6 +2,7 @@ package shit.back.service.metrics;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.context.annotation.Lazy;
@@ -23,7 +24,7 @@ import java.util.concurrent.atomic.AtomicLong;
  * - Dependency Inversion: зависимость от абстракций
  *
  * ИСПРАВЛЕНО: Циклическая зависимость устранена с помощью @Lazy инъекции
- * CacheManager
+ * CacheManager + добавлен @Qualifier для устранения конфликта
  */
 @Slf4j
 @Service
@@ -31,8 +32,10 @@ public class CacheMetricsService {
 
     private final CacheManager cacheManager;
 
-    public CacheMetricsService(@Lazy CacheManager cacheManager) {
+    public CacheMetricsService(@Lazy @Qualifier("cacheManager") CacheManager cacheManager) {
         this.cacheManager = cacheManager;
+        log.info("✅ CACHE METRICS SERVICE: Инициализирован с основным CacheManager: {}",
+                cacheManager.getClass().getSimpleName());
     }
 
     @Autowired(required = false)

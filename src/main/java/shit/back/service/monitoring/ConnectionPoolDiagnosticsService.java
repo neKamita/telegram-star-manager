@@ -123,9 +123,10 @@ public class ConnectionPoolDiagnosticsService {
      */
     private Map<String, Object> collectRealTimeMetrics(HikariPoolMXBean poolMXBean) {
         Map<String, Object> metrics = new HashMap<>();
+        long metricsStartTime = System.currentTimeMillis();
 
         try {
-            log.debug("🔍 REAL-TIME METRICS: Сбор реальных метрик от HikariCP MXBean...");
+            log.warn("🔍 ДИАГНОСТИКА CONNECTION POOL: Начало сбора реальных метрик от HikariCP MXBean...");
 
             // Основные метрики соединений
             int active = poolMXBean.getActiveConnections();
@@ -133,7 +134,7 @@ public class ConnectionPoolDiagnosticsService {
             int total = poolMXBean.getTotalConnections();
             int waiting = poolMXBean.getThreadsAwaitingConnection();
 
-            log.debug("🔍 REAL-TIME METRICS: Базовые метрики - Active={}, Idle={}, Total={}, Waiting={}",
+            log.warn("🔍 ДИАГНОСТИКА CONNECTION POOL: Базовые метрики - Active={}, Idle={}, Total={}, Waiting={}",
                     active, idle, total, waiting);
 
             // Получаем реальное время получения соединения
@@ -144,12 +145,15 @@ public class ConnectionPoolDiagnosticsService {
             long realConnectionRequests = getRealConnectionRequests(poolMXBean);
             totalConnectionRequests.set(realConnectionRequests);
 
+            // Вычисляем utilization
+            int utilizationPercent = total > 0 ? (active * 100) / total : 0;
+
             metrics.put("activeConnections", active);
             metrics.put("idleConnections", idle);
             metrics.put("totalConnections", total);
             metrics.put("threadsAwaitingConnection", waiting);
             metrics.put("realAcquisitionTimeMs", realAcquisitionTimeMs);
-            metrics.put("utilizationPercent", total > 0 ? (active * 100) / total : 0);
+            metrics.put("utilizationPercent", utilizationPercent);
 
             // Расширенные метрики
             metrics.put("idleToActiveRatio", active > 0 ? (double) idle / active : 0.0);
@@ -158,12 +162,33 @@ public class ConnectionPoolDiagnosticsService {
             // Реальная статистика запросов
             metrics.put("realConnectionRequests", realConnectionRequests);
 
-            log.info(
-                    "📊 REAL-TIME METRICS: Active={}, Idle={}, Total={}, Waiting={}, RealAcqTime={}ms, RealRequests={}",
-                    active, idle, total, waiting, realAcquisitionTimeMs, realConnectionRequests);
+            long metricsCollectionTime = System.currentTimeMillis() - metricsStartTime;
+
+            // КРИТИЧЕСКАЯ ДИАГНОСТИКА для выявления узких мест
+            if (waiting > 0) {
+                log.error(
+                        "🚨 КРИТИЧЕСКАЯ ДИАГНОСТИКА: {} потоков ожидают подключения! Возможен дефицит соединений в пуле",
+                        waiting);
+            }
+
+            if (utilizationPercent > 80) {
+                log.error("🚨 КРИТИЧЕСКАЯ ДИАГНОСТИКА: Высокая загрузка пула {}%! Active={}/Total={}",
+                        utilizationPercent, active, total);
+            }
+
+            if (realAcquisitionTimeMs > 50) {
+                log.error("🚨 КРИТИЧЕСКАЯ ДИАГНОСТИКА: Медленное получение соединений {}ms! Норма <50ms",
+                        realAcquisitionTimeMs);
+            }
+
+            log.error(
+                    "🚨 КРИТИЧЕСКАЯ ДИАГНОСТИКА CONNECTION POOL: Active={}, Idle={}, Total={}, Waiting={}, AcqTime={}ms, Util={}%, CollectionTime={}ms",
+                    active, idle, total, waiting, realAcquisitionTimeMs, utilizationPercent, metricsCollectionTime);
 
         } catch (Exception e) {
-            log.error("❌ REAL-TIME METRICS: Ошибка сбора метрик: {}", e.getMessage());
+            long errorTime = System.currentTimeMillis() - metricsStartTime;
+            log.error("🚨 ДИАГНОСТИКА CONNECTION POOL: ОШИБКА сбора метрик после {}ms: {}", errorTime, e.getMessage(),
+                    e);
             metrics.put("collectionError", e.getMessage());
 
             // Fallback значения

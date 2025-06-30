@@ -15,6 +15,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
+import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
@@ -24,8 +25,14 @@ import jakarta.annotation.PostConstruct;
 import java.time.Duration;
 
 /**
- * Конфигурация кэширования с fallback логикой
+ * ИСПРАВЛЕННАЯ конфигурация кэширования с fallback логикой
  * Автоматически переключается между Redis и локальным кэшем
+ * 
+ * ОСНОВНЫЕ ИСПРАВЛЕНИЯ:
+ * 1. Явное создание RedisConnectionFactory с правильной инициализацией
+ * 2. Вызов start() для LettuceConnectionFactory
+ * 3. Детальное логирование для диагностики
+ * 4. Fallback механизм при недоступности Redis
  * 
  * Принципы SOLID:
  * - Single Responsibility: только конфигурация кэширования
@@ -40,17 +47,84 @@ public class CacheConfig {
     @Value("${spring.cache.type:simple}")
     private String cacheType;
 
-    @Autowired(required = false)
-    private RedisConnectionFactory redisConnectionFactory;
+    @Value("${spring.data.redis.host:localhost}")
+    private String redisHost;
+
+    @Value("${spring.data.redis.port:6379}")
+    private int redisPort;
+
+    @Value("${spring.data.redis.password:}")
+    private String redisPassword;
+
+    @Value("${spring.data.redis.database:0}")
+    private int redisDatabase;
 
     @Autowired
     private ObjectMapper objectMapper;
 
+    private volatile RedisConnectionFactory createdRedisConnectionFactory;
+
     @PostConstruct
     public void logCacheConfiguration() {
         log.info("🔧 КОНФИГУРАЦИЯ КЭША: Тип кэша из конфигурации: {}", cacheType);
-        log.info("🔧 КОНФИГУРАЦИЯ КЭША: Redis ConnectionFactory доступен: {}",
-                redisConnectionFactory != null);
+        log.info("🔧 КОНФИГУРАЦИЯ КЭША: Создаем собственный Redis ConnectionFactory");
+        log.info("🔧 КОНФИГУРАЦИЯ КЭША: Redis настройки - Host: {}:{}, DB: {}", redisHost, redisPort, redisDatabase);
+    }
+
+    /**
+     * ИСПРАВЛЕНИЕ: Создание собственного RedisConnectionFactory с правильной
+     * инициализацией
+     */
+    @Bean
+    @Primary
+    public RedisConnectionFactory redisConnectionFactory() {
+        log.info("🔧 ИСПРАВЛЕНИЕ: Создание собственного RedisConnectionFactory...");
+
+        try {
+            // Создаем LettuceConnectionFactory с явными настройками
+            LettuceConnectionFactory factory = new LettuceConnectionFactory(redisHost, redisPort);
+
+            // Настраиваем password если указан
+            if (redisPassword != null && !redisPassword.trim().isEmpty()) {
+                factory.setPassword(redisPassword);
+                log.info("🔧 ИСПРАВЛЕНИЕ: Redis password настроен");
+            }
+
+            // Настраиваем database
+            factory.setDatabase(redisDatabase);
+
+            // КРИТИЧЕСКИ ВАЖНО: Инициализируем factory
+            factory.afterPropertiesSet();
+
+            // КРИТИЧЕСКИ ВАЖНО: Запускаем factory
+            factory.start();
+
+            log.info("✅ ИСПРАВЛЕНИЕ: LettuceConnectionFactory создан и запущен");
+            log.info("✅ ИСПРАВЛЕНИЕ: Host: {}:{}, Database: {}", redisHost, redisPort, redisDatabase);
+
+            // Проверяем что factory работает
+            try {
+                var connection = factory.getConnection();
+                connection.ping();
+                connection.close();
+                log.info("✅ ИСПРАВЛЕНИЕ: Проверка ping успешна");
+
+                // Сохраняем ссылку для других методов
+                this.createdRedisConnectionFactory = factory;
+
+            } catch (Exception pingEx) {
+                log.error("❌ ИСПРАВЛЕНИЕ: Ping неудачен: {}", pingEx.getMessage());
+                throw pingEx;
+            }
+
+            return factory;
+
+        } catch (Exception e) {
+            log.error("❌ ИСПРАВЛЕНИЕ: Не удалось создать RedisConnectionFactory: {}", e.getMessage());
+            log.warn("🔄 ИСПРАВЛЕНИЕ: Система будет использовать локальный кэш");
+            this.createdRedisConnectionFactory = null;
+            return null;
+        }
     }
 
     /**
@@ -58,13 +132,13 @@ public class CacheConfig {
      */
     @Bean
     @Primary
-    public CacheManager cacheManager() {
+    public CacheManager cacheManager(RedisConnectionFactory redisConnectionFactory) {
         log.info("🔧 НАСТРОЙКА КЭША: Создание CacheManager...");
 
         // Пытаемся создать Redis CacheManager
-        if (isRedisAvailable()) {
+        if (redisConnectionFactory != null && isRedisAvailable(redisConnectionFactory)) {
             try {
-                RedisCacheManager redisCacheManager = createRedisCacheManager();
+                RedisCacheManager redisCacheManager = createRedisCacheManager(redisConnectionFactory);
                 log.info("✅ КЭШ: Успешно создан Redis CacheManager");
                 return redisCacheManager;
             } catch (Exception e) {
@@ -81,7 +155,7 @@ public class CacheConfig {
      * Создание Redis CacheManager с правильным ObjectMapper
      * ИСПРАВЛЕНИЕ: Использует наш ObjectMapper с JSR310 поддержкой
      */
-    private RedisCacheManager createRedisCacheManager() {
+    private RedisCacheManager createRedisCacheManager(RedisConnectionFactory factory) {
         log.info("🔧 REDIS: Создание Redis CacheManager с типизированной сериализацией...");
 
         // Создаем типизированный сериализатор для SystemHealth
@@ -113,7 +187,7 @@ public class CacheConfig {
                 .disableCachingNullValues();
 
         log.info("✅ ИСПРАВЛЕНИЕ: Redis CacheManager с типизированной сериализацией для SystemHealth");
-        return RedisCacheManager.builder(redisConnectionFactory)
+        return RedisCacheManager.builder(factory)
                 .cacheDefaults(defaultConfig)
                 .withCacheConfiguration("systemHealth", systemHealthConfig)
                 .build();
@@ -154,9 +228,9 @@ public class CacheConfig {
      * ИСПРАВЛЕНИЕ: Использует наш ObjectMapper с JSR310 поддержкой
      */
     @Bean
-    public RedisTemplate<String, Object> redisTemplate() {
-        if (!isRedisAvailable()) {
-            log.warn("⚠️ REDIS: RedisTemplate не создан - Redis недоступен");
+    public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory redisConnectionFactory) {
+        if (redisConnectionFactory == null) {
+            log.warn("⚠️ REDIS: RedisTemplate не создан - RedisConnectionFactory недоступен");
             return null;
         }
 
@@ -181,31 +255,67 @@ public class CacheConfig {
     }
 
     /**
-     * Проверка доступности Redis
+     * Проверка доступности Redis с детальным логированием
      */
-    private boolean isRedisAvailable() {
-        if (redisConnectionFactory == null) {
-            log.debug("🔍 REDIS: ConnectionFactory отсутствует");
+    private boolean isRedisAvailable(RedisConnectionFactory factory) {
+        if (factory == null) {
+            log.warn("🔍 REDIS ДИАГНОСТИКА: ConnectionFactory отсутствует");
             return false;
+        }
+
+        log.info("🔍 REDIS ДИАГНОСТИКА: ConnectionFactory найден: {}",
+                factory.getClass().getSimpleName());
+
+        // Проверяем является ли это LettuceConnectionFactory
+        if (factory instanceof LettuceConnectionFactory) {
+            LettuceConnectionFactory lettuceFactory = (LettuceConnectionFactory) factory;
+
+            log.info("🔍 REDIS ДИАГНОСТИКА: LettuceConnectionFactory обнаружен");
+            log.info("🔍 REDIS ДИАГНОСТИКА: Host: {}:{}", lettuceFactory.getHostName(), lettuceFactory.getPort());
+
+            // КРИТИЧЕСКИ ВАЖНО: Проверяем статус фабрики
+            try {
+                boolean isStarted = lettuceFactory.getConnection() != null;
+                log.info("🔍 REDIS ДИАГНОСТИКА: Connection доступен: {}", isStarted);
+            } catch (Exception e) {
+                log.error("❌ REDIS ДИАГНОСТИКА: LettuceConnectionFactory has been STOPPED! Ошибка: {}", e.getMessage());
+                log.error("❌ REDIS ДИАГНОСТИКА: Попытка вызвать start() для инициализации...");
+
+                try {
+                    lettuceFactory.start();
+                    log.info("✅ REDIS ДИАГНОСТИКА: start() вызван успешно");
+                } catch (Exception startEx) {
+                    log.error("❌ REDIS ДИАГНОСТИКА: Не удалось вызвать start(): {}", startEx.getMessage());
+                    return false;
+                }
+            }
         }
 
         try {
             // Проверяем соединение
-            redisConnectionFactory.getConnection().ping();
-            log.debug("✅ REDIS: Соединение успешно проверено");
+            var connection = factory.getConnection();
+            connection.ping();
+            connection.close();
+            log.info("✅ REDIS ДИАГНОСТИКА: Ping успешен - Redis доступен");
             return true;
         } catch (Exception e) {
-            log.warn("⚠️ REDIS: Проверка соединения неудачна: {}", e.getMessage());
+            log.error("❌ REDIS ДИАГНОСТИКА: Ping неудачен: {}", e.getMessage());
+            log.error("❌ REDIS ДИАГНОСТИКА: Возможные причины:");
+            log.error("   1. Redis сервер недоступен");
+            log.error("   2. Неправильные credentials");
+            log.error("   3. LettuceConnectionFactory не инициализирован (STOPPED)");
+            log.error("   4. Проблемы с сетью/firewall");
             return false;
         }
     }
 
     /**
      * Диагностика кэша при старте приложения
+     * ИСПРАВЛЕНО: Явно указан основной CacheManager с @Qualifier
      */
     @Bean
-    public CacheDiagnosticService cacheDiagnosticService(CacheManager cacheManager) {
-        return new CacheDiagnosticService(cacheManager, redisConnectionFactory);
+    public CacheDiagnosticService cacheDiagnosticService(@Qualifier("cacheManager") CacheManager cacheManager) {
+        return new CacheDiagnosticService(cacheManager, this.createdRedisConnectionFactory);
     }
 
     /**

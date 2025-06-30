@@ -14,7 +14,6 @@ import java.time.Duration;
  * Заменяет хардкоды в коде константами из конфигурации
  */
 @Data
-@Component
 @ConfigurationProperties(prefix = "app.system")
 @Validated
 public class SystemConfigurationProperties {

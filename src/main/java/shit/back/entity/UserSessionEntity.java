@@ -74,6 +74,9 @@ public class UserSessionEntity {
     @Column(name = "session_data", length = 1000)
     private String sessionData; // JSON для дополнительных данных
 
+    @Column(name = "payment_type", length = 50)
+    private String paymentType; // Выбранный способ оплаты для пополнения баланса
+
     @Column(name = "user_agent", length = 500)
     private String userAgent;
 
@@ -93,7 +96,8 @@ public class UserSessionEntity {
         TOPPING_UP_BALANCE, // Пополнение баланса
         SELECTING_PAYMENT_TYPE, // Выбор типа оплаты (баланс/внешняя)
         BALANCE_PAYMENT_PROCESSING, // Обработка платежа балансом
-        MIXED_PAYMENT_PROCESSING // Обработка смешанного платежа
+        MIXED_PAYMENT_PROCESSING, // Обработка смешанного платежа
+        ENTERING_CUSTOM_AMOUNT // Ввод пользовательской суммы пополнения
     }
 
     public UserSessionEntity(Long userId, String username, String firstName, String lastName) {
@@ -170,6 +174,7 @@ public class UserSessionEntity {
             case SELECTING_PAYMENT_TYPE -> "💳 Выбирает способ оплаты";
             case BALANCE_PAYMENT_PROCESSING -> "💸 Платеж балансом";
             case MIXED_PAYMENT_PROCESSING -> "🔄 Смешанная оплата";
+            case ENTERING_CUSTOM_AMOUNT -> "✏️ Вводит сумму";
         };
     }
 

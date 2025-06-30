@@ -8,13 +8,13 @@ import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.bots.DefaultBotOptions;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
+import org.telegram.telegrambots.meta.api.methods.BotApiMethod;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.updatingmessages.EditMessageText;
 import org.telegram.telegrambots.meta.api.methods.updates.DeleteWebhook;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
-import shit.back.handler.CallbackHandler;
-import shit.back.handler.MessageHandler;
+import shit.back.handler.TelegramHandlerFacade;
 import shit.back.entity.UserActivityLogEntity.ActionType;
 
 @Service
@@ -24,8 +24,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
 
     private final String botToken;
     private final String botUsername;
-    private final MessageHandler messageHandler;
-    private final CallbackHandler callbackHandler;
+    private final TelegramHandlerFacade handlerFacade;
     private final UserActivityLogService activityLogService;
 
     private boolean botRegistered = false;
@@ -36,15 +35,14 @@ public class TelegramBotService extends TelegramLongPollingBot {
     public TelegramBotService(
             @Value("${telegram.bot.token:YOUR_BOT_TOKEN}") String botToken,
             @Value("${telegram.bot.username:StarManagerBot}") String botUsername,
-            MessageHandler messageHandler,
-            CallbackHandler callbackHandler,
+            TelegramHandlerFacade handlerFacade,
             UserActivityLogService activityLogService) {
         super(getDefaultOptions());
         this.botToken = botToken;
         this.botUsername = botUsername;
-        this.messageHandler = messageHandler;
-        this.callbackHandler = callbackHandler;
+        this.handlerFacade = handlerFacade;
         this.activityLogService = activityLogService;
+        logger.info("🔄 TelegramBotService рефакторен для использования TelegramHandlerFacade");
     }
 
     private static DefaultBotOptions getDefaultOptions() {
@@ -128,7 +126,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
                     "User sent message: "
                             + (messageText.length() > 50 ? messageText.substring(0, 50) + "..." : messageText));
 
-            SendMessage message = messageHandler.handleMessage(update.getMessage());
+            BotApiMethod<?> message = handlerFacade.processMessage(update.getMessage());
             execute(message);
 
             activityLogService.logTelegramBotActivity(
@@ -164,23 +162,47 @@ public class TelegramBotService extends TelegramLongPollingBot {
                     ActionType.CALLBACK_RECEIVED,
                     "User clicked button: " + callbackData);
 
-            EditMessageText editMessage = callbackHandler.handleCallback(update.getCallbackQuery());
-            execute(editMessage);
+            BotApiMethod<?> editMessage = handlerFacade.processCallbackQuery(update.getCallbackQuery());
+
+            // ИСПРАВЛЕНИЕ: Проверяем, что сообщение не null перед выполнением
+            if (editMessage != null) {
+                execute(editMessage);
+                logger.info("Handled callback from user: {}", userId);
+            } else {
+                logger.debug("No message to send for callback: {} from user: {}", callbackData, userId);
+            }
 
             answerCallbackQuery(update.getCallbackQuery().getId());
 
-            logger.info("Handled callback from user: {}", userId);
         } catch (TelegramApiException e) {
             String username = update.getCallbackQuery().getFrom().getUserName();
             String firstName = update.getCallbackQuery().getFrom().getFirstName();
             String lastName = update.getCallbackQuery().getFrom().getLastName();
 
-            activityLogService.logTelegramBotActivity(
-                    userId, username, firstName, lastName,
-                    ActionType.PAYMENT_FAILED,
-                    "Failed to handle callback: " + e.getMessage());
-            logger.error("Error handling callback: {}", e.getMessage(), e);
+            // ИСПРАВЛЕНИЕ: Обработка специфичных ошибок Telegram API
+            if (isDuplicateMessageError(e)) {
+                logger.debug("Duplicate message detected for user {}, callback: {} - skipping", userId, callbackData);
+                activityLogService.logTelegramBotActivity(
+                        userId, username, firstName, lastName,
+                        ActionType.CALLBACK_RECEIVED,
+                        "Duplicate message skipped for callback: " + callbackData);
+            } else {
+                activityLogService.logTelegramBotActivity(
+                        userId, username, firstName, lastName,
+                        ActionType.PAYMENT_FAILED,
+                        "Failed to handle callback: " + e.getMessage());
+                logger.error("Error handling callback: {}", e.getMessage(), e);
+            }
         }
+    }
+
+    /**
+     * Проверка на ошибку дублирования сообщений
+     */
+    private boolean isDuplicateMessageError(TelegramApiException e) {
+        return e.getMessage() != null &&
+                (e.getMessage().contains("message is not modified") ||
+                        e.getMessage().contains("specified new message content and reply markup are exactly the same"));
     }
 
     private void answerCallbackQuery(String callbackQueryId) {
@@ -213,7 +235,16 @@ public class TelegramBotService extends TelegramLongPollingBot {
             message.setChatId(String.valueOf(chatId));
             message.setText(text);
             message.setParseMode("HTML");
-            message.setReplyMarkup(keyboard);
+
+            // ИСПРАВЛЕНО: Проверяем keyboard на null и валидность
+            if (keyboard != null && keyboard.getKeyboard() != null && !keyboard.getKeyboard().isEmpty()) {
+                message.setReplyMarkup(keyboard);
+                logger.debug("✅ Клавиатура добавлена к сообщению для пользователя: {}", chatId);
+            } else {
+                logger.debug("ℹ️ Клавиатура пустая или null, отправляем сообщение без клавиатуры для пользователя: {}",
+                        chatId);
+            }
+
             execute(message);
             logger.info("Manual message with keyboard sent to user: {}", chatId);
         } catch (TelegramApiException e) {

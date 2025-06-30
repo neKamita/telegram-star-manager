@@ -1,7 +1,7 @@
 package shit.back.service;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
@@ -18,7 +18,9 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * Сервис мониторинга здоровья кэша
  * Проверяет состояние кэша при старте и периодически
- * 
+ *
+ * ИСПРАВЛЕНО: Добавлен @Qualifier для устранения конфликта CacheManager'ов
+ *
  * Принципы SOLID:
  * - Single Responsibility: только мониторинг кэша
  * - Open/Closed: легко расширить новыми проверками
@@ -26,12 +28,25 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class CacheHealthService {
 
     private final CacheManager cacheManager;
     private final CacheMetricsService cacheMetricsService;
     private final RedisConnectionFactory redisConnectionFactory;
+
+    /**
+     * ИСПРАВЛЕНО: Конструктор с @Qualifier для указания основного CacheManager
+     */
+    public CacheHealthService(
+            @Qualifier("cacheManager") CacheManager cacheManager,
+            CacheMetricsService cacheMetricsService,
+            RedisConnectionFactory redisConnectionFactory) {
+        this.cacheManager = cacheManager;
+        this.cacheMetricsService = cacheMetricsService;
+        this.redisConnectionFactory = redisConnectionFactory;
+        log.info("✅ CACHE HEALTH SERVICE: Инициализирован с основным CacheManager: {}",
+                cacheManager.getClass().getSimpleName());
+    }
 
     private final Map<String, LocalDateTime> lastCacheActivity = new ConcurrentHashMap<>();
     private volatile boolean cacheSystemHealthy = false;

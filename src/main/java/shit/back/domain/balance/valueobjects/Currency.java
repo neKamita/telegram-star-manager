@@ -21,7 +21,19 @@ public final class Currency {
      * Поддерживаемые валюты системы
      */
     private static final Set<String> SUPPORTED_CURRENCIES = Set.of(
-            "USD", "EUR", "RUB", "UAH", "KZT", "BYN", "UZS");
+            "USD", "EUR", "UAH", "KZT", "BYN", "UZS", "XTR");
+
+    /**
+     * Валюты, поддерживаемые Telegram Fragment
+     */
+    private static final Set<String> FRAGMENT_SUPPORTED_CURRENCIES = Set.of(
+            "USD", "XTR");
+
+    /**
+     * Валюты, совместимые с Telegram Stars
+     */
+    private static final Set<String> STARS_COMPATIBLE_CURRENCIES = Set.of(
+            "XTR", "USD");
 
     /**
      * Валюта по умолчанию
@@ -86,10 +98,17 @@ public final class Currency {
     }
 
     /**
-     * Factory method для создания RUB
+     * Factory method для создания XTR (Telegram Stars)
      */
-    public static Currency rub() {
-        return new Currency("RUB");
+    public static Currency xtr() {
+        return new Currency("XTR");
+    }
+
+    /**
+     * Factory method для создания UZS
+     */
+    public static Currency uzs() {
+        return new Currency("UZS");
     }
 
     /**
@@ -131,10 +150,45 @@ public final class Currency {
     }
 
     /**
-     * Проверка, является ли валюта рублём
+     * Проверка, является ли валюта Telegram Stars (XTR)
      */
-    public boolean isRub() {
-        return "RUB".equals(code);
+    public boolean isXtr() {
+        return "XTR".equals(code);
+    }
+
+    /**
+     * Проверка, является ли валюта узбекским сумом
+     */
+    public boolean isUzs() {
+        return "UZS".equals(code);
+    }
+
+    /**
+     * Проверка поддержки валюты в Telegram Fragment
+     */
+    public boolean isFragmentSupported() {
+        return FRAGMENT_SUPPORTED_CURRENCIES.contains(code);
+    }
+
+    /**
+     * Проверка совместимости валюты с Telegram Stars
+     */
+    public boolean isStarsCompatible() {
+        return STARS_COMPATIBLE_CURRENCIES.contains(code);
+    }
+
+    /**
+     * Получение валют, поддерживаемых Fragment
+     */
+    public static Set<String> getFragmentSupportedCurrencies() {
+        return Set.copyOf(FRAGMENT_SUPPORTED_CURRENCIES);
+    }
+
+    /**
+     * Получение валют, совместимых с Stars
+     */
+    public static Set<String> getStarsCompatibleCurrencies() {
+        return Set.copyOf(STARS_COMPATIBLE_CURRENCIES);
     }
 
     /**
@@ -151,11 +205,11 @@ public final class Currency {
         return switch (code) {
             case "USD" -> "$";
             case "EUR" -> "€";
-            case "RUB" -> "₽";
             case "UAH" -> "₴";
             case "KZT" -> "₸";
             case "BYN" -> "Br";
             case "UZS" -> "сўм";
+            case "XTR" -> "⭐";
             default -> code;
         };
     }
@@ -167,11 +221,11 @@ public final class Currency {
         return switch (code) {
             case "USD" -> "Доллар США";
             case "EUR" -> "Евро";
-            case "RUB" -> "Российский рубль";
             case "UAH" -> "Украинская гривна";
             case "KZT" -> "Казахстанский тенге";
             case "BYN" -> "Белорусский рубль";
             case "UZS" -> "Узбекский сум";
+            case "XTR" -> "Telegram Stars";
             default -> code;
         };
     }

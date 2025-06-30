@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Component;
@@ -12,7 +13,9 @@ import org.springframework.stereotype.Component;
 /**
  * AOP аспект для отслеживания cache операций и метрик
  * Интегрируется с @Cacheable, @CachePut, @CacheEvict аннотациями
- * 
+ *
+ * ИСПРАВЛЕНО: Добавлен @Qualifier для устранения конфликта CacheManager'ов
+ *
  * Принципы SOLID:
  * - Single Responsibility: только перехват cache операций
  * - Open/Closed: легко расширяется для новых типов операций
@@ -21,11 +24,22 @@ import org.springframework.stereotype.Component;
 @Slf4j
 @Aspect
 @Component
-@RequiredArgsConstructor
 public class CacheEventListener {
 
     private final CacheMetricsInterceptor cacheMetricsInterceptor;
     private final CacheManager cacheManager;
+
+    /**
+     * ИСПРАВЛЕНО: Конструктор с @Qualifier для указания основного CacheManager
+     */
+    public CacheEventListener(
+            CacheMetricsInterceptor cacheMetricsInterceptor,
+            @Qualifier("cacheManager") CacheManager cacheManager) {
+        this.cacheMetricsInterceptor = cacheMetricsInterceptor;
+        this.cacheManager = cacheManager;
+        log.info("✅ CACHE EVENT LISTENER: Инициализирован с основным CacheManager: {}",
+                cacheManager.getClass().getSimpleName());
+    }
 
     /**
      * Перехватывает методы с @Cacheable аннотацией

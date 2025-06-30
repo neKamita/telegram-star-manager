@@ -37,6 +37,10 @@ import java.util.concurrent.ConcurrentHashMap;
 @Transactional
 public class UserSessionUnifiedService {
 
+    static {
+        System.err.println("🔍 ДИАГНОСТИКА TM: UserSessionUnifiedService класс загружен");
+    }
+
     private static final Logger log = LoggerFactory.getLogger(UserSessionUnifiedService.class);
 
     @Autowired
@@ -307,6 +311,8 @@ public class UserSessionUnifiedService {
      */
     @Transactional
     public UserSessionEntity createOrUpdateSessionEntity(UserSession userSession) {
+        // 🔍 ДИАГНОСТИЧЕСКИЙ ЛОГ #4: Отслеживаем производительность DB операций
+        long startTime = System.currentTimeMillis();
         try {
             log.debug("Creating/updating session entity for user {}", userSession.getUserId());
 
@@ -327,6 +333,13 @@ public class UserSessionUnifiedService {
                     entity.setCurrentOrderId(userSession.getOrderId());
                 }
 
+                // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Сохраняем paymentType в PostgreSQL
+                if (userSession.getPaymentType() != null) {
+                    entity.setPaymentType(userSession.getPaymentType());
+                    log.debug("💾 ДИАГНОСТИКА: Сохраняем paymentType '{}' в PostgreSQL для пользователя {}",
+                            userSession.getPaymentType(), userSession.getUserId());
+                }
+
                 entity.updateActivity();
             } else {
                 entity = new UserSessionEntity(
@@ -342,13 +355,34 @@ public class UserSessionUnifiedService {
                 if (userSession.getOrderId() != null) {
                     entity.setCurrentOrderId(userSession.getOrderId());
                 }
+
+                // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Сохраняем paymentType в PostgreSQL для нового entity
+                if (userSession.getPaymentType() != null) {
+                    entity.setPaymentType(userSession.getPaymentType());
+                    log.debug("💾 ДИАГНОСТИКА: Сохраняем paymentType '{}' в PostgreSQL для НОВОГО пользователя {}",
+                            userSession.getPaymentType(), userSession.getUserId());
+                }
             }
 
             UserSessionEntity saved = sessionRepository.save(entity);
+
+            // 🔍 ДИАГНОСТИЧЕСКИЙ ЛОГ #4: Измеряем время DB операции
+            long duration = System.currentTimeMillis() - startTime;
+            if (duration > 100) {
+                log.warn(
+                        "🚨 ДИАГНОСТИКА DB: МЕДЛЕННАЯ операция createOrUpdateSessionEntity заняла {}ms для пользователя {} - это может быть ПРОБЛЕМА #4!",
+                        duration, userSession.getUserId());
+            } else {
+                log.info("🔍 ДИАГНОСТИКА DB: Операция createOrUpdateSessionEntity заняла {}ms для пользователя {}",
+                        duration, userSession.getUserId());
+            }
+
             log.debug("Session entity for user {} saved with ID: {}", userSession.getUserId(), saved.getId());
             return saved;
         } catch (Exception e) {
-            log.error("Error creating/updating session entity for user {}", userSession.getUserId(), e);
+            long duration = System.currentTimeMillis() - startTime;
+            log.error("❌ ДИАГНОСТИКА DB: Ошибка при создании/обновлении сессии пользователя {} после {}ms: {}",
+                    userSession.getUserId(), duration, e.getMessage(), e);
             throw new RuntimeException("Failed to create/update session entity", e);
         }
     }
@@ -368,6 +402,7 @@ public class UserSessionUnifiedService {
             case SELECTING_PAYMENT_TYPE -> UserSessionEntity.SessionState.SELECTING_PAYMENT_TYPE;
             case BALANCE_PAYMENT_PROCESSING -> UserSessionEntity.SessionState.BALANCE_PAYMENT_PROCESSING;
             case MIXED_PAYMENT_PROCESSING -> UserSessionEntity.SessionState.MIXED_PAYMENT_PROCESSING;
+            case ENTERING_CUSTOM_AMOUNT -> UserSessionEntity.SessionState.ENTERING_CUSTOM_AMOUNT;
         };
     }
 

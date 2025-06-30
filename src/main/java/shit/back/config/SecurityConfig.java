@@ -24,7 +24,6 @@ import java.util.List;
 @Slf4j
 @Configuration
 @EnableWebSecurity
-@EnableConfigurationProperties(SecurityProperties.class)
 public class SecurityConfig {
 
     @Autowired

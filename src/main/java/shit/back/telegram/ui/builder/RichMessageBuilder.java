@@ -1,0 +1,305 @@
+package shit.back.telegram.ui.builder;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+import shit.back.application.balance.dto.response.DualBalanceResponse;
+import shit.back.config.PaymentConfigurationProperties;
+import shit.back.domain.balance.valueobjects.Currency;
+import shit.back.domain.balance.valueobjects.Money;
+import shit.back.telegram.ui.strategy.utils.PaymentMethodsHelper;
+import shit.back.telegram.ui.strategy.utils.StrategyConstants;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+/**
+ * Билдер богатых сообщений для Telegram интерфейса
+ * 
+ * Создает красиво оформленные карточки с детальной информацией
+ * используя emoji, форматирование и структурированную подачу данных
+ */
+@Component
+public class RichMessageBuilder {
+
+    @Autowired
+    private PaymentConfigurationProperties paymentConfig;
+
+    /**
+     * Создать карточку баланса
+     */
+    public String createBalanceCard(DualBalanceResponse balance) {
+        if (balance == null) {
+            return "❌ <b>Ошибка</b>\n\nДанные баланса недоступны";
+        }
+
+        StringBuilder card = new StringBuilder();
+        String currencySymbol = balance.getCurrency().getSymbol();
+        String statusIcon = balance.isActive() ? "✅" : "❌";
+
+        // Заголовок карточки
+        card.append("💰 <b>Карточка баланса</b>\n");
+        card.append("═══════════════════════════\n\n");
+
+        // Основная информация
+        card.append("📊 <b>СОСТОЯНИЕ СЧЕТОВ</b>\n");
+        card.append(String.format("💳 Пополненный: <code>%s %s</code>\n",
+                balance.getBankBalance().getFormattedAmount(), currencySymbol));
+        card.append(String.format("🏦 Рабочий: <code>%s %s</code>\n",
+                balance.getMainBalance().getFormattedAmount(), currencySymbol));
+        card.append("─────────────────────────\n");
+        card.append(String.format("📈 <b>Итого: %s %s</b>\n\n",
+                balance.getTotalBalance().getFormattedAmount(), currencySymbol));
+
+        // Статус готовности
+        card.append("🚦 <b>СТАТУС ГОТОВНОСТИ</b>\n");
+        if (balance.hasMainFunds()) {
+            card.append("⭐ <b>Готово к покупке звезд!</b>\n");
+        } else if (balance.hasBankFunds()) {
+            card.append("🔄 Требуется перевод в рабочий баланс\n");
+        } else {
+            card.append("💸 Необходимо пополнение баланса\n");
+        }
+        card.append("\n");
+
+        // Статистика использования
+        if (balance.getTotalTransferredToMain().isPositive() || balance.getTotalSpentFromMain().isPositive()) {
+            card.append("📈 <b>СТАТИСТИКА</b>\n");
+            if (balance.getTotalTransferredToMain().isPositive()) {
+                card.append(String.format("💸 Переведено: %s %s\n",
+                        balance.getTotalTransferredToMain().getFormattedAmount(), currencySymbol));
+            }
+            if (balance.getTotalSpentFromMain().isPositive()) {
+                card.append(String.format("⭐ Потрачено: %s %s\n",
+                        balance.getTotalSpentFromMain().getFormattedAmount(), currencySymbol));
+            }
+
+            if (balance.getMainBalanceUtilizationRatio() > 0) {
+                double utilizationPercent = balance.getMainBalanceUtilizationRatio() * 100;
+                String utilizationIcon = utilizationPercent > 70 ? "🔥" : utilizationPercent > 30 ? "📊" : "📉";
+                card.append(String.format("%s Использование: %.1f%%\n", utilizationIcon, utilizationPercent));
+            }
+            card.append("\n");
+        }
+
+        // Информация о системе
+        card.append("ℹ️ <b>ИНФОРМАЦИЯ</b>\n");
+        card.append(String.format("💱 Валюта: %s\n", balance.getCurrency().getFormattedName()));
+        card.append(String.format("%s Статус: %s\n", statusIcon,
+                balance.isActive() ? "Активен" : "Неактивен"));
+        card.append(String.format("🕐 Обновлен: %s\n",
+                balance.getLastUpdated().format(StrategyConstants.DATE_FORMATTER)));
+
+        return card.toString();
+    }
+
+    /**
+     * Создать карточку истории покупок
+     */
+    public String createPurchaseHistoryCard(List<PurchaseHistoryItem> purchases, int page, boolean hasNext) {
+        StringBuilder card = new StringBuilder();
+
+        // Заголовок
+        card.append("📊 <b>История покупок звезд</b>\n");
+        card.append("═══════════════════════════\n\n");
+
+        if (purchases.isEmpty()) {
+            card.append("📝 <i>История покупок пуста</i>\n\n");
+            card.append("💡 Сделайте первую покупку звезд!");
+            return card.toString();
+        }
+
+        // Элементы истории
+        for (int i = 0; i < purchases.size(); i++) {
+            PurchaseHistoryItem item = purchases.get(i);
+            card.append(String.format("⭐ <b>%d звезд</b> • %s %s\n",
+                    item.stars, item.amount.getFormattedAmount(), item.currencySymbol));
+            card.append(String.format("📅 %s • %s\n",
+                    item.date.format(StrategyConstants.DATE_FORMATTER),
+                    getStatusIcon(item.status) + " " + item.status));
+
+            if (i < purchases.size() - 1) {
+                card.append("─────────────────────────\n");
+            }
+        }
+
+        // Пагинация
+        card.append("\n");
+        card.append(String.format("📄 <b>Страница %d</b>", page + 1));
+        if (hasNext) {
+            card.append(" • <i>Есть еще записи</i>");
+        }
+
+        return card.toString();
+    }
+
+    /**
+     * Создать приветственную карточку
+     */
+    public String createWelcomeCard(String userName, DualBalanceResponse balance) {
+        StringBuilder card = new StringBuilder();
+
+        // Персонализированное приветствие
+        card.append(String.format("👋 <b>Добро пожаловать, %s!</b>\n", userName));
+        card.append("═══════════════════════════\n\n");
+
+        // Описание сервиса
+        card.append("⭐ <b>Star Manager Bot</b>\n");
+        card.append("🤖 Ваш помощник для покупки Telegram Stars\n\n");
+
+        // Статус баланса
+        if (balance != null && balance.getTotalBalance().isPositive()) {
+            String currencySymbol = balance.getCurrency().getSymbol();
+            card.append("💰 <b>Ваш баланс:</b>\n");
+            card.append(String.format("📊 Всего: %s %s\n",
+                    balance.getTotalBalance().getFormattedAmount(), currencySymbol));
+
+            if (balance.hasMainFunds()) {
+                card.append("✅ <i>Готово к покупке звезд!</i>\n\n");
+            } else if (balance.hasBankFunds()) {
+                card.append("🔄 <i>Переведите в рабочий баланс</i>\n\n");
+            }
+        } else {
+            card.append("💰 <b>Баланс пуст</b>\n");
+            card.append("🚀 <i>Начните с пополнения!</i>\n\n");
+        }
+
+        // Как это работает
+        card.append("🔄 <b>КАК ЭТО РАБОТАЕТ</b>\n");
+        card.append("1️⃣ Пополните баланс удобным способом\n");
+        card.append("2️⃣ Переведите средства в рабочий баланс\n");
+        card.append("3️⃣ Покупайте звезды одним нажатием\n");
+        card.append("4️⃣ Звезды автоматически поступят на ваш аккаунт\n\n");
+
+        // Доступные способы пополнения
+        Currency userCurrency = balance != null ? balance.getCurrency() : Currency.defaultCurrency();
+        List<String> paymentMethods = PaymentMethodsHelper.getAvailablePaymentMethods(userCurrency, paymentConfig);
+
+        if (!paymentMethods.isEmpty()) {
+            card.append("💳 <b>СПОСОБЫ ПОПОЛНЕНИЯ</b>\n");
+            for (String method : paymentMethods) {
+                card.append(String.format("• %s\n", method));
+            }
+            card.append("\n");
+        }
+
+        card.append("🎯 <i>Готовы начать? Нажмите «💰 Баланс»!</i>");
+
+        return card.toString();
+    }
+
+    /**
+     * Создать карточку флоу покупки
+     */
+    public String createPurchaseFlowCard(int stars, Money amount, String currencySymbol,
+            DualBalanceResponse balance) {
+        StringBuilder card = new StringBuilder();
+
+        // Заголовок операции
+        card.append("⭐ <b>Покупка Telegram Stars</b>\n");
+        card.append("═══════════════════════════\n\n");
+
+        // Детали покупки
+        card.append("🛒 <b>ДЕТАЛИ ПОКУПКИ</b>\n");
+        card.append(String.format("⭐ Звезд: <b>%d</b>\n", stars));
+        card.append(String.format("💰 Сумма: <b>%s %s</b>\n", amount.getFormattedAmount(), currencySymbol));
+        card.append("\n");
+
+        // Проверка баланса
+        card.append("💳 <b>ПРОВЕРКА СРЕДСТВ</b>\n");
+        if (balance.hasSufficientMainFunds(amount)) {
+            card.append("✅ Средств достаточно\n");
+            Money remaining = balance.getMainBalance().subtract(amount);
+            card.append(String.format("💼 Остаток: %s %s\n",
+                    remaining.getFormattedAmount(), currencySymbol));
+        } else {
+            card.append("❌ Недостаточно средств\n");
+            Money needed = amount.subtract(balance.getMainBalance());
+            card.append(String.format("💸 Не хватает: %s %s\n",
+                    needed.getFormattedAmount(), currencySymbol));
+        }
+        card.append("\n");
+
+        // Процесс покупки
+        card.append("🔄 <b>ПРОЦЕСС ПОКУПКИ</b>\n");
+        card.append("1️⃣ Списание с рабочего баланса\n");
+        card.append("2️⃣ Отправка запроса в Telegram Fragment\n");
+        card.append("3️⃣ Зачисление звезд на ваш аккаунт\n");
+        card.append("4️⃣ Уведомление о завершении\n\n");
+
+        card.append("⚠️ <b>Внимание:</b> Операция необратима\n");
+        card.append("🤖 <i>Покупка выполняется автоматически</i>");
+
+        return card.toString();
+    }
+
+    /**
+     * Создать карточку подтверждения перевода
+     */
+    public String createTransferConfirmationCard(Money amount, String currencySymbol,
+            DualBalanceResponse balance) {
+        StringBuilder card = new StringBuilder();
+
+        card.append("🔄 <b>Перевод средств</b>\n");
+        card.append("═══════════════════════════\n\n");
+
+        // Детали перевода
+        card.append("💸 <b>ДЕТАЛИ ПЕРЕВОДА</b>\n");
+        card.append(String.format("💰 Сумма: <b>%s %s</b>\n", amount.getFormattedAmount(), currencySymbol));
+        card.append("📤 Из: Пополненный баланс\n");
+        card.append("📥 В: Рабочий баланс\n\n");
+
+        // Состояние до перевода
+        card.append("📊 <b>ДО ПЕРЕВОДА</b>\n");
+        card.append(String.format("💳 Пополненный: %s %s\n",
+                balance.getBankBalance().getFormattedAmount(), currencySymbol));
+        card.append(String.format("🏦 Рабочий: %s %s\n\n",
+                balance.getMainBalance().getFormattedAmount(), currencySymbol));
+
+        // Состояние после перевода
+        Money newBankBalance = balance.getBankBalance().subtract(amount);
+        Money newMainBalance = balance.getMainBalance().add(amount);
+
+        card.append("📈 <b>ПОСЛЕ ПЕРЕВОДА</b>\n");
+        card.append(String.format("💳 Пополненный: %s %s\n",
+                newBankBalance.getFormattedAmount(), currencySymbol));
+        card.append(String.format("🏦 Рабочий: %s %s\n\n",
+                newMainBalance.getFormattedAmount(), currencySymbol));
+
+        card.append("✅ <i>После перевода вы сможете покупать звезды</i>");
+
+        return card.toString();
+    }
+
+    /**
+     * Получить иконку статуса операции
+     */
+    private String getStatusIcon(String status) {
+        return switch (status.toLowerCase()) {
+            case "completed", "завершено" -> "✅";
+            case "pending", "ожидание" -> "⏳";
+            case "failed", "неудача" -> "❌";
+            case "cancelled", "отменено" -> "🚫";
+            default -> "📄";
+        };
+    }
+
+    /**
+     * Класс для элемента истории покупок
+     */
+    public static class PurchaseHistoryItem {
+        public final int stars;
+        public final Money amount;
+        public final String currencySymbol;
+        public final LocalDateTime date;
+        public final String status;
+
+        public PurchaseHistoryItem(int stars, Money amount, String currencySymbol,
+                LocalDateTime date, String status) {
+            this.stars = stars;
+            this.amount = amount;
+            this.currencySymbol = currencySymbol;
+            this.date = date;
+            this.status = status;
+        }
+    }
+}

@@ -2,7 +2,7 @@ package shit.back.telegram.ui.strategy;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import shit.back.application.balance.dto.response.DualBalanceResponse;
+import shit.back.application.balance.dto.response.SimpleBalanceResponse;
 import shit.back.config.PaymentConfigurationProperties;
 import shit.back.domain.balance.valueobjects.Currency;
 import shit.back.telegram.ui.strategy.utils.PaymentMethodsHelper;
@@ -66,16 +66,16 @@ public class BalanceDisplayStrategy implements TelegramMessageStrategy {
      * Показывает только общий доступный баланс без технических деталей
      */
     private String formatDualBalanceInfo(Object data) {
-        if (!(data instanceof DualBalanceResponse balance)) {
-            throw new IllegalArgumentException("Ожидался DualBalanceResponse для DUAL_BALANCE_INFO");
+        if (!(data instanceof SimpleBalanceResponse balance)) {
+            throw new IllegalArgumentException("Ожидался SimpleBalanceResponse для DUAL_BALANCE_INFO");
         }
 
         String statusIcon = balance.isActive() ? "✅" : "❌";
         String currencySymbol = balance.getCurrency().getSymbol();
 
         StringBuilder message = new StringBuilder();
-        message.append(String.format("💰 <b>Ваш баланс:</b> %s %s\n\n",
-                balance.getTotalBalance().getFormattedAmount(), currencySymbol));
+        message.append(String.format("💰 <b>Ваш баланс:</b> %s\n\n",
+                balance.getFormattedBalance()));
 
         // Информация о валюте и статусе
         message.append(String.format("💱 <b>Валюта:</b> %s\n", balance.getCurrency().getFormattedName()));
@@ -91,20 +91,20 @@ public class BalanceDisplayStrategy implements TelegramMessageStrategy {
      * Форматирование краткой сводки баланса
      */
     private String formatBalanceSummary(Object data) {
-        if (!(data instanceof DualBalanceResponse balance)) {
-            throw new IllegalArgumentException("Ожидался DualBalanceResponse для BALANCE_SUMMARY");
+        if (!(data instanceof SimpleBalanceResponse balance)) {
+            throw new IllegalArgumentException("Ожидался SimpleBalanceResponse для BALANCE_SUMMARY");
         }
 
         String currencySymbol = balance.getCurrency().getSymbol();
-        boolean hasAvailableFunds = balance.getTotalBalance().isPositive();
+        boolean hasAvailableFunds = balance.getCurrentBalance().isPositive();
         String fundsIcon = hasAvailableFunds ? "💚" : "⚠️";
 
         return String.format("""
-                %s <b>Баланс:</b> %s %s
+                %s <b>Баланс:</b> %s
 
                 %s <i>Статус: %s</i>
                 """,
-                fundsIcon, balance.getTotalBalance().getFormattedAmount(), currencySymbol,
+                fundsIcon, balance.getFormattedBalance(),
                 balance.isActive() ? "✅" : "❌",
                 hasAvailableFunds ? "Готов к покупкам" : "Пополните баланс");
     }
@@ -113,19 +113,19 @@ public class BalanceDisplayStrategy implements TelegramMessageStrategy {
      * Форматирование детальной информации с рекомендациями
      */
     private String formatBalanceDetails(Object data) {
-        if (!(data instanceof DualBalanceResponse balance)) {
-            throw new IllegalArgumentException("Ожидался DualBalanceResponse для BALANCE_DETAILS");
+        if (!(data instanceof SimpleBalanceResponse balance)) {
+            throw new IllegalArgumentException("Ожидался SimpleBalanceResponse для BALANCE_DETAILS");
         }
 
         StringBuilder message = new StringBuilder();
         String currencySymbol = balance.getCurrency().getSymbol();
-        boolean hasAvailableFunds = balance.getTotalBalance().isPositive();
+        boolean hasAvailableFunds = balance.getCurrentBalance().isPositive();
 
         message.append("📋 <b>Детали баланса</b>\n\n");
 
         // Общий баланс
-        message.append(String.format("💰 <b>Доступно:</b> %s %s\n\n",
-                balance.getTotalBalance().getFormattedAmount(), currencySymbol));
+        message.append(String.format("💰 <b>Доступно:</b> %s\n\n",
+                balance.getFormattedBalance()));
 
         if (hasAvailableFunds) {
             message.append("⭐ <i>Готов для покупки звезд</i>\n\n");

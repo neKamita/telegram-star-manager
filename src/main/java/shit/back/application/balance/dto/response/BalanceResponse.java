@@ -1,6 +1,9 @@
 package shit.back.application.balance.dto.response;
 
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
+import lombok.NoArgsConstructor;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
@@ -9,6 +12,8 @@ import java.time.LocalDateTime;
  * Используется в Application Layer для возврата данных клиенту
  */
 @Builder
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@NoArgsConstructor
 public class BalanceResponse {
 
     private Long userId;
@@ -26,34 +31,13 @@ public class BalanceResponse {
     private Long transactionCount;
     private String balanceStatus; // ACTIVE, SUSPENDED, LOCKED
 
-    // Конструкторы
-    public BalanceResponse() {
-    }
-
+    // Специальный конструктор для простых случаев использования
     public BalanceResponse(Long userId, BigDecimal currentBalance, String currency) {
         this.userId = userId;
         this.currentBalance = currentBalance;
         this.currency = currency;
         this.availableBalance = currentBalance;
         this.isActive = true;
-    }
-
-    // Конструктор для поддержки Lombok @Builder
-    BalanceResponse(Long userId, BigDecimal currentBalance, BigDecimal totalDeposited, BigDecimal totalSpent,
-            BigDecimal reservedAmount, String currency, boolean isActive, LocalDateTime lastUpdated,
-            LocalDateTime createdAt, BigDecimal availableBalance, Long transactionCount, String balanceStatus) {
-        this.userId = userId;
-        this.currentBalance = currentBalance;
-        this.totalDeposited = totalDeposited;
-        this.totalSpent = totalSpent;
-        this.reservedAmount = reservedAmount;
-        this.currency = currency;
-        this.isActive = isActive;
-        this.lastUpdated = lastUpdated;
-        this.createdAt = createdAt;
-        this.availableBalance = availableBalance;
-        this.transactionCount = transactionCount;
-        this.balanceStatus = balanceStatus;
     }
 
     // Getters и Setters

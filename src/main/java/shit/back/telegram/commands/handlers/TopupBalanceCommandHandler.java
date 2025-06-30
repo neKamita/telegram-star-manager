@@ -204,6 +204,15 @@ public class TopupBalanceCommandHandler implements TelegramCommandHandler<TopupB
             return showPaymentMethods(command.getUserId());
         }
 
+        // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Всегда показываем подтверждение (логика изменена в
+        // TelegramHandlerFacade)
+        return showTopupConfirmation(command, paymentMethod);
+    }
+
+    /**
+     * КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Отдельный метод для показа подтверждения
+     */
+    private TelegramResponse showTopupConfirmation(TopupBalanceCommand command, String paymentMethod) {
         String message = String.format("""
                 ✅ <b>Подтверждение пополнения</b>
 

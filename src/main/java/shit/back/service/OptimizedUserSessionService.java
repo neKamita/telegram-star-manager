@@ -1,10 +1,9 @@
 package shit.back.service;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.data.domain.Page;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.scheduling.annotation.Async;
@@ -23,393 +22,379 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Оптимизированный сервис управления пользовательскими сессиями
+ * ВЫСОКОПРОИЗВОДИТЕЛЬНЫЙ сервис управления пользовательскими сессиями
  * 
  * КРИТИЧЕСКИЕ ОПТИМИЗАЦИИ:
  * 1. Кэширование часто используемых запросов
- * 2. Batch операции для массовых обновлений
- * 3. Оптимизированные SQL запросы с составными индексами
- * 4. Асинхронная синхронизация с PostgreSQL
- * 5. Минимизация количества SQL запросов через batch результаты
+ * 2. Batch операции для снижения нагрузки на БД
+ * 3. Асинхронная обработка неблокирующих операций
+ * 4. Оптимизированные SQL запросы с составными индексами
+ * 5. In-memory кэш для активных сессий
  * 
- * РЕЗУЛЬТАТ: Снижение времени getUserCountsBatch с 235мс до <30мс
+ * ЦЕЛЕВЫЕ ПОКАЗАТЕЛИ:
+ * - createOrUpdateSessionEntity: с 100+ms до <25ms
+ * - getUserCountsBatch: оптимизация N+1 проблемы
+ * - Cache hit ratio: >90%
  * 
  * Принципы: SOLID, DRY, Clean Code, KISS, Fail-Fast, YAGNI
  */
+@Slf4j
 @Service
 @Transactional
 public class OptimizedUserSessionService {
 
-    private static final Logger log = LoggerFactory.getLogger(OptimizedUserSessionService.class);
-
     @Autowired
     private UserSessionJpaRepository sessionRepository;
 
-    // Оптимизированный in-memory кэш
-    private final Map<Long, UserSession> userSessions = new ConcurrentHashMap<>();
-    private final Map<String, Order> orders = new ConcurrentHashMap<>();
+    // Высокопроизводительный in-memory кэш
+    private final Map<Long, UserSession> activeSessionsCache = new ConcurrentHashMap<>();
+    private final Map<String, Order> ordersCache = new ConcurrentHashMap<>();
 
     // Метрики производительности
-    private final AtomicLong totalQueryTime = new AtomicLong(0);
-    private final AtomicLong queryCount = new AtomicLong(0);
+    private final AtomicInteger cacheHits = new AtomicInteger(0);
+    private final AtomicInteger cacheMisses = new AtomicInteger(0);
+    private final AtomicInteger dbOperations = new AtomicInteger(0);
 
-    // ===========================================
-    // ОСНОВНЫЕ ОПТИМИЗИРОВАННЫЕ МЕТОДЫ
-    // ===========================================
+    // Пороги производительности
+    private static final int PERFORMANCE_THRESHOLD_MS = 25;
+    private static final int CACHE_SIZE_LIMIT = 10000;
+    private static final int CLEANUP_BATCH_SIZE = 100;
 
     /**
      * ОПТИМИЗИРОВАННОЕ получение или создание сессии
-     * Минимизация обращений к БД через кэширование
+     * Цель: <25ms вместо 100+ms
      */
-    public UserSession getOrCreateSession(Long userId, String username, String firstName, String lastName) {
+    public UserSession getOrCreateSessionOptimized(Long userId, String username, String firstName, String lastName) {
         long startTime = System.currentTimeMillis();
 
         try {
-            // Быстрая валидация
+            // Валидация (принцип Fail-Fast)
             if (userId == null || userId <= 0) {
-                throw new IllegalArgumentException("Invalid user ID");
+                throw new IllegalArgumentException("Invalid user ID: " + userId);
             }
 
-            // Нормализация данных
-            username = normalizeString(username);
-            firstName = normalizeString(firstName);
-            lastName = normalizeString(lastName);
+            // Проверяем in-memory кэш сначала
+            UserSession cachedSession = activeSessionsCache.get(userId);
+            if (cachedSession != null) {
+                cachedSession.updateActivity();
+                cacheHits.incrementAndGet();
 
-            UserSession session = userSessions.get(userId);
-            boolean isNewSession = false;
+                long duration = System.currentTimeMillis() - startTime;
+                log.debug("✅ CACHE HIT: Сессия для userId={} получена за {}ms", userId, duration);
 
-            if (session == null) {
-                session = new UserSession(userId, username, firstName, lastName);
-                userSessions.put(userId, session);
-                isNewSession = true;
-                log.debug("Создана новая in-memory сессия для пользователя {}", userId);
+                // Асинхронное обновление в БД
+                updateSessionAsyncIfNeeded(cachedSession);
+                return cachedSession;
+            }
+
+            cacheMisses.incrementAndGet();
+
+            // Создаем новую сессию
+            UserSession session = new UserSession(userId, username, firstName, lastName);
+
+            // Добавляем в кэш
+            if (activeSessionsCache.size() < CACHE_SIZE_LIMIT) {
+                activeSessionsCache.put(userId, session);
             } else {
-                session.updateActivity();
+                log.warn("⚠️ CACHE FULL: Достигнут лимит кэша {}, очистка старых записей", CACHE_SIZE_LIMIT);
+                cleanupOldCacheEntries();
             }
 
-            // Асинхронная синхронизация с PostgreSQL для оптимизации
-            if (isNewSession) {
-                asyncCreateOrUpdateSessionEntity(session);
-            }
+            // Асинхронная синхронизация с PostgreSQL
+            synchronizeSessionAsyncOptimized(session);
 
             long duration = System.currentTimeMillis() - startTime;
-            updatePerformanceMetrics(duration);
+            if (duration <= PERFORMANCE_THRESHOLD_MS) {
+                log.debug("✅ ОПТИМИЗАЦИЯ: Новая сессия создана за {}ms", duration);
+            } else {
+                log.warn("⚠️ PERFORMANCE: Создание сессии заняло {}ms (цель: <{}ms)",
+                        duration, PERFORMANCE_THRESHOLD_MS);
+            }
 
-            log.trace("getOrCreateSession выполнено за {}ms", duration);
             return session;
 
         } catch (Exception e) {
-            log.error("Ошибка в getOrCreateSession для пользователя {}", userId, e);
+            long duration = System.currentTimeMillis() - startTime;
+            log.error("🚨 ОШИБКА: getOrCreateSession для userId={} после {}ms: {}",
+                    userId, duration, e.getMessage(), e);
             throw new RuntimeException("Failed to get or create session", e);
         }
     }
 
     /**
-     * ОПТИМИЗИРОВАННОЕ получение сессии с кэшированием
+     * ОПТИМИЗИРОВАННОЕ обновление состояния сессии
      */
-    public Optional<UserSession> getSession(Long userId) {
+    public void updateSessionStateOptimized(Long userId, UserSession.SessionState state) {
         long startTime = System.currentTimeMillis();
 
         try {
-            if (userId == null || userId <= 0) {
-                throw new IllegalArgumentException("Invalid user ID");
+            if (userId == null || userId <= 0 || state == null) {
+                throw new IllegalArgumentException("Invalid parameters: userId=" + userId + ", state=" + state);
             }
 
-            UserSession session = userSessions.get(userId);
+            UserSession session = activeSessionsCache.get(userId);
             if (session != null) {
-                session.updateActivity();
-            }
-
-            long duration = System.currentTimeMillis() - startTime;
-            updatePerformanceMetrics(duration);
-
-            return Optional.ofNullable(session);
-        } catch (Exception e) {
-            log.error("Ошибка получения сессии для пользователя {}", userId, e);
-            return Optional.empty();
-        }
-    }
-
-    /**
-     * ОПТИМИЗИРОВАННОЕ обновление состояния с асинхронной синхронизацией
-     */
-    public void updateSessionState(Long userId, UserSession.SessionState state) {
-        try {
-            if (userId == null || userId <= 0) {
-                throw new IllegalArgumentException("Invalid user ID");
-            }
-            if (state == null) {
-                throw new IllegalArgumentException("State cannot be null");
-            }
-
-            UserSession session = userSessions.get(userId);
-            if (session != null) {
-                String previousState = session.getState() != null ? session.getState().toString() : "UNKNOWN";
                 session.setState(state);
                 session.updateActivity();
 
-                // Асинхронная синхронизация для оптимизации
-                asyncCreateOrUpdateSessionEntity(session);
+                // Асинхронное обновление в БД
+                updateSessionAsyncIfNeeded(session);
 
-                log.debug("Состояние обновлено для пользователя {} с {} на {}", userId, previousState, state);
+                long duration = System.currentTimeMillis() - startTime;
+                log.debug("✅ STATE UPDATE: userId={}, state={} за {}ms", userId, state, duration);
+            } else {
+                log.warn("⚠️ SESSION NOT FOUND: userId={} не найден в кэше для обновления состояния", userId);
             }
+
         } catch (Exception e) {
-            log.error("Ошибка обновления состояния сессии для пользователя {}", userId, e);
-            throw new RuntimeException("Failed to update session state", e);
+            long duration = System.currentTimeMillis() - startTime;
+            log.error("🚨 ОШИБКА: updateSessionState для userId={} после {}ms: {}",
+                    userId, duration, e.getMessage(), e);
         }
     }
 
     /**
-     * КРИТИЧЕСКИ ОПТИМИЗИРОВАННЫЙ batch запрос пользователей
-     * Сокращение времени с 235мс до <30мс
+     * ВЫСОКОПРОИЗВОДИТЕЛЬНАЯ синхронизация с БД
      */
-    @Cacheable(value = "userCountsCache", unless = "#result == null")
-    @Transactional(readOnly = true)
-    public UserCountsBatchResult getUserCountsBatch() {
+    @Async("userActivityLoggingExecutor")
+    public void synchronizeSessionAsyncOptimized(UserSession userSession) {
         long startTime = System.currentTimeMillis();
 
         try {
-            log.debug("🚀 НАЧАЛО getUserCountsBatch оптимизированный запрос");
+            createOrUpdateSessionEntityOptimized(userSession);
 
+            long duration = System.currentTimeMillis() - startTime;
+            if (duration <= PERFORMANCE_THRESHOLD_MS) {
+                log.debug("✅ ASYNC SYNC: Сессия синхронизирована за {}ms", duration);
+            } else {
+                log.warn("⚠️ SLOW SYNC: Синхронизация заняла {}ms (цель: <{}ms)",
+                        duration, PERFORMANCE_THRESHOLD_MS);
+            }
+
+        } catch (Exception e) {
+            long duration = System.currentTimeMillis() - startTime;
+            log.error("🚨 SYNC ERROR: Ошибка синхронизации после {}ms: {}", duration, e.getMessage(), e);
+        }
+    }
+
+    /**
+     * КРИТИЧЕСКИ ОПТИМИЗИРОВАННОЕ создание/обновление entity в PostgreSQL
+     * Цель: <25ms вместо 100+ms
+     */
+    @Transactional
+    public UserSessionEntity createOrUpdateSessionEntityOptimized(UserSession userSession) {
+        long startTime = System.currentTimeMillis();
+        dbOperations.incrementAndGet();
+
+        try {
+            Optional<UserSessionEntity> existingOpt = sessionRepository.findByUserId(userSession.getUserId());
+
+            UserSessionEntity entity;
+            if (existingOpt.isPresent()) {
+                // Обновляем существующую entity
+                entity = existingOpt.get();
+                updateEntityFromSession(entity, userSession);
+            } else {
+                // Создаем новую entity
+                entity = createEntityFromSession(userSession);
+            }
+
+            UserSessionEntity saved = sessionRepository.save(entity);
+
+            long duration = System.currentTimeMillis() - startTime;
+            if (duration <= PERFORMANCE_THRESHOLD_MS) {
+                log.debug("✅ DB OPTIMIZED: Сессия сохранена за {}ms", duration);
+            } else {
+                log.warn("🚨 DB SLOW: Сохранение заняло {}ms (цель: <{}ms) для userId={}",
+                        duration, PERFORMANCE_THRESHOLD_MS, userSession.getUserId());
+            }
+
+            return saved;
+
+        } catch (Exception e) {
+            long duration = System.currentTimeMillis() - startTime;
+            log.error("🚨 DB ERROR: Ошибка сохранения сессии userId={} после {}ms: {}",
+                    userSession.getUserId(), duration, e.getMessage(), e);
+            throw new RuntimeException("Failed to create/update session entity", e);
+        }
+    }
+
+    /**
+     * ОПТИМИЗИРОВАННЫЙ batch запрос для решения N+1 проблемы
+     */
+    @Cacheable(value = "userCountsCache", key = "'batch_counts'")
+    @Transactional(readOnly = true)
+    public UserCountsBatchResult getUserCountsBatchOptimized() {
+        long startTime = System.currentTimeMillis();
+
+        try {
             LocalDateTime activeThreshold = LocalDateTime.now().minusHours(24);
             LocalDateTime onlineThreshold = LocalDateTime.now().minusMinutes(5);
 
-            // ЕДИНСТВЕННЫЙ SQL запрос вместо множественных
             UserCountsBatchResult result = sessionRepository.getUserCountsBatch(activeThreshold, onlineThreshold);
 
             long duration = System.currentTimeMillis() - startTime;
-            updatePerformanceMetrics(duration);
-
-            log.info("✅ ОПТИМИЗАЦИЯ: getUserCountsBatch выполнено за {}ms (цель: <30ms) - " +
-                    "Total={}, Active={}, Online={}",
-                    duration, result.totalUsers(), result.activeUsers(), result.onlineUsers());
-
-            // Предупреждение если превышено целевое время
-            if (duration > 30) {
-                log.warn("⚠️ PERFORMANCE WARNING: getUserCountsBatch заняло {}ms (цель: <30ms)", duration);
-            }
+            log.info("🚀 BATCH OPTIMIZED: getUserCountsBatch за {}ms - SINGLE SQL вместо 3 запросов!", duration);
+            log.debug("📊 РЕЗУЛЬТАТ: Total={}, Active={}, Online={}",
+                    result.totalUsers(), result.activeUsers(), result.onlineUsers());
 
             return result;
 
         } catch (Exception e) {
-            long errorTime = System.currentTimeMillis() - startTime;
-            log.error("🚨 ОШИБКА getUserCountsBatch после {}ms: {}", errorTime, e.getMessage(), e);
-            // Возвращаем fallback результат для стабильности
+            long duration = System.currentTimeMillis() - startTime;
+            log.error("🚨 BATCH ERROR: Ошибка batch запроса после {}ms: {}", duration, e.getMessage(), e);
             return new UserCountsBatchResult(0L, 0L, 0L);
         }
     }
 
     /**
-     * ОПТИМИЗИРОВАННАЯ статистика с кэшированием
+     * ОПТИМИЗИРОВАННОЕ получение активных сессий с кэшированием
      */
-    @Cacheable(value = "userSessionStatsCache", unless = "#result == null")
+    @Cacheable(value = "activeSessionsCache", key = "'active_sessions'")
     @Transactional(readOnly = true)
-    public UserSessionStatistics getUserSessionStatistics() {
-        long startTime = System.currentTimeMillis();
-
-        try {
-            // Параллельное выполнение запросов для оптимизации
-            UserActivityAverages averages = getAverageUserActivity();
-            UserCountsBatchResult userCounts = getUserCountsBatch();
-
-            UserSessionStatistics statistics = new UserSessionStatistics(
-                    userCounts.totalUsers(),
-                    userCounts.activeUsers(),
-                    userCounts.onlineUsers(),
-                    userCounts.totalUsers() - userCounts.activeUsers(),
-                    getNewUsersCount(1),
-                    getNewUsersCount(7),
-                    getNewUsersCount(30),
-                    getUsersWithPendingOrdersCount(),
-                    averages.averageOrders,
-                    averages.averageStarsPurchased,
-                    getAverageSessionDurationHours());
-
-            long duration = System.currentTimeMillis() - startTime;
-            log.info("📊 Статистика сессий получена за {}ms", duration);
-
-            return statistics;
-
-        } catch (Exception e) {
-            long errorTime = System.currentTimeMillis() - startTime;
-            log.error("Ошибка получения статистики сессий после {}ms", errorTime, e);
-            return new UserSessionStatistics(0L, 0L, 0L, 0L, 0L, 0L, 0L, 0L, 0.0, 0.0, 0.0);
-        }
-    }
-
-    // ===========================================
-    // АСИНХРОННЫЕ МЕТОДЫ ОПТИМИЗАЦИИ
-    // ===========================================
-
-    /**
-     * Асинхронная синхронизация с PostgreSQL для оптимизации производительности
-     */
-    @Async("userActivityLoggingExecutor")
-    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
-    public void asyncCreateOrUpdateSessionEntity(UserSession userSession) {
-        try {
-            log.trace("Начало асинхронной синхронизации для пользователя {}", userSession.getUserId());
-
-            Optional<UserSessionEntity> existingOpt = sessionRepository.findByUserId(userSession.getUserId());
-
-            UserSessionEntity entity;
-            if (existingOpt.isPresent()) {
-                entity = existingOpt.get();
-                updateEntityFromSession(entity, userSession);
-            } else {
-                entity = createEntityFromSession(userSession);
-            }
-
-            UserSessionEntity saved = sessionRepository.save(entity);
-            log.trace("Сессия асинхронно синхронизирована для пользователя {} с ID: {}",
-                    userSession.getUserId(), saved.getId());
-
-        } catch (Exception e) {
-            log.warn("Ошибка асинхронной синхронизации сессии для пользователя {}: {}",
-                    userSession.getUserId(), e.getMessage());
-            // Не прерываем работу при ошибке асинхронной синхронизации
-        }
-    }
-
-    /**
-     * Batch обновление активности пользователей для оптимизации
-     */
-    @Async("userActivityLoggingExecutor")
-    @Transactional
-    public void batchUpdateUserActivity(List<Long> userIds) {
-        if (userIds == null || userIds.isEmpty()) {
-            return;
-        }
-
-        long startTime = System.currentTimeMillis();
-
-        try {
-            LocalDateTime now = LocalDateTime.now();
-            int updatedCount = 0;
-
-            // Batch обновление через native query для оптимизации
-            for (Long userId : userIds) {
-                int updated = sessionRepository.updateUserActivity(userId, now);
-                updatedCount += updated;
-            }
-
-            long duration = System.currentTimeMillis() - startTime;
-            log.info("🚀 BATCH UPDATE: Обновлено {} пользователей за {}ms", updatedCount, duration);
-
-        } catch (Exception e) {
-            long errorTime = System.currentTimeMillis() - startTime;
-            log.error("Ошибка batch обновления активности после {}ms: {}", errorTime, e.getMessage(), e);
-        }
-    }
-
-    // ===========================================
-    // КЭШИРОВАННЫЕ ЗАПРОСЫ
-    // ===========================================
-
-    @Cacheable(value = "onlineUsersCache", unless = "#result.isEmpty()")
-    @Transactional(readOnly = true)
-    public List<UserSessionEntity> getOnlineUsers() {
-        long startTime = System.currentTimeMillis();
-
-        try {
-            LocalDateTime cutoff = LocalDateTime.now().minusMinutes(5);
-            List<UserSessionEntity> users = sessionRepository.findOnlineUsers(cutoff);
-
-            long duration = System.currentTimeMillis() - startTime;
-            log.debug("Онлайн пользователи получены за {}ms (найдено: {})", duration, users.size());
-
-            return users;
-        } catch (Exception e) {
-            log.error("Ошибка получения онлайн пользователей", e);
-            return List.of();
-        }
-    }
-
-    @Cacheable(value = "activeSessionsCache", unless = "#result.isEmpty()")
-    @Transactional(readOnly = true)
-    public List<UserSessionEntity> getActiveSessions() {
+    public List<UserSessionEntity> getActiveSessionsOptimized() {
         long startTime = System.currentTimeMillis();
 
         try {
             List<UserSessionEntity> sessions = sessionRepository.findByIsActiveTrueOrderByLastActivityDesc();
 
             long duration = System.currentTimeMillis() - startTime;
-            log.debug("Активные сессии получены за {}ms (найдено: {})", duration, sessions.size());
+            log.debug("✅ ACTIVE SESSIONS: Получено {} сессий за {}ms", sessions.size(), duration);
 
             return sessions;
+
         } catch (Exception e) {
-            log.error("Ошибка получения активных сессий", e);
+            long duration = System.currentTimeMillis() - startTime;
+            log.error("🚨 ACTIVE SESSIONS ERROR: Ошибка после {}ms: {}", duration, e.getMessage(), e);
             return List.of();
         }
     }
 
-    // ===========================================
-    // ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
-    // ===========================================
-
     /**
-     * Нормализация строковых данных
+     * Асинхронное обновление сессии если требуется
      */
-    private String normalizeString(String value) {
-        if (value != null && value.trim().isEmpty()) {
-            return null;
-        }
-        return value;
-    }
-
-    /**
-     * Обновление метрик производительности
-     */
-    private void updatePerformanceMetrics(long duration) {
-        totalQueryTime.addAndGet(duration);
-        queryCount.incrementAndGet();
-
-        // Логирование средней производительности каждые 100 запросов
-        long count = queryCount.get();
-        if (count % 100 == 0) {
-            long avgTime = totalQueryTime.get() / count;
-            log.info("📈 МЕТРИКИ: Средняя производительность за {} запросов: {}ms", count, avgTime);
+    @Async("userActivityLoggingExecutor")
+    private void updateSessionAsyncIfNeeded(UserSession session) {
+        if (shouldUpdateSession(session)) {
+            synchronizeSessionAsyncOptimized(session);
         }
     }
 
     /**
-     * Создание entity из сессии
+     * Проверка необходимости обновления сессии в БД
      */
-    private UserSessionEntity createEntityFromSession(UserSession userSession) {
-        UserSessionEntity entity = new UserSessionEntity(
-                userSession.getUserId(),
-                userSession.getUsername(),
-                userSession.getFirstName(),
-                userSession.getLastName());
-
-        updateEntityFromSession(entity, userSession);
-        return entity;
+    private boolean shouldUpdateSession(UserSession session) {
+        // Обновляем если последняя активность была более 1 минуты назад
+        return session.getLastActivity().isBefore(LocalDateTime.now().minusMinutes(1));
     }
 
     /**
-     * Обновление entity данными из сессии
+     * Очистка старых записей из кэша
      */
-    private void updateEntityFromSession(UserSessionEntity entity, UserSession userSession) {
-        entity.setUsername(userSession.getUsername());
-        entity.setFirstName(userSession.getFirstName());
-        entity.setLastName(userSession.getLastName());
+    private void cleanupOldCacheEntries() {
+        LocalDateTime cutoff = LocalDateTime.now().minusHours(2);
+        int removedCount = 0;
 
-        if (userSession.getState() != null) {
-            entity.setState(convertSessionState(userSession.getState()));
+        activeSessionsCache.entrySet().removeIf(entry -> {
+            if (entry.getValue().getLastActivity().isBefore(cutoff)) {
+                return true;
+            }
+            return false;
+        });
+
+        if (removedCount > 0) {
+            log.info("🧹 CACHE CLEANUP: Удалено {} старых записей из кэша", removedCount);
+        }
+    }
+
+    /**
+     * Запланированная очистка кэша
+     */
+    @Scheduled(fixedRate = 300000) // каждые 5 минут
+    @CacheEvict(value = { "userCountsCache", "activeSessionsCache" }, allEntries = true)
+    public void scheduledCacheCleanup() {
+        cleanupOldCacheEntries();
+
+        // Логируем статистику кэша
+        logCacheStatistics();
+    }
+
+    /**
+     * Статистика производительности кэша
+     */
+    private void logCacheStatistics() {
+        int hits = cacheHits.get();
+        int misses = cacheMisses.get();
+        int total = hits + misses;
+        double hitRatio = total > 0 ? (double) hits / total * 100 : 0;
+
+        log.info("📊 CACHE STATS: Попаданий: {}, Промахов: {}, Hit Ratio: {:.1f}%, DB операций: {}",
+                hits, misses, hitRatio, dbOperations.get());
+        log.info("📊 CACHE SIZE: Активных сессий в кэше: {}/{}",
+                activeSessionsCache.size(), CACHE_SIZE_LIMIT);
+    }
+
+    /**
+     * Получить метрики производительности
+     */
+    public PerformanceMetrics getPerformanceMetrics() {
+        int hits = cacheHits.get();
+        int misses = cacheMisses.get();
+        int total = hits + misses;
+        double hitRatio = total > 0 ? (double) hits / total * 100 : 0;
+
+        return new PerformanceMetrics(
+                hits, misses, hitRatio,
+                activeSessionsCache.size(), CACHE_SIZE_LIMIT,
+                dbOperations.get(), PERFORMANCE_THRESHOLD_MS);
+    }
+
+    /**
+     * Вспомогательные методы для работы с entity
+     */
+    private void updateEntityFromSession(UserSessionEntity entity, UserSession session) {
+        entity.setUsername(session.getUsername());
+        entity.setFirstName(session.getFirstName());
+        entity.setLastName(session.getLastName());
+
+        if (session.getState() != null) {
+            entity.setState(convertSessionState(session.getState()));
         }
 
-        if (userSession.getOrderId() != null) {
-            entity.setCurrentOrderId(userSession.getOrderId());
+        if (session.getOrderId() != null) {
+            entity.setCurrentOrderId(session.getOrderId());
         }
 
-        if (userSession.getPaymentType() != null) {
-            entity.setPaymentType(userSession.getPaymentType());
+        if (session.getPaymentType() != null) {
+            entity.setPaymentType(session.getPaymentType());
         }
 
         entity.updateActivity();
+    }
+
+    private UserSessionEntity createEntityFromSession(UserSession session) {
+        UserSessionEntity entity = new UserSessionEntity(
+                session.getUserId(),
+                session.getUsername(),
+                session.getFirstName(),
+                session.getLastName());
+
+        if (session.getState() != null) {
+            entity.setState(convertSessionState(session.getState()));
+        }
+
+        if (session.getOrderId() != null) {
+            entity.setCurrentOrderId(session.getOrderId());
+        }
+
+        if (session.getPaymentType() != null) {
+            entity.setPaymentType(session.getPaymentType());
+        }
+
+        return entity;
     }
 
     /**
@@ -431,235 +416,34 @@ public class OptimizedUserSessionService {
         };
     }
 
-    // ===========================================
-    // МЕТОДЫ СТАТИСТИКИ (ОПТИМИЗИРОВАННЫЕ)
-    // ===========================================
-
-    @Transactional(readOnly = true)
-    public long getNewUsersCount(int days) {
-        try {
-            LocalDateTime since = LocalDateTime.now().minusDays(days);
-            return sessionRepository.countByCreatedAtAfter(since);
-        } catch (Exception e) {
-            log.error("Ошибка получения количества новых пользователей за {} дней", days, e);
-            return 0L;
-        }
-    }
-
-    @Transactional(readOnly = true)
-    public long getUsersWithPendingOrdersCount() {
-        try {
-            return sessionRepository.countUsersWithPendingOrders();
-        } catch (Exception e) {
-            log.error("Ошибка получения количества пользователей с ожидающими заказами", e);
-            return 0L;
-        }
-    }
-
-    @Transactional(readOnly = true)
-    public UserActivityAverages getAverageUserActivity() {
-        try {
-            List<Object[]> results = sessionRepository.getAverageUserActivity();
-            if (!results.isEmpty()) {
-                Object[] row = results.get(0);
-                return new UserActivityAverages(
-                        row[0] != null ? ((Number) row[0]).doubleValue() : 0.0,
-                        row[1] != null ? ((Number) row[1]).doubleValue() : 0.0);
-            }
-            return new UserActivityAverages(0.0, 0.0);
-        } catch (Exception e) {
-            log.error("Ошибка получения средней активности пользователей", e);
-            return new UserActivityAverages(0.0, 0.0);
-        }
-    }
-
-    @Transactional(readOnly = true)
-    public Double getAverageSessionDurationHours() {
-        try {
-            Double duration = sessionRepository.getAverageSessionDurationHours();
-            return duration != null ? duration : 0.0;
-        } catch (Exception e) {
-            log.error("Ошибка получения средней продолжительности сессии", e);
-            return 0.0;
-        }
-    }
-
-    // ===========================================
-    // SCHEDULED МЕТОДЫ ОПТИМИЗАЦИИ
-    // ===========================================
-
     /**
-     * Автоматическая очистка и оптимизация каждый час
+     * Метрики производительности
      */
-    @Scheduled(fixedRate = 3600000) // Каждый час
-    @Transactional
-    public void scheduledOptimization() {
-        try {
-            // Очистка PostgreSQL
-            int deactivated = deactivateExpiredSessions(48);
+    public static class PerformanceMetrics {
+        public final int cacheHits;
+        public final int cacheMisses;
+        public final double hitRatio;
+        public final int cacheSize;
+        public final int maxCacheSize;
+        public final int dbOperations;
+        public final int performanceThresholdMs;
 
-            // Очистка in-memory кэша
-            cleanupOldSessions();
-
-            // Логирование результатов
-            if (deactivated > 0) {
-                log.info("🧹 SCHEDULED CLEANUP: Деактивировано {} истёкших сессий", deactivated);
-            }
-
-            // Логирование метрик производительности
-            long avgTime = queryCount.get() > 0 ? totalQueryTime.get() / queryCount.get() : 0;
-            log.info("📊 PERFORMANCE METRICS: Среднее время запроса: {}ms, Всего запросов: {}",
-                    avgTime, queryCount.get());
-
-        } catch (Exception e) {
-            log.error("Ошибка во время запланированной оптимизации", e);
-        }
-    }
-
-    @Transactional
-    public int deactivateExpiredSessions(int hours) {
-        try {
-            LocalDateTime cutoff = LocalDateTime.now().minusHours(hours);
-            int deactivated = sessionRepository.deactivateExpiredSessions(cutoff);
-            if (deactivated > 0) {
-                log.info("Деактивировано {} истёкших сессий", deactivated);
-            }
-            return deactivated;
-        } catch (Exception e) {
-            log.error("Ошибка деактивации истёкших сессий", e);
-            return 0;
-        }
-    }
-
-    public void cleanupOldSessions() {
-        try {
-            LocalDateTime cutoff = LocalDateTime.now().minusHours(24);
-            int initialSize = userSessions.size();
-            userSessions.entrySet().removeIf(entry -> entry.getValue().getLastActivity().isBefore(cutoff));
-
-            int removedCount = initialSize - userSessions.size();
-            if (removedCount > 0) {
-                log.info("🧹 Очищено {} старых in-memory сессий", removedCount);
-            }
-        } catch (Exception e) {
-            log.error("Ошибка очистки in-memory сессий", e);
-        }
-    }
-
-    // ===========================================
-    // МЕТОДЫ ДЛЯ МОНИТОРИНГА
-    // ===========================================
-
-    public int getActiveSessionsCount() {
-        return userSessions.size();
-    }
-
-    public int getTotalOrdersCount() {
-        return orders.size();
-    }
-
-    public long getAverageQueryTime() {
-        return queryCount.get() > 0 ? totalQueryTime.get() / queryCount.get() : 0;
-    }
-
-    public long getTotalQueries() {
-        return queryCount.get();
-    }
-
-    // ===========================================
-    // DATA TRANSFER OBJECTS (ИЗ ИСХОДНОГО КОДА)
-    // ===========================================
-
-    public static class UserSessionStatistics {
-        public final long totalUsers;
-        public final long activeUsers;
-        public final long onlineUsers;
-        public final long inactiveUsers;
-        public final long newUsersToday;
-        public final long newUsersThisWeek;
-        public final long newUsersThisMonth;
-        public final long usersWithPendingOrders;
-        public final Double averageOrdersPerUser;
-        public final Double averageStarsPerUser;
-        public final Double averageSessionDurationHours;
-
-        public UserSessionStatistics(long totalUsers, long activeUsers, long onlineUsers, long inactiveUsers,
-                long newUsersToday, long newUsersThisWeek, long newUsersThisMonth, long usersWithPendingOrders,
-                Double averageOrdersPerUser, Double averageStarsPerUser, Double averageSessionDurationHours) {
-            this.totalUsers = totalUsers;
-            this.activeUsers = activeUsers;
-            this.onlineUsers = onlineUsers;
-            this.inactiveUsers = inactiveUsers;
-            this.newUsersToday = newUsersToday;
-            this.newUsersThisWeek = newUsersThisWeek;
-            this.newUsersThisMonth = newUsersThisMonth;
-            this.usersWithPendingOrders = usersWithPendingOrders;
-            this.averageOrdersPerUser = averageOrdersPerUser;
-            this.averageStarsPerUser = averageStarsPerUser;
-            this.averageSessionDurationHours = averageSessionDurationHours;
+        public PerformanceMetrics(int cacheHits, int cacheMisses, double hitRatio,
+                int cacheSize, int maxCacheSize, int dbOperations, int performanceThresholdMs) {
+            this.cacheHits = cacheHits;
+            this.cacheMisses = cacheMisses;
+            this.hitRatio = hitRatio;
+            this.cacheSize = cacheSize;
+            this.maxCacheSize = maxCacheSize;
+            this.dbOperations = dbOperations;
+            this.performanceThresholdMs = performanceThresholdMs;
         }
 
-        // Getters для совместимости
-        public long getTotalUsers() {
-            return totalUsers;
-        }
-
-        public long getActiveUsers() {
-            return activeUsers;
-        }
-
-        public long getOnlineUsers() {
-            return onlineUsers;
-        }
-
-        public long getInactiveUsers() {
-            return inactiveUsers;
-        }
-
-        public long getNewUsersToday() {
-            return newUsersToday;
-        }
-
-        public long getNewUsersThisWeek() {
-            return newUsersThisWeek;
-        }
-
-        public long getNewUsersThisMonth() {
-            return newUsersThisMonth;
-        }
-
-        public long getUsersWithPendingOrders() {
-            return usersWithPendingOrders;
-        }
-
-        public Double getAverageOrdersPerUser() {
-            return averageOrdersPerUser;
-        }
-
-        public Double getAverageStarsPerUser() {
-            return averageStarsPerUser;
-        }
-
-        public Double getAverageSessionDurationHours() {
-            return averageSessionDurationHours;
-        }
-    }
-
-    public static class UserActivityAverages {
-        public final Double averageOrders;
-        public final Double averageStarsPurchased;
-
-        public UserActivityAverages(Double averageOrders, Double averageStarsPurchased) {
-            this.averageOrders = averageOrders;
-            this.averageStarsPurchased = averageStarsPurchased;
-        }
-
-        public Double getAverageOrders() {
-            return averageOrders;
-        }
-
-        public Double getAverageStarsPurchased() {
-            return averageStarsPurchased;
+        @Override
+        public String toString() {
+            return String.format(
+                    "SessionMetrics{hits=%d, misses=%d, hitRatio=%.1f%%, cache=%d/%d, dbOps=%d, threshold=%dms}",
+                    cacheHits, cacheMisses, hitRatio, cacheSize, maxCacheSize, dbOperations, performanceThresholdMs);
         }
     }
 }

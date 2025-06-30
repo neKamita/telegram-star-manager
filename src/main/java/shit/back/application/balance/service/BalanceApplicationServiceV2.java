@@ -17,7 +17,10 @@ import shit.back.domain.balance.exceptions.InvalidTransactionException;
 import shit.back.domain.balance.valueobjects.*;
 import shit.back.infrastructure.events.DomainEventPublisher;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -31,8 +34,7 @@ import java.util.concurrent.CompletableFuture;
  * - Interface Segregation: Разделенные интерфейсы
  * - Dependency Inversion: Зависимости только на абстракции
  *
- * ИСПРАВЛЕНО: Интегрирован с BalanceAggregateRepository для реальной работы с
- * данными
+ * ИСПРАВЛЕНО: Реализован реальный executeOperation вместо заглушки
  */
 @Service
 @Transactional
@@ -44,23 +46,24 @@ public class BalanceApplicationServiceV2 implements BalanceApplicationFacade {
         private final BalanceAggregateRepository balanceAggregateRepository;
         private final TransactionAggregateRepository transactionAggregateRepository;
         private final DomainEventPublisher eventPublisher;
-
-        // Заглушка для balanceCommandService
-        private final BalanceCommandServiceStub balanceCommandService = new BalanceCommandServiceStub();
+        private final BalancePolicy balancePolicy;
 
         public BalanceApplicationServiceV2(
                         BalanceAggregateRepository balanceAggregateRepository,
                         TransactionAggregateRepository transactionAggregateRepository,
-                        DomainEventPublisher eventPublisher) {
+                        DomainEventPublisher eventPublisher,
+                        BalancePolicy balancePolicy) {
                 this.balanceAggregateRepository = balanceAggregateRepository;
                 this.transactionAggregateRepository = transactionAggregateRepository;
                 this.eventPublisher = eventPublisher;
+                this.balancePolicy = balancePolicy;
         }
 
         // ==================== COMMAND OPERATIONS (CQRS) ====================
 
         /**
          * Пополнение баланса - Single Responsibility
+         * ИСПРАВЛЕНО: Теперь использует реальную реализацию executeOperation
          */
         @Override
         @Transactional
@@ -69,144 +72,146 @@ public class BalanceApplicationServiceV2 implements BalanceApplicationFacade {
                                 request.getUserId(), request.getAmount());
 
                 return validateRequest(request)
-                                .flatMap(validRequest -> balanceCommandService.executeOperation(validRequest))
+                                .flatMap(this::executeOperation)
                                 .map(this::convertToResponse)
                                 .tapSuccess(response -> publishOperationEvent(request, response))
-                                .tapError(
-                                                error -> log.error("Operation failed for user {}: {}",
-                                                                request.getUserId(), error.getMessage()));
+                                .tapError(error -> log.error("Operation failed for user {}: {}",
+                                                request.getUserId(), error.getMessage()));
+        }
+
+        /**
+         * КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Реальная реализация executeOperation
+         * Заменяет заглушку "Stub: implement executeOperation"
+         */
+        private Result<BalanceAggregate> executeOperation(OperationRequest request) {
+                try {
+                        log.debug("Выполнение операции {} для пользователя {}", request.getOperationType(),
+                                        request.getUserId());
+
+                        // Получаем или создаем баланс
+                        BalanceAggregate balance = getOrCreateBalance(request.getUserId(), request.getCurrency());
+                        Money amount = Money.of(request.getAmount());
+
+                        // Выполняем операцию в зависимости от типа
+                        switch (request.getOperationType()) {
+                                case DEPOSIT:
+                                        balance.deposit(amount, request.getDescription(), request.getIdempotencyKey());
+                                        break;
+                                case WITHDRAW:
+                                        balance.withdraw(amount, request.getDescription(), request.getIdempotencyKey());
+                                        break;
+                                case RESERVE:
+                                        balance.reserve(amount, request.getOrderId(), request.getDescription(),
+                                                        request.getIdempotencyKey());
+                                        break;
+                                case RELEASE:
+                                        balance.release(amount, request.getOrderId(), request.getDescription(),
+                                                        request.getIdempotencyKey());
+                                        break;
+                                case REFUND:
+                                        balance.refund(amount, request.getDescription(), request.getIdempotencyKey(),
+                                                        request.getOrderId());
+                                        break;
+                                case ADJUSTMENT:
+                                        balance.adjustBalance(amount, request.getReason(), request.getAdminId(),
+                                                        request.getIdempotencyKey());
+                                        break;
+                                default:
+                                        return Result.error(new InvalidTransactionException("UNSUPPORTED_OPERATION",
+                                                        request.getOperationType().toString(),
+                                                        "Поддерживаемая операция"));
+                        }
+
+                        // Сохраняем изменения
+                        BalanceAggregate savedBalance = balanceAggregateRepository.save(balance);
+
+                        log.info("Операция {} успешно выполнена для пользователя {}, новый баланс: {}",
+                                        request.getOperationType(), request.getUserId(),
+                                        savedBalance.getCurrentBalance().getFormattedAmount());
+
+                        return Result.success(savedBalance);
+
+                } catch (Exception e) {
+                        log.error("Ошибка выполнения операции {} для пользователя {}: {}",
+                                        request.getOperationType(), request.getUserId(), e.getMessage(), e);
+                        return Result.error(new InvalidTransactionException("OPERATION_EXECUTION_ERROR",
+                                        e.getMessage(), "Корректные данные операции"));
+                }
+        }
+
+        /**
+         * Получение или создание баланса пользователя
+         */
+        private BalanceAggregate getOrCreateBalance(Long userId, String currencyCode) {
+                // Пытаемся найти существующий баланс
+                Optional<BalanceAggregate> existingBalance = balanceAggregateRepository.findByUserId(userId);
+                if (existingBalance.isPresent()) {
+                        return existingBalance.get();
+                }
+
+                // Создаем новый баланс если не найден
+                log.info("Создание нового баланса для пользователя {}", userId);
+                Currency currency = Currency.of(currencyCode != null ? currencyCode : "USD");
+
+                // Используем конструктор с BalancePolicy
+                BalanceAggregate newBalance = new BalanceAggregate(userId, currency, balancePolicy);
+                return balanceAggregateRepository.save(newBalance);
         }
 
         /**
          * Снятие с баланса - Single Responsibility
-         * ИСПРАВЛЕНО: Заглушка до полной реализации
          */
         @Transactional
         public Result<BalanceResponse> processWithdrawal(OperationRequest request) {
                 log.debug("Processing withdrawal for user {}, amount {}", request.getUserId(), request.getAmount());
-
-                try {
-                        var validationResult = validateRequest(request);
-                        if (!validationResult.isSuccess()) {
-                                return Result.error(validationResult.getError());
-                        }
-
-                        log.warn("Withdrawal operation not implemented yet for user {}", request.getUserId());
-                        return Result.error(new InvalidTransactionException("WITHDRAWAL_NOT_IMPLEMENTED",
-                                        "Withdrawal service not available", "Implemented withdrawal service"));
-
-                } catch (Exception e) {
-                        log.error("Withdrawal failed for user {}: {}", request.getUserId(), e.getMessage(), e);
-                        return Result.error(new InvalidTransactionException("WITHDRAWAL_ERROR",
-                                        e.getMessage(), "Валидные данные"));
-                }
+                request.setOperationType(OperationRequest.OperationType.WITHDRAW);
+                return processOperation(request);
         }
 
         /**
          * Резервирование средств - Single Responsibility
-         * ИСПРАВЛЕНО: Заглушка до полной реализации
          */
         @Transactional
         public Result<BalanceResponse> processReservation(OperationRequest request) {
                 log.debug("Processing reservation for user {}, amount {}", request.getUserId(), request.getAmount());
-
-                try {
-                        var validationResult = validateRequest(request);
-                        if (!validationResult.isSuccess()) {
-                                return Result.error(validationResult.getError());
-                        }
-
-                        log.warn("Reservation operation not implemented yet for user {}", request.getUserId());
-                        return Result.error(new InvalidTransactionException("RESERVATION_NOT_IMPLEMENTED",
-                                        "Reservation service not available", "Implemented reservation service"));
-
-                } catch (Exception e) {
-                        log.error("Reservation failed for user {}: {}", request.getUserId(), e.getMessage(), e);
-                        return Result.error(new InvalidTransactionException("RESERVATION_ERROR",
-                                        e.getMessage(), "Валидные данные"));
-                }
+                request.setOperationType(OperationRequest.OperationType.RESERVE);
+                return processOperation(request);
         }
 
         /**
          * Освобождение резерва - Single Responsibility
-         * ИСПРАВЛЕНО: Заглушка до полной реализации
          */
         @Transactional
         public Result<BalanceResponse> processRelease(OperationRequest request) {
                 log.debug("Processing release for user {}, amount {}", request.getUserId(), request.getAmount());
-
-                try {
-                        var validationResult = validateRequest(request);
-                        if (!validationResult.isSuccess()) {
-                                return Result.error(validationResult.getError());
-                        }
-
-                        log.warn("Release operation not implemented yet for user {}", request.getUserId());
-                        return Result.error(new InvalidTransactionException("RELEASE_NOT_IMPLEMENTED",
-                                        "Release service not available", "Implemented release service"));
-
-                } catch (Exception e) {
-                        log.error("Release failed for user {}: {}", request.getUserId(), e.getMessage(), e);
-                        return Result.error(new InvalidTransactionException("RELEASE_ERROR",
-                                        e.getMessage(), "Валидные данные"));
-                }
+                request.setOperationType(OperationRequest.OperationType.RELEASE);
+                return processOperation(request);
         }
 
         /**
          * Возврат средств - Single Responsibility
-         * ИСПРАВЛЕНО: Заглушка до полной реализации
          */
         @Transactional
         public Result<BalanceResponse> processRefund(OperationRequest request) {
                 log.debug("Processing refund for user {}, amount {}", request.getUserId(), request.getAmount());
-
-                try {
-                        var validationResult = validateRequest(request);
-                        if (!validationResult.isSuccess()) {
-                                return Result.error(validationResult.getError());
-                        }
-
-                        log.warn("Refund operation not implemented yet for user {}", request.getUserId());
-                        return Result.error(new InvalidTransactionException("REFUND_NOT_IMPLEMENTED",
-                                        "Refund service not available", "Implemented refund service"));
-
-                } catch (Exception e) {
-                        log.error("Refund failed for user {}: {}", request.getUserId(), e.getMessage(), e);
-                        return Result.error(new InvalidTransactionException("REFUND_ERROR",
-                                        e.getMessage(), "Валидные данные"));
-                }
+                request.setOperationType(OperationRequest.OperationType.REFUND);
+                return processOperation(request);
         }
 
         /**
          * Административная корректировка - Single Responsibility
-         * ИСПРАВЛЕНО: Заглушка до полной реализации
          */
         @Transactional
         public Result<BalanceResponse> processAdjustment(OperationRequest request) {
                 log.debug("Processing adjustment for user {}, amount {}", request.getUserId(), request.getAmount());
-
-                try {
-                        var validationResult = validateAdminRequest(request);
-                        if (!validationResult.isSuccess()) {
-                                return Result.error(validationResult.getError());
-                        }
-
-                        log.warn("Adjustment operation not implemented yet for user {}", request.getUserId());
-                        return Result.error(new InvalidTransactionException("ADJUSTMENT_NOT_IMPLEMENTED",
-                                        "Adjustment service not available", "Implemented adjustment service"));
-
-                } catch (Exception e) {
-                        log.error("Adjustment failed for user {}: {}", request.getUserId(), e.getMessage(), e);
-                        return Result.error(new InvalidTransactionException("ADJUSTMENT_ERROR",
-                                        e.getMessage(), "Валидные данные"));
-                }
+                request.setOperationType(OperationRequest.OperationType.ADJUSTMENT);
+                return processOperation(request);
         }
 
         // ==================== QUERY OPERATIONS (CQRS) ====================
 
         /**
          * Получение баланса пользователя - Read-only operation
-         * ИСПРАВЛЕНО: Реальная интеграция с BalanceAggregateRepository
          */
         @Override
         @Transactional(readOnly = true)
@@ -214,7 +219,6 @@ public class BalanceApplicationServiceV2 implements BalanceApplicationFacade {
                 log.debug("Getting balance for user {}", userId);
 
                 try {
-                        // Ищем баланс пользователя в базе данных
                         var balanceOptional = balanceAggregateRepository.findByUserId(userId);
 
                         if (balanceOptional.isEmpty()) {
@@ -240,7 +244,6 @@ public class BalanceApplicationServiceV2 implements BalanceApplicationFacade {
 
         /**
          * Получение истории транзакций - Read-only operation
-         * ИСПРАВЛЕНО: Интеграция с TransactionAggregateRepository
          */
         @Override
         @Transactional(readOnly = true)
@@ -248,7 +251,6 @@ public class BalanceApplicationServiceV2 implements BalanceApplicationFacade {
                 log.debug("Getting transaction history for user {}, page {}, size {}", userId, page, size);
 
                 try {
-                        // Получаем транзакции через repository (если реализован)
                         // Временно возвращаем пустой список
                         log.warn("Transaction history not implemented yet for user {}", userId);
                         return Result.success(List.of());
@@ -262,7 +264,6 @@ public class BalanceApplicationServiceV2 implements BalanceApplicationFacade {
 
         /**
          * Получение статистики баланса - Read-only operation
-         * ИСПРАВЛЕНО: Простая реализация без balancePolicy
          */
         @Override
         @Transactional(readOnly = true)
@@ -270,7 +271,6 @@ public class BalanceApplicationServiceV2 implements BalanceApplicationFacade {
                 log.debug("Getting balance statistics for user {}", userId);
 
                 try {
-                        // Временно возвращаем заглушку статистики
                         log.warn("Balance statistics not implemented yet for user {}", userId);
                         return Result.error(new InvalidTransactionException("STATISTICS_NOT_IMPLEMENTED",
                                         "Statistics service not available", "Implemented statistics service"));
@@ -284,7 +284,6 @@ public class BalanceApplicationServiceV2 implements BalanceApplicationFacade {
 
         /**
          * Проверка достаточности средств - Read-only operation
-         * ИСПРАВЛЕНО: Интеграция с BalanceAggregateRepository
          */
         @Override
         @Transactional(readOnly = true)
@@ -325,11 +324,6 @@ public class BalanceApplicationServiceV2 implements BalanceApplicationFacade {
         }
 
         /**
-         * Асинхронное снятие с баланса
-         */
-        // остальные методы объединены в processOperationAsync
-
-        /**
          * Batch операции - для performance optimization
          */
         @Override
@@ -339,17 +333,45 @@ public class BalanceApplicationServiceV2 implements BalanceApplicationFacade {
 
                 return Result.success(requests)
                                 .flatMap(this::validateBatchRequests)
-                                .flatMap(validRequests -> balanceCommandService.executeBatch(validRequests))
+                                .flatMap(this::executeBatchOperations)
                                 .map(this::convertBatchToResponse)
                                 .tapSuccess(responses -> publishBatchEvent(requests, responses))
                                 .tapError(error -> log.error("Batch operation failed: {}", error.getMessage()));
+        }
+
+        /**
+         * Выполнение batch операций
+         */
+        private Result<List<BalanceAggregate>> executeBatchOperations(List<OperationRequest> requests) {
+                try {
+                        log.debug("Выполнение batch операций, количество: {}", requests.size());
+
+                        List<BalanceAggregate> results = new ArrayList<>();
+                        for (OperationRequest request : requests) {
+                                Result<BalanceAggregate> result = executeOperation(request);
+                                if (result.isSuccess()) {
+                                        results.add(result.getValue());
+                                } else {
+                                        log.error("Ошибка в batch операции для пользователя {}: {}",
+                                                        request.getUserId(), result.getError().getMessage());
+                                        return Result.error(result.getError());
+                                }
+                        }
+
+                        log.info("Batch операции успешно выполнены, количество: {}", results.size());
+                        return Result.success(results);
+
+                } catch (Exception e) {
+                        log.error("Критическая ошибка выполнения batch операций: {}", e.getMessage(), e);
+                        return Result.error(new InvalidTransactionException("BATCH_EXECUTION_ERROR",
+                                        e.getMessage(), "Корректные данные batch операций"));
+                }
         }
 
         // ==================== PRIVATE HELPER METHODS ====================
 
         /**
          * Functional validation with Result pattern - DRY principle
-         * ИСПРАВЛЕНО: Простая валидация без balancePolicy
          */
         private <T> Result<T> validateRequest(T request) {
                 if (request == null) {
@@ -360,20 +382,7 @@ public class BalanceApplicationServiceV2 implements BalanceApplicationFacade {
         }
 
         /**
-         * Admin request validation - Single Responsibility
-         * ИСПРАВЛЕНО: Простая валидация без balancePolicy
-         */
-        private <T> Result<T> validateAdminRequest(T request) {
-                if (request == null) {
-                        return Result.error(new InvalidTransactionException("ADMIN_VALIDATION_FAILED",
-                                        "null", "Valid admin request"));
-                }
-                return Result.success(request);
-        }
-
-        /**
          * Batch validation - DRY principle
-         * ИСПРАВЛЕНО: Простая валидация без balancePolicy
          */
         private Result<List<OperationRequest>> validateBatchRequests(List<OperationRequest> requests) {
                 if (requests == null || requests.isEmpty()) {
@@ -386,10 +395,6 @@ public class BalanceApplicationServiceV2 implements BalanceApplicationFacade {
         /**
          * Response conversion - Single Responsibility
          */
-        private ApiResponse<BalanceResponse> convertToApiResponse(BalanceAggregate balance) {
-                return ApiResponse.success(convertToResponse(balance));
-        }
-
         private BalanceResponse convertToResponse(BalanceAggregate balance) {
                 return BalanceResponse.builder()
                                 .userId(balance.getUserId())
@@ -443,31 +448,6 @@ public class BalanceApplicationServiceV2 implements BalanceApplicationFacade {
                                 new OperationProcessedEvent(request, response));
         }
 
-        private void publishWithdrawalEvent(OperationRequest request, BalanceResponse response) {
-                eventPublisher.publishEventAfterTransaction(
-                                new WithdrawalProcessedEvent(request, response));
-        }
-
-        private void publishReservationEvent(OperationRequest request, BalanceResponse response) {
-                eventPublisher.publishEventAfterTransaction(
-                                new ReservationProcessedEvent(request, response));
-        }
-
-        private void publishReleaseEvent(OperationRequest request, BalanceResponse response) {
-                eventPublisher.publishEventAfterTransaction(
-                                new ReleaseProcessedEvent(request, response));
-        }
-
-        private void publishRefundEvent(OperationRequest request, BalanceResponse response) {
-                eventPublisher.publishEventAfterTransaction(
-                                new RefundProcessedEvent(request, response));
-        }
-
-        private void publishAdjustmentEvent(OperationRequest request, BalanceResponse response) {
-                eventPublisher.publishEventAfterTransaction(
-                                new AdjustmentProcessedEvent(request, response));
-        }
-
         private void publishBatchEvent(List<OperationRequest> requests, List<BalanceResponse> responses) {
                 eventPublisher.publishEventAfterTransaction(
                                 new BatchOperationProcessedEvent(requests, responses));
@@ -481,44 +461,8 @@ public class BalanceApplicationServiceV2 implements BalanceApplicationFacade {
                 }
         }
 
-        public static class WithdrawalProcessedEvent {
-                public WithdrawalProcessedEvent(OperationRequest request, BalanceResponse response) {
-                }
-        }
-
-        public static class ReservationProcessedEvent {
-                public ReservationProcessedEvent(OperationRequest request, BalanceResponse response) {
-                }
-        }
-
-        public static class ReleaseProcessedEvent {
-                public ReleaseProcessedEvent(OperationRequest request, BalanceResponse response) {
-                }
-        }
-
-        public static class RefundProcessedEvent {
-                public RefundProcessedEvent(OperationRequest request, BalanceResponse response) {
-                }
-        }
-
-        public static class AdjustmentProcessedEvent {
-                public AdjustmentProcessedEvent(OperationRequest request, BalanceResponse response) {
-                }
-        }
-
         public static class BatchOperationProcessedEvent {
                 public BatchOperationProcessedEvent(List<OperationRequest> requests, List<BalanceResponse> responses) {
-                }
-        }
-
-        // Вспомогательный stub для balanceCommandService
-        private static class BalanceCommandServiceStub {
-                public Result<BalanceAggregate> executeOperation(OperationRequest request) {
-                        return Result.error(new UnsupportedOperationException("Stub: implement executeOperation"));
-                }
-
-                public Result<List<BalanceAggregate>> executeBatch(List<OperationRequest> requests) {
-                        return Result.error(new UnsupportedOperationException("Stub: implement executeBatch"));
                 }
         }
 }

@@ -2,7 +2,8 @@ package shit.back.telegram.ui.strategy;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import shit.back.application.balance.dto.response.DualBalanceResponse;
+
+import shit.back.application.balance.dto.response.SimpleBalanceResponse;
 import shit.back.config.PaymentConfigurationProperties;
 import shit.back.domain.balance.valueobjects.Currency;
 import shit.back.telegram.ui.strategy.utils.PaymentMethodsHelper;
@@ -70,11 +71,11 @@ public class WelcomeCardStrategy implements TelegramMessageStrategy {
         // Информация о балансе если есть
         if (cardData.balance != null) {
             String currencySymbol = cardData.balance.getCurrency().getSymbol();
-            boolean hasBalance = cardData.balance.getTotalBalance().isPositive();
+            boolean hasBalance = cardData.balance.getCurrentBalance().isPositive();
 
             if (hasBalance) {
                 message.append(String.format("💰 <b>Ваш баланс:</b> %s %s\n\n",
-                        cardData.balance.getTotalBalance().getFormattedAmount(), currencySymbol));
+                        cardData.balance.getFormattedBalance()));
                 message.append("✅ <b>Готово к покупке звезд!</b>\n\n");
             } else {
                 message.append("💰 <b>Ваш баланс:</b> 0,00 ").append(currencySymbol).append("\n\n");
@@ -187,9 +188,9 @@ public class WelcomeCardStrategy implements TelegramMessageStrategy {
      */
     public static class WelcomeCardData {
         public final String userName;
-        public final DualBalanceResponse balance;
+        public final SimpleBalanceResponse balance;
 
-        public WelcomeCardData(String userName, DualBalanceResponse balance) {
+        public WelcomeCardData(String userName, SimpleBalanceResponse balance) {
             this.userName = userName != null ? userName : "пользователь";
             this.balance = balance;
         }

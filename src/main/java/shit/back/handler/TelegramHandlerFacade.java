@@ -13,7 +13,6 @@ import shit.back.telegram.TelegramService;
 import shit.back.telegram.commands.InitiateStarPurchaseCommand;
 import shit.back.telegram.commands.ProcessCustomAmountCommand;
 import shit.back.telegram.commands.TopupBalanceCommand;
-import shit.back.telegram.commands.TransferFundsCommand;
 import shit.back.telegram.dto.TelegramResponse;
 import shit.back.telegram.queries.ShowBalanceQuery;
 import shit.back.telegram.queries.ShowPurchaseHistoryQuery;
@@ -21,6 +20,10 @@ import shit.back.telegram.queries.ShowWelcomeCardQuery;
 import shit.back.service.UserSessionUnifiedService;
 import shit.back.service.TelegramMessageCacheService;
 import shit.back.model.UserSession;
+import shit.back.application.balance.service.BalanceApplicationServiceV2;
+import shit.back.application.balance.dto.request.OperationRequest;
+import shit.back.application.balance.common.Result;
+import shit.back.application.balance.dto.response.BalanceResponse;
 
 import java.math.BigDecimal;
 import java.util.Optional;
@@ -44,6 +47,9 @@ public class TelegramHandlerFacade {
 
     @Autowired
     private UserSessionUnifiedService sessionService;
+
+    @Autowired
+    private BalanceApplicationServiceV2 balanceService;
 
     // Кэш для предотвращения дублирующихся операций
     private final ConcurrentMap<String, Long> operationCache = new ConcurrentHashMap<>();
@@ -245,16 +251,42 @@ public class TelegramHandlerFacade {
                 log.info("⭐ Обработка buy_stars для пользователя: {}", userId);
                 return telegramService.execute(new InitiateStarPurchaseCommand(userId));
 
+            // Обработка конкретных пакетов звезд: buy_stars_500_4.50
             case "transfer_funds":
                 log.info("💸 Обработка transfer_funds для пользователя: {}", userId);
-                return telegramService.execute(new TransferFundsCommand(userId, null, "BANK"));
+                return TelegramResponse.error("Функция перевода средств временно недоступна");
 
             default:
+                // Обработка конкретных пакетов звезд: buy_stars_500_4.50
+                if (callbackData.startsWith("buy_stars_") && callbackData.contains("_")
+                        && !callbackData.equals("buy_stars")) {
+                    return handleBuyStarsPackage(userId, callbackData);
+                }
+
                 // Проверяем, является ли это динамическим callback для подтверждения
                 if (callbackData.startsWith("confirm_topup_")) {
                     String amount = callbackData.substring("confirm_topup_".length());
                     log.info("🔍 ДИАГНОСТИКА CALLBACK: Динамический confirm_topup для суммы: {}", amount);
                     return handleConfirmTopup(userId, amount);
+                }
+
+                // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Обработка process_payment_* callbacks
+                if (callbackData.startsWith("process_payment_")) {
+                    String amount = callbackData.substring("process_payment_".length());
+                    log.info("💳 Обработка process_payment для суммы: {}", amount);
+                    return handleProcessPayment(userId, amount);
+                }
+
+                // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Обработка payment_completed_* callbacks
+                if (callbackData.startsWith("payment_completed_")) {
+                    String amount = callbackData.substring("payment_completed_".length());
+                    log.info("✅ Обработка payment_completed для суммы: {}", amount);
+                    return handlePaymentCompleted(userId, amount);
+                }
+
+                // Обработка подтверждения покупки звезд: proceed_purchase_1000
+                if (callbackData.startsWith("proceed_purchase_")) {
+                    return handleProceedPurchase(userId, callbackData);
                 }
 
                 log.warn("🚨 ДИАГНОСТИКА CALLBACK: Неизвестный callback '{}' - НЕ НАЙДЕН обработчик!", callbackData);
@@ -554,7 +586,8 @@ public class TelegramHandlerFacade {
     }
 
     /**
-     * ИСПРАВЛЕНИЕ ПРОБЛЕМЫ #3: Обработка подтверждения пополнения
+     * КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Обработка подтверждения пополнения - показываем
+     * ДРУГОЕ сообщение
      */
     private TelegramResponse handleConfirmTopup(Long userId, String amount) {
         log.info("✅ Обработка подтверждения пополнения суммы {} для пользователя {}", amount, userId);
@@ -562,14 +595,60 @@ public class TelegramHandlerFacade {
             // Получаем способ оплаты из сессии
             String paymentMethod = getPaymentMethodFromSession(userId);
 
-            // Создаем команду пополнения для выполнения
-            TopupBalanceCommand command = new TopupBalanceCommand(userId, amount, paymentMethod);
+            // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Вместо повторной команды, показываем сообщение о
+            // начале обработки
+            String message = String.format("""
+                    🔄 <b>Обработка платежа...</b>
 
-            return telegramService.execute(command);
+                    💰 <b>Сумма:</b> %s USD
+                    💳 <b>Способ:</b> %s
+                    ⏱️ <b>Статус:</b> Подготовка к оплате
+
+                    🔗 Перейдите по ссылке для оплаты или дождитесь инструкций
+                    """,
+                    amount,
+                    getPaymentMethodDisplayName(paymentMethod));
+
+            // Обновляем состояние сессии на обработку платежа
+            sessionService.updateSessionState(userId, UserSession.SessionState.PAYMENT_PROCESSING);
+
+            // Создаем клавиатуру с ссылкой на оплату
+            String processPaymentCallback = "process_payment_" + amount;
+            var keyboard = new shit.back.telegram.ui.builder.TelegramKeyboardBuilder()
+                    .addButton("💳 Перейти к оплате", processPaymentCallback)
+                    .addButton("❌ Отменить", "cancel_topup")
+                    .newRow()
+                    .addButton("🔙 К балансу", "show_balance")
+                    .build();
+
+            return TelegramResponse.builder()
+                    .successful(true)
+                    .message(message)
+                    .uiType("PAYMENT_PROCESSING")
+                    .data(keyboard)
+                    .build();
+
         } catch (Exception e) {
             log.error("❌ Ошибка при подтверждении пополнения: {}", e.getMessage());
             return TelegramResponse.error("Ошибка при подтверждении пополнения: " + e.getMessage());
         }
+    }
+
+    /**
+     * КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Получение отображаемого имени способа оплаты
+     * (дублируем из TopupBalanceCommandHandler)
+     */
+    private String getPaymentMethodDisplayName(String paymentMethod) {
+        if (paymentMethod == null) {
+            return "Не выбран";
+        }
+
+        return switch (paymentMethod.toLowerCase()) {
+            case "yoomoney", "payment_yoomoney", "yookassa" -> "💳 YooMoney";
+            case "crypto", "payment_crypto", "ton" -> "₿ Криптовалюта";
+            case "uzs", "payment_uzs", "uzs_payment" -> "💳 UZS карта";
+            default -> "💳 Способ оплаты";
+        };
     }
 
     /**
@@ -586,6 +665,51 @@ public class TelegramHandlerFacade {
         } catch (Exception e) {
             log.error("❌ Ошибка при отмене пополнения: {}", e.getMessage());
             return TelegramResponse.error("Ошибка при отмене операции");
+        }
+    }
+
+    /**
+     * КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Обработка перехода к оплате
+     */
+    private TelegramResponse handleProcessPayment(Long userId, String amount) {
+        log.info("💳 Обработка перехода к оплате суммы {} для пользователя {}", amount, userId);
+        try {
+            // Получаем способ оплаты из сессии
+            String paymentMethod = getPaymentMethodFromSession(userId);
+
+            // Генерируем сообщение с ссылкой на оплату (пока заглушка)
+            String message = String.format("""
+                    💳 <b>Переход к оплате</b>
+
+                    💰 <b>Сумма:</b> %s USD
+                    💳 <b>Способ:</b> %s
+                    ⏱️ <b>Статус:</b> Готов к оплате
+
+                    🔗 <a href="https://example.com/payment">Нажмите для перехода к платежной форме</a>
+
+                    ⚠️ После оплаты баланс будет автоматически пополнен
+                    """,
+                    amount,
+                    getPaymentMethodDisplayName(paymentMethod));
+
+            // Создаем клавиатуру с кнопками для завершения процесса
+            var keyboard = new shit.back.telegram.ui.builder.TelegramKeyboardBuilder()
+                    .addButton("✅ Оплата завершена", "payment_completed_" + amount)
+                    .addButton("❌ Отменить", "cancel_topup")
+                    .newRow()
+                    .addButton("🔙 К балансу", "show_balance")
+                    .build();
+
+            return TelegramResponse.builder()
+                    .successful(true)
+                    .message(message)
+                    .uiType("PAYMENT_LINK")
+                    .data(keyboard)
+                    .build();
+
+        } catch (Exception e) {
+            log.error("❌ Ошибка при переходе к оплате: {}", e.getMessage());
+            return TelegramResponse.error("Ошибка при переходе к оплате: " + e.getMessage());
         }
     }
 
@@ -651,6 +775,196 @@ public class TelegramHandlerFacade {
 
         // Используем существующий метод с небольшими оптимизациями
         return processCallbackData(userId, callbackData);
+    }
+
+    /**
+     * КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Обработка завершения платежа
+     * Пополняет баланс пользователя и сбрасывает состояние сессии
+     */
+    private TelegramResponse handlePaymentCompleted(Long userId, String amount) {
+        log.info("✅ Обработка завершения платежа суммы {} для пользователя {}", amount, userId);
+        try {
+            // Валидация суммы
+            BigDecimal amountDecimal;
+            try {
+                amountDecimal = new BigDecimal(amount);
+                if (amountDecimal.compareTo(BigDecimal.ZERO) <= 0) {
+                    throw new IllegalArgumentException("Сумма должна быть положительной");
+                }
+            } catch (NumberFormatException e) {
+                log.error("❌ Некорректная сумма для пополнения: {}", amount);
+                return TelegramResponse.error("Некорректная сумма для пополнения");
+            }
+
+            // Создаем запрос на пополнение баланса
+            OperationRequest operationRequest = new OperationRequest();
+            operationRequest.setOperationType(OperationRequest.OperationType.DEPOSIT);
+            operationRequest.setUserId(userId);
+            operationRequest.setAmount(amountDecimal);
+            operationRequest.setCurrency("USD"); // По умолчанию USD, как в системе
+            operationRequest.setDescription("Пополнение баланса через Telegram Bot - " + amount + " USD");
+            operationRequest
+                    .setIdempotencyKey("telegram_topup_" + userId + "_" + amount + "_" + System.currentTimeMillis());
+
+            // Получаем способ оплаты из сессии для логирования
+            String paymentMethod = getPaymentMethodFromSession(userId);
+            if (paymentMethod != null) {
+                operationRequest.setPaymentMethodId(paymentMethod);
+            }
+
+            log.info("💰 Выполняем пополнение баланса для пользователя {} на сумму {} USD", userId, amount);
+
+            // Выполняем пополнение баланса через BalanceApplicationServiceV2
+            Result<BalanceResponse> result = balanceService.processOperation(operationRequest);
+
+            if (result.isSuccess()) {
+                BalanceResponse balanceResponse = result.getValue();
+
+                // Сбрасываем состояние сессии пользователя в IDLE
+                sessionService.updateSessionState(userId, UserSession.SessionState.IDLE);
+
+                log.info("✅ Баланс успешно пополнен для пользователя {}. Новый баланс: {} USD",
+                        userId, balanceResponse.getCurrentBalance());
+
+                // Формируем сообщение об успешном пополнении
+                String message = String.format("""
+                        ✅ <b>Платеж успешно завершен!</b>
+
+                        💰 <b>Пополнено:</b> %s USD
+                        💳 <b>Способ оплаты:</b> %s
+                        📊 <b>Текущий баланс:</b> %s USD
+
+                        🎉 Средства зачислены на ваш счет!
+                        """,
+                        amount,
+                        getPaymentMethodDisplayName(paymentMethod),
+                        balanceResponse.getCurrentBalance());
+
+                // Создаем клавиатуру с дальнейшими действиями
+                var keyboard = new shit.back.telegram.ui.builder.TelegramKeyboardBuilder()
+                        .addButton("💰 Показать баланс", "show_balance")
+                        .addButton("⭐ Купить звезды", "buy_stars")
+                        .newRow()
+                        .addButton("💳 Пополнить снова", "topup_balance")
+                        .addButton("📊 История операций", "show_history")
+                        .build();
+
+                return TelegramResponse.builder()
+                        .successful(true)
+                        .message(message)
+                        .uiType("PAYMENT_SUCCESS")
+                        .data(keyboard)
+                        .build();
+
+            } else {
+                log.error("❌ Ошибка при пополнении баланса для пользователя {}: {}",
+                        userId, result.getError().getMessage());
+
+                // В случае ошибки, возвращаем пользователя к балансу
+                sessionService.updateSessionState(userId, UserSession.SessionState.IDLE);
+
+                String errorMessage = String.format("""
+                        ❌ <b>Ошибка при зачислении средств</b>
+
+                        💰 <b>Сумма:</b> %s USD
+                        ⚠️ <b>Причина:</b> %s
+
+                        🔄 Попробуйте еще раз или обратитесь в поддержку
+                        """,
+                        amount,
+                        result.getError().getMessage());
+
+                // Создаем клавиатуру для повтора или отмены
+                var keyboard = new shit.back.telegram.ui.builder.TelegramKeyboardBuilder()
+                        .addButton("🔄 Попробовать снова", "topup_balance")
+                        .addButton("💰 К балансу", "show_balance")
+                        .build();
+
+                return TelegramResponse.builder()
+                        .successful(true)
+                        .message(errorMessage)
+                        .uiType("PAYMENT_ERROR")
+                        .data(keyboard)
+                        .build();
+            }
+
+        } catch (Exception e) {
+            log.error("❌ Критическая ошибка при завершении платежа для пользователя {}: {}", userId, e.getMessage(), e);
+
+            // Сбрасываем состояние сессии даже при ошибке
+            try {
+                sessionService.updateSessionState(userId, UserSession.SessionState.IDLE);
+            } catch (Exception sessionError) {
+                log.error("❌ Дополнительная ошибка при сбросе сессии: {}", sessionError.getMessage());
+            }
+
+            return TelegramResponse.error("Критическая ошибка при завершении платежа: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Обработка подтверждения покупки звезд
+     * Формат callback: proceed_purchase_{количество}
+     * Пример: proceed_purchase_1000
+     */
+    private TelegramResponse handleProceedPurchase(Long userId, String callbackData) {
+        try {
+            log.info("⭐ Обработка подтверждения покупки звезд: {} для пользователя: {}", callbackData, userId);
+
+            // Парсинг callback данных: proceed_purchase_1000
+            String starCountStr = callbackData.substring("proceed_purchase_".length());
+            int starCount = Integer.parseInt(starCountStr);
+
+            log.info("⭐ Извлечено количество звезд для подтверждения: {} для пользователя: {}", starCount, userId);
+
+            // Создание команды покупки с подтверждением
+            InitiateStarPurchaseCommand command = new InitiateStarPurchaseCommand(
+                    userId,
+                    starCount,
+                    true // confirmPurchase = true
+            );
+
+            return telegramService.execute(command);
+
+        } catch (NumberFormatException e) {
+            log.error("❌ Ошибка парсинга количества звезд из callback '{}': {}", callbackData, e.getMessage());
+            return TelegramResponse.error("❌ Ошибка при обработке данных покупки");
+        } catch (Exception e) {
+            log.error("❌ Ошибка при подтверждении покупки звезд для пользователя {}: {}", userId, e.getMessage());
+            return TelegramResponse.error("❌ Ошибка при подтверждении покупки: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Обработка покупки конкретного пакета звезд
+     * Формат callback: buy_stars_{количество}_{цена}
+     * Пример: buy_stars_500_4.50
+     */
+    private TelegramResponse handleBuyStarsPackage(Long userId, String callbackData) {
+        try {
+            log.info("⭐ Обработка покупки конкретного пакета звезд: {} для пользователя: {}", callbackData, userId);
+
+            // Парсинг callback данных: buy_stars_500_4.50
+            String[] parts = callbackData.split("_");
+            if (parts.length >= 3) {
+                int starCount = Integer.parseInt(parts[2]);
+
+                log.info("⭐ Извлечено количество звезд: {} для пользователя: {}", starCount, userId);
+
+                // Создание команды покупки конкретного пакета звезд
+                InitiateStarPurchaseCommand command = new InitiateStarPurchaseCommand(userId, starCount);
+                return telegramService.execute(command);
+            } else {
+                log.error("❌ Некорректный формат callback данных пакета звезд: {}", callbackData);
+                return TelegramResponse.error("❌ Некорректный формат данных пакета звезд");
+            }
+        } catch (NumberFormatException e) {
+            log.error("❌ Ошибка парсинга количества звезд в callback: {} - {}", callbackData, e.getMessage());
+            return TelegramResponse.error("❌ Ошибка при обработке данных пакета звезд");
+        } catch (Exception e) {
+            log.error("❌ Ошибка при покупке звезд для callback: {} - {}", callbackData, e.getMessage(), e);
+            return TelegramResponse.error("❌ Ошибка при покупке звезд: " + e.getMessage());
+        }
     }
 
 }

@@ -5,14 +5,17 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import shit.back.application.balance.service.BalanceApplicationFacade;
-import shit.back.application.balance.dto.response.DualBalanceResponse;
+import shit.back.application.balance.dto.response.SimpleBalanceResponse;
+import shit.back.application.balance.mapper.BalanceResponseMapper;
 import shit.back.domain.balance.valueobjects.Money;
 import shit.back.service.FragmentIntegrationService;
+import shit.back.service.StarPurchaseService;
 import shit.back.service.UserSessionUnifiedService;
 import shit.back.telegram.commands.InitiateStarPurchaseCommand;
 import shit.back.telegram.commands.TelegramCommandHandler;
 import shit.back.telegram.dto.TelegramResponse;
 import shit.back.telegram.ui.strategy.StarPurchaseFlowStrategy;
+import shit.back.telegram.ui.strategy.SimplifiedStarPurchaseStrategy;
 import shit.back.telegram.ui.builder.TelegramKeyboardBuilder;
 
 /**
@@ -31,6 +34,12 @@ public class InitiateStarPurchaseCommandHandler implements TelegramCommandHandle
     private StarPurchaseFlowStrategy starPurchaseFlowStrategy;
 
     @Autowired
+    private SimplifiedStarPurchaseStrategy simplifiedStarPurchaseStrategy;
+
+    @Autowired
+    private StarPurchaseService starPurchaseService;
+
+    @Autowired
     private FragmentIntegrationService fragmentIntegrationService;
 
     @Autowired
@@ -46,19 +55,16 @@ public class InitiateStarPurchaseCommandHandler implements TelegramCommandHandle
             // Валидация команды
             command.validate();
 
-            // Получаем баланс пользователя
-            DualBalanceResponse balanceData = getUserBalance(command.getUserId());
-            if (balanceData == null) {
-                return TelegramResponse.error("Не удалось получить информацию о балансе");
-            }
+            // ФАЗА 2: Проверяем, можно ли использовать упрощенную архитектуру
+            boolean useSimplified = shouldUseSimplifiedPurchase(command);
 
-            // Определяем тип операции и обрабатываем соответственно
-            return switch (command.getOperationType()) {
-                case "PURCHASE_CONFIRMATION" -> handlePurchaseConfirmation(command, balanceData);
-                case "BALANCE_CHECK" -> handleBalanceCheck(command, balanceData);
-                case "PURCHASE_INTERFACE" -> handlePurchaseInterface(command, balanceData);
-                default -> TelegramResponse.error("Неподдерживаемый тип операции: " + command.getOperationType());
-            };
+            if (useSimplified) {
+                log.info("🌟 ФАЗА2: Использование упрощенной покупки звезд для пользователя {}", command.getUserId());
+                return handleSimplifiedPurchase(command);
+            } else {
+                log.info("🔄 ФАЗА2: Использование legacy DualBalance покупки для пользователя {}", command.getUserId());
+                return handleLegacyPurchase(command);
+            }
 
         } catch (IllegalArgumentException e) {
             log.warn("❌ Некорректная команда покупки звезд от пользователя {}: {}",
@@ -91,14 +97,14 @@ public class InitiateStarPurchaseCommandHandler implements TelegramCommandHandle
      * Обработка подтверждения покупки
      */
     private TelegramResponse handlePurchaseConfirmation(InitiateStarPurchaseCommand command,
-            DualBalanceResponse balanceData) throws Exception {
+            SimpleBalanceResponse balanceData) throws Exception {
         log.info("✅ Подтверждение покупки звезд: userId={}, stars={}",
                 command.getUserId(), command.getEffectiveStarCount());
 
         Money requiredAmount = command.getEffectiveAmount();
 
         // Проверяем достаточность средств
-        if (!balanceData.hasSufficientMainFunds(requiredAmount)) {
+        if (!balanceData.hasSufficientFunds(requiredAmount)) {
             return handleInsufficientFunds(command, balanceData, requiredAmount);
         }
 
@@ -144,7 +150,8 @@ public class InitiateStarPurchaseCommandHandler implements TelegramCommandHandle
     /**
      * Обработка проверки баланса
      */
-    private TelegramResponse handleBalanceCheck(InitiateStarPurchaseCommand command, DualBalanceResponse balanceData) {
+    private TelegramResponse handleBalanceCheck(InitiateStarPurchaseCommand command,
+            SimpleBalanceResponse balanceData) {
         log.debug("🔍 Проверка баланса для покупки звезд: userId={}", command.getUserId());
 
         Money requiredAmount = command.getEffectiveAmount();
@@ -156,10 +163,8 @@ public class InitiateStarPurchaseCommandHandler implements TelegramCommandHandle
         // Создаем клавиатуру для проверки баланса
         var keyboardBuilder = new TelegramKeyboardBuilder();
 
-        if (balanceData.hasSufficientMainFunds(requiredAmount)) {
+        if (balanceData.hasSufficientFunds(requiredAmount)) {
             keyboardBuilder.addButton("✅ Продолжить покупку", "proceed_purchase_" + starCount);
-        } else if (balanceData.hasSufficientBankFunds(requiredAmount)) {
-            keyboardBuilder.addButton("🔄 Перевести средства", "transfer_funds_" + requiredAmount.getFormattedAmount());
         } else {
             keyboardBuilder.addButton("💳 Пополнить баланс", "topup_balance");
         }
@@ -180,7 +185,7 @@ public class InitiateStarPurchaseCommandHandler implements TelegramCommandHandle
      * Обработка интерфейса покупки
      */
     private TelegramResponse handlePurchaseInterface(InitiateStarPurchaseCommand command,
-            DualBalanceResponse balanceData) {
+            SimpleBalanceResponse balanceData) {
         log.debug("🎯 Отображение интерфейса покупки звезд: userId={}", command.getUserId());
 
         String message = starPurchaseFlowStrategy.formatContent("PURCHASE_INTERFACE", balanceData);
@@ -197,7 +202,7 @@ public class InitiateStarPurchaseCommandHandler implements TelegramCommandHandle
 
         for (int stars : starPackages) {
             Money packagePrice = Money.of(java.math.BigDecimal.valueOf(stars * 0.01)); // Примерная цена
-            boolean canAfford = balanceData.hasSufficientMainFunds(packagePrice);
+            boolean canAfford = balanceData.hasSufficientFunds(packagePrice);
 
             if (canAfford) {
                 hasAnyAffordable = true;
@@ -216,12 +221,8 @@ public class InitiateStarPurchaseCommandHandler implements TelegramCommandHandle
             keyboardBuilder.addButton("💎 Свой размер", "custom_stars");
         }
 
-        if (!balanceData.hasMainFunds()) {
-            if (balanceData.hasBankFunds()) {
-                keyboardBuilder.addButton("🔄 Перевести средства", "transfer_funds");
-            } else {
-                keyboardBuilder.addButton("💳 Пополнить баланс", "topup_balance");
-            }
+        if (!balanceData.getCurrentBalance().isPositive()) {
+            keyboardBuilder.addButton("💳 Пополнить баланс", "topup_balance");
         }
 
         keyboardBuilder.addButton("🔙 Назад", "show_balance");
@@ -240,9 +241,9 @@ public class InitiateStarPurchaseCommandHandler implements TelegramCommandHandle
      * Обработка недостаточности средств
      */
     private TelegramResponse handleInsufficientFunds(InitiateStarPurchaseCommand command,
-            DualBalanceResponse balanceData, Money requiredAmount) {
+            SimpleBalanceResponse balanceData, Money requiredAmount) {
         log.warn("💸 Недостаточно средств для покупки звезд: userId={}, required={}, available={}",
-                command.getUserId(), requiredAmount, balanceData.getTotalBalance());
+                command.getUserId(), requiredAmount, balanceData.getCurrentBalance());
 
         var fundsData = new StarPurchaseFlowStrategy.InsufficientFundsData(
                 balanceData, requiredAmount, command.getEffectiveStarCount());
@@ -252,11 +253,7 @@ public class InitiateStarPurchaseCommandHandler implements TelegramCommandHandle
         // Создаем клавиатуру для недостатка средств
         var keyboardBuilder = new TelegramKeyboardBuilder();
 
-        Money shortfall = requiredAmount.subtract(balanceData.getTotalBalance());
-
-        if (balanceData.hasBankFunds() && !balanceData.hasMainFunds()) {
-            keyboardBuilder.addButton("🔄 Перевести средства", "transfer_funds");
-        }
+        Money shortfall = requiredAmount.subtract(balanceData.getCurrentBalance());
 
         keyboardBuilder
                 .addButton("💳 Пополнить " + shortfall.getFormattedAmount(),
@@ -279,14 +276,14 @@ public class InitiateStarPurchaseCommandHandler implements TelegramCommandHandle
     /**
      * Получение баланса пользователя
      */
-    private DualBalanceResponse getUserBalance(Long userId) {
+    private SimpleBalanceResponse getUserBalance(Long userId) {
         try {
             var balanceResult = balanceApplicationFacade.getBalance(userId);
 
             if (balanceResult != null && balanceResult.isSuccess()) {
                 log.info("📊 Получен результат баланса для пользователя: {}", userId);
 
-                // Реальная конвертация BalanceResponse в DualBalanceResponse
+                // Реальная конвертация BalanceResponse в SimpleBalanceResponse
                 var balanceResponse = balanceResult.getValue();
                 return convertToBalanceResponse(userId, balanceResponse);
             }
@@ -301,26 +298,44 @@ public class InitiateStarPurchaseCommandHandler implements TelegramCommandHandle
     }
 
     /**
-     * Конвертация BalanceResponse в DualBalanceResponse
+     * Конвертация BalanceResponse в SimpleBalanceResponse
+     *
+     * ИСПРАВЛЕНО: Теперь использует BalanceResponseMapper для корректного
+     * преобразования
      */
-    private DualBalanceResponse convertToBalanceResponse(Long userId, Object balanceData) {
+    private SimpleBalanceResponse convertToBalanceResponse(Long userId, Object balanceData) {
         try {
-            // Создаем реальный DualBalanceResponse на основе данных из балансового сервиса
-            // TODO: Адаптировать под реальную структуру BalanceResponse когда она будет
-            // доступна
-            return DualBalanceResponse.builder()
-                    .userId(userId)
-                    .bankBalance(Money.zero()) // TODO: Извлечь из balanceData
-                    .mainBalance(Money.zero()) // TODO: Извлечь из balanceData
-                    .currency(shit.back.domain.balance.valueobjects.Currency.defaultCurrency())
-                    .active(true)
-                    .lastUpdated(java.time.LocalDateTime.now())
-                    .totalTransferredToMain(Money.zero())
-                    .totalSpentFromMain(Money.zero())
-                    .build();
+            // Используем исправленный BalanceResponseMapper для корректного преобразования
+            if (balanceData instanceof shit.back.application.balance.dto.response.BalanceResponse) {
+                var balanceResponse = (shit.back.application.balance.dto.response.BalanceResponse) balanceData;
+
+                log.debug(
+                        "🔄 ИСПРАВЛЕНО InitiateStarPurchase: Конвертация BalanceResponse через маппер для userId={}, currentBalance={}",
+                        userId, balanceResponse.getCurrentBalance());
+
+                // Используем исправленный маппер вместо создания нулевых балансов
+                SimpleBalanceResponse dualResponse = shit.back.application.balance.mapper.BalanceResponseMapper
+                        .toSimpleBalanceResponse(balanceResponse);
+
+                if (dualResponse != null) {
+                    log.info(
+                            "✅ ИСПРАВЛЕНО InitiateStarPurchase: userId={}, конвертация успешна - currentBalance={}",
+                            userId,
+                            dualResponse.getFormattedBalance());
+                    return dualResponse;
+                }
+            }
+
+            // Fallback: создаем пустой баланс если конвертация не удалась
+            log.warn(
+                    "⚠️ InitiateStarPurchase: Неожиданный тип balanceData: {}, создаем пустой SimpleBalance для userId={}",
+                    balanceData != null ? balanceData.getClass().getSimpleName() : "null", userId);
+
+            return shit.back.application.balance.mapper.BalanceResponseMapper.createEmptyBalance(userId);
+
         } catch (Exception e) {
             log.error("❌ Ошибка конвертации BalanceResponse: {}", e.getMessage(), e);
-            return null;
+            return shit.back.application.balance.mapper.BalanceResponseMapper.createEmptyBalance(userId);
         }
     }
 
@@ -339,6 +354,173 @@ public class InitiateStarPurchaseCommandHandler implements TelegramCommandHandle
         } catch (Exception e) {
             log.warn("⚠️ Не удалось обновить состояние сессии для пользователя {}: {}", userId, e.getMessage());
             // Не прерываем выполнение из-за ошибки сессии
+        }
+    }
+
+    /**
+     * ФАЗА 2: Определяет, следует ли использовать упрощенную покупку звезд
+     */
+    private boolean shouldUseSimplifiedPurchase(InitiateStarPurchaseCommand command) {
+        // Простая логика: используем упрощенную архитектуру для прямых покупок
+        return "PURCHASE_CONFIRMATION".equals(command.getOperationType()) ||
+                "PURCHASE_INTERFACE".equals(command.getOperationType());
+    }
+
+    /**
+     * ФАЗА 2: Обработка покупки звезд с упрощенной архитектурой
+     */
+    private TelegramResponse handleSimplifiedPurchase(InitiateStarPurchaseCommand command) {
+        try {
+            // Получаем простой баланс пользователя
+            SimpleBalanceResponse simpleBalance = getSimpleBalance(command.getUserId());
+            if (simpleBalance == null) {
+                return TelegramResponse.error("Не удалось получить информацию о балансе");
+            }
+
+            // Обрабатываем различные типы операций упрощенным способом
+            return switch (command.getOperationType()) {
+                case "PURCHASE_CONFIRMATION" -> handleSimplifiedConfirmation(command, simpleBalance);
+                case "PURCHASE_INTERFACE" -> handleSimplifiedInterface(simpleBalance);
+                default ->
+                    TelegramResponse.error("Неподдерживаемый тип упрощенной операции: " + command.getOperationType());
+            };
+
+        } catch (Exception e) {
+            log.error("❌ ФАЗА2: Ошибка упрощенной покупки звезд: {}", e.getMessage(), e);
+            return TelegramResponse.error("Ошибка при упрощенной покупке звезд: " + e.getMessage());
+        }
+    }
+
+    /**
+     * ФАЗА 2: Обработка покупки звезд со старой DualBalance архитектурой
+     */
+    private TelegramResponse handleLegacyPurchase(InitiateStarPurchaseCommand command) {
+        try {
+            // Получаем баланс пользователя
+            SimpleBalanceResponse balanceData = getUserBalance(command.getUserId());
+            if (balanceData == null) {
+                return TelegramResponse.error("Не удалось получить информацию о балансе");
+            }
+
+            // Определяем тип операции и обрабатываем соответственно
+            return switch (command.getOperationType()) {
+                case "PURCHASE_CONFIRMATION" -> handlePurchaseConfirmation(command, balanceData);
+                case "BALANCE_CHECK" -> handleBalanceCheck(command, balanceData);
+                case "PURCHASE_INTERFACE" -> handlePurchaseInterface(command, balanceData);
+                default -> TelegramResponse.error("Неподдерживаемый тип операции: " + command.getOperationType());
+            };
+
+        } catch (Exception e) {
+            log.error("❌ LEGACY: Ошибка legacy покупки звезд: {}", e.getMessage(), e);
+            return TelegramResponse.error("Ошибка при legacy покупке звезд: " + e.getMessage());
+        }
+    }
+
+    /**
+     * ФАЗА 2: Получение простого баланса пользователя
+     */
+    private SimpleBalanceResponse getSimpleBalance(Long userId) {
+        try {
+            var balanceResult = balanceApplicationFacade.getBalance(userId);
+
+            if (balanceResult != null && balanceResult.isSuccess()) {
+                log.debug("🌟 ФАЗА2: Получен результат баланса для пользователя: {}", userId);
+
+                if (balanceResult.getValue() instanceof shit.back.application.balance.dto.response.BalanceResponse) {
+                    var balanceResponse = (shit.back.application.balance.dto.response.BalanceResponse) balanceResult
+                            .getValue();
+                    return BalanceResponseMapper.toSimpleBalanceResponse(balanceResponse);
+                }
+            }
+
+            log.warn("⚠️ ФАЗА2: Не удалось получить простой баланс пользователя: {}", userId);
+            return BalanceResponseMapper.createEmptyBalance(userId);
+
+        } catch (Exception e) {
+            log.error("❌ ФАЗА2: Ошибка получения простого баланса пользователя {}: {}", userId, e.getMessage(), e);
+            return BalanceResponseMapper.createEmptyBalance(userId);
+        }
+    }
+
+    /**
+     * ФАЗА 2: Упрощенное подтверждение покупки звезд
+     */
+    private TelegramResponse handleSimplifiedConfirmation(InitiateStarPurchaseCommand command,
+            SimpleBalanceResponse balance) {
+        try {
+            Money requiredAmount = command.getEffectiveAmount();
+            Integer starCount = command.getEffectiveStarCount();
+
+            // Проверяем достаточность средств
+            if (!balance.hasSufficientFunds(requiredAmount)) {
+                log.warn("💸 ФАЗА2: Недостаточно средств для покупки {} звезд: требуется {}, доступно {}",
+                        starCount, requiredAmount.getFormattedAmount(), balance.getFormattedBalance());
+                return TelegramResponse.error("Недостаточно средств для покупки звезд");
+            }
+
+            // Выполняем прямую покупку через StarPurchaseService
+            var purchaseResult = starPurchaseService.purchaseStars(command.getUserId(), starCount, requiredAmount);
+
+            if (purchaseResult.isSuccess()) {
+                log.info("✅ ФАЗА2: Упрощенная покупка звезд успешна: userId={}, stars={}, transactionId={}",
+                        command.getUserId(), starCount, purchaseResult.getTransactionId());
+
+                String successMessage = String.format(
+                        "🌟 <b>Покупка звезд завершена!</b>\n\n" +
+                                "⭐ Куплено звезд: <b>%d</b>\n" +
+                                "💰 Списано с баланса: <b>%s</b>\n" +
+                                "🔢 ID транзакции: <code>%s</code>\n\n" +
+                                "✅ Звезды добавлены в ваш аккаунт Telegram!",
+                        starCount,
+                        requiredAmount.getFormattedAmount() + " " + balance.getCurrency().getSymbol(),
+                        purchaseResult.getTransactionId());
+
+                // Создаем простую клавиатуру
+                var keyboard = new TelegramKeyboardBuilder()
+                        .addButton("💰 Показать баланс", "show_balance")
+                        .addButton("📋 История покупок", "purchase_history")
+                        .newRow()
+                        .addButton("🌟 Купить еще", "buy_stars")
+                        .build();
+
+                return TelegramResponse.builder()
+                        .successful(true)
+                        .message(successMessage)
+                        .uiType("PURCHASE_SUCCESS")
+                        .uiData(purchaseResult)
+                        .data(keyboard)
+                        .build();
+            } else {
+                log.error("❌ ФАЗА2: Ошибка упрощенной покупки: {}", purchaseResult.getErrorMessage());
+                return TelegramResponse.error("Не удалось выполнить покупку: " + purchaseResult.getErrorMessage());
+            }
+
+        } catch (Exception e) {
+            log.error("❌ ФАЗА2: Критическая ошибка упрощенного подтверждения: {}", e.getMessage(), e);
+            return TelegramResponse.error("Произошла ошибка при покупке звезд: " + e.getMessage());
+        }
+    }
+
+    /**
+     * ФАЗА 2: Упрощенный интерфейс покупки звезд
+     */
+    private TelegramResponse handleSimplifiedInterface(SimpleBalanceResponse balance) {
+        try {
+            // Используем упрощенную стратегию для создания интерфейса
+            var uiResponse = simplifiedStarPurchaseStrategy.createStarPurchaseFlow(balance);
+
+            // Конвертируем TelegramUIResponse в TelegramResponse
+            return TelegramResponse.builder()
+                    .successful(true)
+                    .message(uiResponse.getMessageText())
+                    .uiType("SIMPLIFIED_PURCHASE_INTERFACE")
+                    .uiData(balance)
+                    .data(uiResponse.getKeyboard())
+                    .build();
+
+        } catch (Exception e) {
+            log.error("❌ ФАЗА2: Ошибка создания упрощенного интерфейса: {}", e.getMessage(), e);
+            return TelegramResponse.error("Ошибка при создании интерфейса покупки: " + e.getMessage());
         }
     }
 }

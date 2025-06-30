@@ -2,7 +2,6 @@ package shit.back.telegram.ui.builder;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import shit.back.application.balance.dto.response.DualBalanceResponse;
 import shit.back.config.PaymentConfigurationProperties;
 import shit.back.domain.balance.valueobjects.Currency;
 import shit.back.domain.balance.valueobjects.Money;

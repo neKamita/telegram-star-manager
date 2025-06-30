@@ -4,7 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import shit.back.application.balance.dto.response.DualBalanceResponse;
+import shit.back.application.balance.dto.response.SimpleBalanceResponse;
 import shit.back.application.balance.service.BalanceApplicationFacade;
 import shit.back.telegram.dto.TelegramResponse;
 import shit.back.telegram.queries.ShowWelcomeCardQuery;
@@ -130,7 +130,7 @@ public class ShowWelcomeCardQueryHandler implements TelegramQueryHandler<ShowWel
      * Подготовка данных для пользовательской приветственной карточки
      */
     private WelcomeCardStrategy.WelcomeCardData prepareUserWelcomeData(ShowWelcomeCardQuery query) {
-        DualBalanceResponse balanceData = null;
+        SimpleBalanceResponse balanceData = null;
 
         if (query.isIncludeBalance()) {
             try {
@@ -161,10 +161,10 @@ public class ShowWelcomeCardQueryHandler implements TelegramQueryHandler<ShowWel
     /**
      * Извлечение данных баланса из результата
      */
-    private DualBalanceResponse extractBalanceData(Object balanceResult) {
+    private SimpleBalanceResponse extractBalanceData(Object balanceResult) {
         try {
-            if (balanceResult instanceof DualBalanceResponse) {
-                return (DualBalanceResponse) balanceResult;
+            if (balanceResult instanceof SimpleBalanceResponse) {
+                return (SimpleBalanceResponse) balanceResult;
             }
 
             // TODO: Добавить маппинг других типов если необходимо

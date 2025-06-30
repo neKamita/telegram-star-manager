@@ -4,7 +4,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
-import shit.back.application.balance.dto.response.DualBalanceResponse;
+import shit.back.application.balance.dto.response.SimpleBalanceResponse;
 import shit.back.application.balance.service.BalanceApplicationFacade;
 import shit.back.telegram.dto.TelegramResponse;
 import shit.back.telegram.queries.ShowRichBalanceQuery;
@@ -46,8 +46,8 @@ public class ShowRichBalanceQueryHandler implements TelegramQueryHandler<ShowRic
                 return TelegramResponse.error(error);
             }
 
-            // Получаем DualBalanceResponse из результата
-            DualBalanceResponse balanceData = extractBalanceData(balanceResult);
+            // Получаем SimpleBalanceResponse из результата
+            SimpleBalanceResponse balanceData = extractBalanceData(balanceResult);
             if (balanceData == null) {
                 String error = "Некорректные данные баланса";
                 log.error("❌ {} для пользователя {}", error, query.getUserId());
@@ -117,11 +117,11 @@ public class ShowRichBalanceQueryHandler implements TelegramQueryHandler<ShowRic
     /**
      * Извлечение данных баланса из результата
      */
-    private DualBalanceResponse extractBalanceData(Object balanceResult) {
+    private SimpleBalanceResponse extractBalanceData(Object balanceResult) {
         try {
-            // Попытка получить DualBalanceResponse напрямую
-            if (balanceResult instanceof DualBalanceResponse) {
-                return (DualBalanceResponse) balanceResult;
+            // Попытка получить SimpleBalanceResponse напрямую
+            if (balanceResult instanceof SimpleBalanceResponse) {
+                return (SimpleBalanceResponse) balanceResult;
             }
 
             // TODO: Здесь может потребоваться маппинг других типов результатов
@@ -138,7 +138,7 @@ public class ShowRichBalanceQueryHandler implements TelegramQueryHandler<ShowRic
     /**
      * Дополнение сообщения историей и статистикой
      */
-    private String enhanceMessage(String baseMessage, ShowRichBalanceQuery query, DualBalanceResponse balanceData) {
+    private String enhanceMessage(String baseMessage, ShowRichBalanceQuery query, SimpleBalanceResponse balanceData) {
         StringBuilder enhanced = new StringBuilder(baseMessage);
 
         if (query.isIncludeHistory()) {
@@ -151,13 +151,11 @@ public class ShowRichBalanceQueryHandler implements TelegramQueryHandler<ShowRic
 
         if (query.isIncludeStatistics()) {
             enhanced.append("\n\n📊 <b>Статистика:</b>\n");
-            enhanced.append(String.format("• Общий баланс: %s %s\n",
-                    balanceData.getTotalBalance().getFormattedAmount(),
-                    balanceData.getCurrency().getSymbol()));
+            enhanced.append(String.format("• Текущий баланс: %s\n",
+                    balanceData.getFormattedBalance()));
             enhanced.append("• Статус: ").append(balanceData.isActive() ? "Активен" : "Неактивен").append("\n");
             enhanced.append("• Последнее обновление: ").append(
-                    balanceData.getLastUpdated()
-                            .format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")));
+                    balanceData.getFormattedLastUpdated());
         }
 
         return enhanced.toString();

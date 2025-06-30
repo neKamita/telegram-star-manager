@@ -48,6 +48,13 @@ public class InitiateStarPurchaseCommand implements TelegramCommand {
         this(userId, null, null, customAmount, currency, false);
     }
 
+    /**
+     * Конструктор для подтверждения покупки с указанным количеством звезд
+     */
+    public InitiateStarPurchaseCommand(Long userId, Integer starCount, boolean confirmPurchase) {
+        this(userId, starCount, null, null, Currency.defaultCurrency(), confirmPurchase);
+    }
+
     @Override
     public Long getUserId() {
         return userId;

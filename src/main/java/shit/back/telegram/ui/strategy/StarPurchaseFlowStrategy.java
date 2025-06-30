@@ -1,8 +1,9 @@
 package shit.back.telegram.ui.strategy;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import shit.back.application.balance.dto.response.DualBalanceResponse;
+import shit.back.application.balance.dto.response.SimpleBalanceResponse;
 import shit.back.config.PaymentConfigurationProperties;
 import shit.back.domain.balance.valueobjects.Money;
 import shit.back.telegram.ui.strategy.utils.PaymentMethodsHelper;
@@ -13,11 +14,12 @@ import java.util.List;
 
 /**
  * Стратегия интерфейса покупки звезд
- * 
+ *
  * Управляет флоу покупки звезд с проверкой баланса и объяснением
  * что бот покупает звезды ЗА пользователя через Fragment API
  */
 @Component
+@Slf4j
 public class StarPurchaseFlowStrategy implements TelegramMessageStrategy {
 
     private static final String STRATEGY_TYPE = "STAR_PURCHASE_FLOW";
@@ -73,9 +75,15 @@ public class StarPurchaseFlowStrategy implements TelegramMessageStrategy {
      * Основной интерфейс покупки звезд
      */
     private String formatPurchaseInterface(Object data) {
-        if (!(data instanceof DualBalanceResponse balance)) {
-            throw new IllegalArgumentException("Ожидался DualBalanceResponse для PURCHASE_INTERFACE");
+        if (!(data instanceof SimpleBalanceResponse balance)) {
+            throw new IllegalArgumentException("Ожидался SimpleBalanceResponse для PURCHASE_INTERFACE");
         }
+
+        // ДИАГНОСТИЧЕСКИЙ ЛОГ: Упрощенная информация о балансе
+        log.debug(
+                "🔍 ДИАГНОСТИКА StarPurchaseFlow: userId={}, currentBalance={}",
+                balance.getUserId(),
+                balance.getFormattedBalance());
 
         StringBuilder message = new StringBuilder();
         String currencySymbol = balance.getCurrency().getSymbol();
@@ -84,20 +92,12 @@ public class StarPurchaseFlowStrategy implements TelegramMessageStrategy {
 
         // Состояние баланса
         message.append("💰 <b>Ваш баланс:</b>\n");
-        message.append(String.format("💳 Пополнено: %s %s\n",
-                balance.getBankBalance().getFormattedAmount(), currencySymbol));
-        message.append(String.format("🏦 В работе: %s %s\n\n",
-                balance.getMainBalance().getFormattedAmount(), currencySymbol));
+        message.append(String.format("💵 Доступно: %s\n\n", balance.getFormattedBalance()));
 
         // Проверка готовности к покупке
-        if (!balance.hasMainFunds()) {
-            if (balance.hasBankFunds()) {
-                message.append("💡 <b>Требуется перевод средств</b>\n");
-                message.append("Переведите средства в рабочий баланс для покупки звезд\n\n");
-            } else {
-                message.append("⚠️ <b>Недостаточно средств</b>\n");
-                message.append("Пополните баланс для покупки звезд\n\n");
-            }
+        if (!balance.getCurrentBalance().isPositive()) {
+            message.append("⚠️ <b>Недостаточно средств</b>\n");
+            message.append("Пополните баланс для покупки звезд\n\n");
         } else {
             message.append("✅ <b>Готово к покупке!</b>\n\n");
         }
@@ -110,7 +110,7 @@ public class StarPurchaseFlowStrategy implements TelegramMessageStrategy {
             message.append("❌ <i>Недостаточно средств для покупки звезд</i>\n\n");
         } else {
             for (StarPackage pkg : availablePackages) {
-                boolean canAfford = balance.hasSufficientMainFunds(Money.of(pkg.price));
+                boolean canAfford = balance.hasSufficientFunds(Money.of(pkg.price));
                 String statusIcon = canAfford ? "✅" : "❌";
 
                 message.append(String.format("%s ⭐<b>%d</b> за %s %s\n",
@@ -139,7 +139,7 @@ public class StarPurchaseFlowStrategy implements TelegramMessageStrategy {
             throw new IllegalArgumentException("Ожидался BalanceCheckData для BALANCE_CHECK");
         }
 
-        DualBalanceResponse balance = checkData.balance;
+        SimpleBalanceResponse balance = checkData.balance;
         int requestedStars = checkData.requestedStars;
         Money requiredAmount = checkData.requiredAmount;
 
@@ -151,36 +151,21 @@ public class StarPurchaseFlowStrategy implements TelegramMessageStrategy {
         message.append(String.format("💰 <b>Требуется:</b> %s %s\n\n",
                 requiredAmount.getFormattedAmount(), currencySymbol));
 
-        // Детальная проверка балансов
+        // Упрощенная проверка баланса
         message.append("💰 <b>Состояние баланса:</b>\n");
-        message.append(String.format("💳 Пополненный: %s %s\n",
-                balance.getBankBalance().getFormattedAmount(), currencySymbol));
-        message.append(String.format("🏦 Рабочий: %s %s\n",
-                balance.getMainBalance().getFormattedAmount(), currencySymbol));
-        message.append(String.format("📊 Общий: %s %s\n\n",
-                balance.getTotalBalance().getFormattedAmount(), currencySymbol));
+        message.append(String.format("💵 Доступно: %s\n\n", balance.getFormattedBalance()));
 
         // Результат проверки
-        if (balance.hasSufficientMainFunds(requiredAmount)) {
+        if (balance.hasSufficientFunds(requiredAmount)) {
             message.append("✅ <b>Средств достаточно!</b>\n");
             message.append("Покупка может быть выполнена немедленно\n\n");
 
-            Money remainingAfter = balance.getMainBalance().subtract(requiredAmount);
+            Money remainingAfter = balance.getCurrentBalance().subtract(requiredAmount);
             message.append(String.format("💼 <b>Остаток после покупки:</b> %s %s\n",
                     remainingAfter.getFormattedAmount(), currencySymbol));
-        } else if (balance.hasSufficientBankFunds(requiredAmount) ||
-                balance.getTotalBalance().isGreaterThanOrEqual(requiredAmount)) {
-            message.append("🔄 <b>Требуется перевод средств</b>\n");
-            message.append("Сначала переведите средства в рабочий баланс\n\n");
-
-            Money needToTransfer = requiredAmount.subtract(balance.getMainBalance());
-            if (needToTransfer.isPositive()) {
-                message.append(String.format("💸 <b>Перевести:</b> %s %s\n",
-                        needToTransfer.getFormattedAmount(), currencySymbol));
-            }
         } else {
             message.append("❌ <b>Недостаточно средств</b>\n");
-            Money shortfall = requiredAmount.subtract(balance.getTotalBalance());
+            Money shortfall = requiredAmount.subtract(balance.getCurrentBalance());
             message.append(String.format("💸 <b>Не хватает:</b> %s %s\n",
                     shortfall.getFormattedAmount(), currencySymbol));
         }
@@ -225,7 +210,7 @@ public class StarPurchaseFlowStrategy implements TelegramMessageStrategy {
             throw new IllegalArgumentException("Ожидался InsufficientFundsData для INSUFFICIENT_FUNDS");
         }
 
-        DualBalanceResponse balance = fundsData.balance;
+        SimpleBalanceResponse balance = fundsData.balance;
         Money required = fundsData.required;
         int requestedStars = fundsData.requestedStars;
 
@@ -236,18 +221,14 @@ public class StarPurchaseFlowStrategy implements TelegramMessageStrategy {
         message.append(String.format("⭐ <b>Запрошено:</b> %d звезд\n", requestedStars));
         message.append(String.format("💰 <b>Требуется:</b> %s %s\n",
                 required.getFormattedAmount(), currencySymbol));
-        message.append(String.format("💼 <b>Доступно:</b> %s %s\n\n",
-                balance.getTotalBalance().getFormattedAmount(), currencySymbol));
+        message.append(String.format("💼 <b>Доступно:</b> %s\n\n", balance.getFormattedBalance()));
 
-        Money shortfall = required.subtract(balance.getTotalBalance());
+        Money shortfall = required.subtract(balance.getCurrentBalance());
         message.append(String.format("💸 <b>Не хватает:</b> %s %s\n\n",
                 shortfall.getFormattedAmount(), currencySymbol));
 
         // Рекомендации по пополнению
         message.append("💡 <b>Рекомендации:</b>\n");
-        if (balance.hasBankFunds() && !balance.hasMainFunds()) {
-            message.append("• Переведите средства в рабочий баланс\n");
-        }
         message.append("• Пополните баланс одним из способов:\n");
 
         List<String> paymentMethods = getAvailablePaymentMethods(balance);
@@ -267,7 +248,7 @@ public class StarPurchaseFlowStrategy implements TelegramMessageStrategy {
     /**
      * Получение доступных пакетов звезд на основе баланса
      */
-    private List<StarPackage> getAvailablePackages(DualBalanceResponse balance) {
+    private List<StarPackage> getAvailablePackages(SimpleBalanceResponse balance) {
         List<StarPackage> available = new ArrayList<>();
 
         for (StarPackage pkg : STAR_PACKAGES) {
@@ -286,18 +267,18 @@ public class StarPurchaseFlowStrategy implements TelegramMessageStrategy {
     /**
      * Получение доступных способов оплаты
      */
-    private List<String> getAvailablePaymentMethods(DualBalanceResponse balance) {
+    private List<String> getAvailablePaymentMethods(SimpleBalanceResponse balance) {
         return PaymentMethodsHelper.getAvailablePaymentMethods(balance.getCurrency(), paymentConfig);
     }
 
     // Вспомогательные классы для передачи данных
 
     public static class BalanceCheckData {
-        public final DualBalanceResponse balance;
+        public final SimpleBalanceResponse balance;
         public final int requestedStars;
         public final Money requiredAmount;
 
-        public BalanceCheckData(DualBalanceResponse balance, int requestedStars, Money requiredAmount) {
+        public BalanceCheckData(SimpleBalanceResponse balance, int requestedStars, Money requiredAmount) {
             this.balance = balance;
             this.requestedStars = requestedStars;
             this.requiredAmount = requiredAmount;
@@ -317,11 +298,11 @@ public class StarPurchaseFlowStrategy implements TelegramMessageStrategy {
     }
 
     public static class InsufficientFundsData {
-        public final DualBalanceResponse balance;
+        public final SimpleBalanceResponse balance;
         public final Money required;
         public final int requestedStars;
 
-        public InsufficientFundsData(DualBalanceResponse balance, Money required, int requestedStars) {
+        public InsufficientFundsData(SimpleBalanceResponse balance, Money required, int requestedStars) {
             this.balance = balance;
             this.required = required;
             this.requestedStars = requestedStars;

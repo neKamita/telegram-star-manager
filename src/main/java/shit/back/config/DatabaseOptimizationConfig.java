@@ -125,6 +125,24 @@ public class DatabaseOptimizationConfig {
                                 "ON user_activity_logs (order_id, timestamp DESC) WHERE order_id IS NOT NULL",
                         "idx_activity_orders");
 
+                // НОВЫЙ ИНДЕКС 6: Оптимизация user_balance запросов
+                createIndexIfNotExists(statement,
+                        "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_balance_optimized " +
+                                "ON user_balance (user_id, is_active, last_updated DESC)",
+                        "idx_user_balance_optimized");
+
+                // НОВЫЙ ИНДЕКС 7: Оптимизация balance_transactions для агрегатов
+                createIndexIfNotExists(statement,
+                        "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_balance_transactions_optimized " +
+                                "ON balance_transactions (user_id, status, created_at DESC, type)",
+                        "idx_balance_transactions_optimized");
+
+                // НОВЫЙ ИНДЕКС 8: Составной индекс для поиска транзакций по заказам
+                createIndexIfNotExists(statement,
+                        "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_transactions_order_optimized " +
+                                "ON balance_transactions (order_id, user_id, created_at DESC) WHERE order_id IS NOT NULL",
+                        "idx_transactions_order_optimized");
+
                 // ОПТИМИЗАЦИЯ PostgreSQL: Обновление статистики таблиц
                 statement.execute("ANALYZE user_activity_logs");
                 statement.execute("ANALYZE user_sessions");

@@ -1,108 +1,115 @@
 package shit.back.application.balance.mapper;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import shit.back.application.balance.dto.response.BalanceResponse;
-import shit.back.application.balance.dto.response.DualBalanceResponse;
+import shit.back.application.balance.dto.response.SimpleBalanceResponse;
 import shit.back.domain.balance.valueobjects.Currency;
 import shit.back.domain.balance.valueobjects.Money;
-import shit.back.domain.dualBalance.DualBalanceAggregate;
+import shit.back.domain.balance.BalanceAggregate;
 
 /**
- * Маппер для преобразования BalanceResponse в DualBalanceResponse
- * 
+ * Маппер для преобразования BalanceResponse в SimpleBalanceResponse
+ *
  * СОЗДАН для решения проблемы несовместимости типов между
  * BalanceApplicationServiceV2.getBalance() и ShowBalanceQueryHandler
  */
 public final class BalanceResponseMapper {
 
-    private BalanceResponseMapper() {
-        // Utility class
-    }
+        private static final Logger log = LoggerFactory.getLogger(BalanceResponseMapper.class);
 
-    /**
-     * Преобразует BalanceResponse в DualBalanceResponse
-     * 
-     * @param balanceResponse источник данных
-     * @return DualBalanceResponse для использования в Telegram UI
-     */
-    public static DualBalanceResponse toDualBalanceResponse(BalanceResponse balanceResponse) {
-        if (balanceResponse == null) {
-            return null;
+        private BalanceResponseMapper() {
+                // Utility class
         }
 
-        // Получаем валюту, используя код из ответа или валюту по умолчанию
-        Currency currency = Currency.defaultCurrency();
-        if (balanceResponse.getCurrency() != null) {
-            currency = Currency.of(balanceResponse.getCurrency());
+        /**
+         * Преобразует BalanceResponse в SimpleBalanceResponse
+         * ИСПРАВЛЕНО: Упрощенная архитектура с единым балансом
+         *
+         * @param balanceResponse источник данных
+         * @return SimpleBalanceResponse для использования в Telegram UI
+         */
+        public static SimpleBalanceResponse toSimpleBalanceResponse(BalanceResponse balanceResponse) {
+                if (balanceResponse == null) {
+                        log.warn("🔍 ДИАГНОСТИКА: BalanceResponseMapper получил null balanceResponse");
+                        return null;
+                }
+
+                // ДИАГНОСТИЧЕСКИЙ ЛОГ: Входные данные
+                log.debug(
+                                "🔍 ДИАГНОСТИКА BalanceResponseMapper: userId={}, currentBalance={}, totalDeposited={}, totalSpent={}, currency={}",
+                                balanceResponse.getUserId(),
+                                balanceResponse.getCurrentBalance(),
+                                balanceResponse.getTotalDeposited(),
+                                balanceResponse.getTotalSpent(),
+                                balanceResponse.getCurrency());
+
+                // Получаем валюту, используя код из ответа или валюту по умолчанию
+                Currency currency = Currency.defaultCurrency();
+                if (balanceResponse.getCurrency() != null) {
+                        currency = Currency.of(balanceResponse.getCurrency());
+                }
+
+                // Создаем Money объект для текущего баланса
+                Money currentBalance = Money.of(balanceResponse.getCurrentBalance() != null
+                                ? balanceResponse.getCurrentBalance()
+                                : java.math.BigDecimal.ZERO);
+
+                // ДИАГНОСТИЧЕСКИЙ ЛОГ: Результат маппинга
+                log.debug(
+                                "🔍 ДИАГНОСТИКА BalanceResponseMapper РЕЗУЛЬТАТ: userId={}, currentBalance={} - упрощенная архитектура",
+                                balanceResponse.getUserId(),
+                                currentBalance.getFormattedAmount());
+
+                return SimpleBalanceResponse.builder()
+                                .userId(balanceResponse.getUserId())
+                                .currentBalance(currentBalance)
+                                .currency(currency)
+                                .active(balanceResponse.isActive())
+                                .lastUpdated(balanceResponse.getLastUpdated() != null
+                                                ? balanceResponse.getLastUpdated()
+                                                : java.time.LocalDateTime.now())
+                                .build();
         }
 
-        // Создаем Money объекты для балансов
-        Money currentBalance = Money.of(balanceResponse.getCurrentBalance() != null
-                ? balanceResponse.getCurrentBalance()
-                : java.math.BigDecimal.ZERO);
-
-        Money totalDeposited = Money.of(balanceResponse.getTotalDeposited() != null
-                ? balanceResponse.getTotalDeposited()
-                : java.math.BigDecimal.ZERO);
-
-        Money totalSpent = Money.of(balanceResponse.getTotalSpent() != null
-                ? balanceResponse.getTotalSpent()
-                : java.math.BigDecimal.ZERO);
-
-        // Для простоты считаем весь текущий баланс как "банковский" (пополненный)
-        // В будущем можно добавить логику разделения на bank/main балансы
-        return DualBalanceResponse.builder()
-                .userId(balanceResponse.getUserId())
-                .bankBalance(currentBalance) // Весь баланс считаем пополненным
-                .mainBalance(Money.zero()) // Рабочий баланс пока нулевой
-                .currency(currency)
-                .active(balanceResponse.isActive())
-                .lastUpdated(balanceResponse.getLastUpdated() != null
-                        ? balanceResponse.getLastUpdated()
-                        : java.time.LocalDateTime.now())
-                .totalTransferredToMain(Money.zero()) // Пока нет переводов
-                .totalSpentFromMain(Money.zero()) // Пока нет трат из рабочего
-                .build();
-    }
-
-    /**
-     * Создает заглушку DualBalanceResponse для случаев, когда баланс не найден
-     *
-     * @param userId ID пользователя
-     * @return DualBalanceResponse с нулевыми балансами
-     */
-    public static DualBalanceResponse createEmptyDualBalance(Long userId) {
-        return DualBalanceResponse.builder()
-                .userId(userId)
-                .bankBalance(Money.zero())
-                .mainBalance(Money.zero())
-                .currency(Currency.defaultCurrency())
-                .active(false)
-                .lastUpdated(java.time.LocalDateTime.now())
-                .totalTransferredToMain(Money.zero())
-                .totalSpentFromMain(Money.zero())
-                .build();
-    }
-
-    /**
-     * Преобразует DualBalanceAggregate в DualBalanceResponse
-     *
-     * @param dualBalance агрегат двойного баланса
-     * @return DualBalanceResponse для использования в UI
-     */
-    public static DualBalanceResponse fromDualBalance(DualBalanceAggregate dualBalance) {
-        if (dualBalance == null) {
-            return null;
+        /**
+         * Создает заглушку SimpleBalanceResponse для случаев, когда баланс не найден
+         *
+         * @param userId ID пользователя
+         * @return SimpleBalanceResponse с нулевым балансом
+         */
+        public static SimpleBalanceResponse createEmptyBalance(Long userId) {
+                return SimpleBalanceResponse.builder()
+                                .userId(userId)
+                                .currentBalance(Money.zero())
+                                .currency(Currency.defaultCurrency())
+                                .active(false)
+                                .lastUpdated(java.time.LocalDateTime.now())
+                                .build();
         }
 
-        return DualBalanceResponse.builder()
-                .userId(dualBalance.getUserId())
-                .bankBalance(dualBalance.getBankBalance())
-                .mainBalance(dualBalance.getMainBalance())
-                .currency(dualBalance.getCurrency())
-                .active(dualBalance.isActive())
-                .lastUpdated(dualBalance.getLastUpdated())
-                .totalTransferredToMain(dualBalance.getTotalTransferredToMain())
-                .totalSpentFromMain(dualBalance.getTotalSpentFromMain())
-                .build();
-    }
+        /**
+         * Преобразует BalanceAggregate в SimpleBalanceResponse
+         *
+         * @param balanceAggregate агрегат баланса
+         * @return SimpleBalanceResponse для использования в упрощенных стратегиях
+         */
+        public static SimpleBalanceResponse fromBalanceAggregate(BalanceAggregate balanceAggregate) {
+                if (balanceAggregate == null) {
+                        log.warn("🔍 ФАЗА2: BalanceResponseMapper получил null balanceAggregate для SimpleBalance");
+                        return null;
+                }
+
+                log.debug("🔍 ФАЗА2: Преобразование BalanceAggregate в SimpleBalanceResponse - userId={}, currentBalance={}",
+                                balanceAggregate.getUserId(),
+                                balanceAggregate.getCurrentBalance().getFormattedAmount());
+
+                return SimpleBalanceResponse.builder()
+                                .userId(balanceAggregate.getUserId())
+                                .currentBalance(balanceAggregate.getCurrentBalance())
+                                .currency(balanceAggregate.getCurrency())
+                                .active(balanceAggregate.isActive())
+                                .lastUpdated(balanceAggregate.getLastUpdated())
+                                .build();
+        }
 }

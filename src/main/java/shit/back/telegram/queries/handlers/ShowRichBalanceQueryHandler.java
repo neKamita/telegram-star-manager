@@ -65,7 +65,6 @@ public class ShowRichBalanceQueryHandler implements TelegramQueryHandler<ShowRic
             // Создаем клавиатуру с действиями для баланса
             var keyboard = new TelegramKeyboardBuilder()
                     .addButton("⭐ Купить звезды", "buy_stars")
-                    .addButton("💸 Перевести средства", "transfer_funds")
                     .newRow()
                     .addButton("📋 История операций", "show_history")
                     .addButton("💳 Пополнить", "topup_balance")

@@ -7,7 +7,7 @@ import shit.back.telegram.commands.TelegramCommand;
 /**
  * Команда инициации покупки звезд
  *
- * Интегрируется с StarPurchaseFlowStrategy для управления флоу покупки
+ * Использует упрощенную архитектуру покупки звезд
  */
 public class InitiateStarPurchaseCommand implements TelegramCommand {
 
@@ -149,10 +149,10 @@ public class InitiateStarPurchaseCommand implements TelegramCommand {
     public String getOperationType() {
         if (confirmPurchase) {
             return "PURCHASE_CONFIRMATION";
-        } else if (hasStarCount()) {
-            return "BALANCE_CHECK";
-        } else if (hasCustomAmount()) {
-            return "BALANCE_CHECK";
+        } else if (hasStarCount() || hasCustomAmount()) {
+            // ИСПРАВЛЕНИЕ: При выборе пакета звезд нужно показать подтверждение, а не
+            // проверять баланс
+            return "PURCHASE_CONFIRMATION";
         } else {
             // Случай когда пользователь просто хочет открыть интерфейс покупки
             return "PURCHASE_INTERFACE";

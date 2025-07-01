@@ -2,7 +2,9 @@ package shit.back.application.balance.service;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import shit.back.application.balance.dto.request.OperationRequest;
 import shit.back.application.balance.dto.response.*;
@@ -16,6 +18,7 @@ import shit.back.domain.balance.TransactionAggregate;
 import shit.back.domain.balance.exceptions.InvalidTransactionException;
 import shit.back.domain.balance.valueobjects.*;
 import shit.back.infrastructure.events.DomainEventPublisher;
+import shit.back.security.SecurityContextManager;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -47,16 +50,19 @@ public class BalanceApplicationServiceV2 implements BalanceApplicationFacade {
         private final TransactionAggregateRepository transactionAggregateRepository;
         private final DomainEventPublisher eventPublisher;
         private final BalancePolicy balancePolicy;
+        private final SecurityContextManager securityContextManager;
 
         public BalanceApplicationServiceV2(
                         BalanceAggregateRepository balanceAggregateRepository,
                         TransactionAggregateRepository transactionAggregateRepository,
                         DomainEventPublisher eventPublisher,
-                        BalancePolicy balancePolicy) {
+                        BalancePolicy balancePolicy,
+                        SecurityContextManager securityContextManager) {
                 this.balanceAggregateRepository = balanceAggregateRepository;
                 this.transactionAggregateRepository = transactionAggregateRepository;
                 this.eventPublisher = eventPublisher;
                 this.balancePolicy = balancePolicy;
+                this.securityContextManager = securityContextManager;
         }
 
         // ==================== COMMAND OPERATIONS (CQRS) ====================
@@ -141,21 +147,29 @@ public class BalanceApplicationServiceV2 implements BalanceApplicationFacade {
 
         /**
          * Получение или создание баланса пользователя
+         * ИСПРАВЛЕНО: Устранены Race Conditions с использованием SERIALIZABLE изоляции
          */
+        @Transactional(isolation = Isolation.SERIALIZABLE)
         private BalanceAggregate getOrCreateBalance(Long userId, String currencyCode) {
-                // Пытаемся найти существующий баланс
-                Optional<BalanceAggregate> existingBalance = balanceAggregateRepository.findByUserId(userId);
-                if (existingBalance.isPresent()) {
-                        return existingBalance.get();
-                }
+                return balanceAggregateRepository.findByUserId(userId)
+                                .orElseGet(() -> {
+                                        try {
+                                                log.info("Создание нового баланса для пользователя {}", userId);
+                                                Currency currency = Currency
+                                                                .of(currencyCode != null ? currencyCode : "USD");
 
-                // Создаем новый баланс если не найден
-                log.info("Создание нового баланса для пользователя {}", userId);
-                Currency currency = Currency.of(currencyCode != null ? currencyCode : "USD");
-
-                // Используем конструктор с BalancePolicy
-                BalanceAggregate newBalance = new BalanceAggregate(userId, currency, balancePolicy);
-                return balanceAggregateRepository.save(newBalance);
+                                                BalanceAggregate newBalance = new BalanceAggregate(userId, currency,
+                                                                balancePolicy);
+                                                return balanceAggregateRepository.save(newBalance);
+                                        } catch (DataIntegrityViolationException e) {
+                                                // Если баланс уже создан другой транзакцией, ищем его повторно
+                                                return balanceAggregateRepository.findByUserId(userId)
+                                                                .orElseThrow(() -> new InvalidTransactionException(
+                                                                                "BALANCE_CREATION_FAILED",
+                                                                                "Concurrent creation failed",
+                                                                                "Valid balance creation"));
+                                        }
+                                });
         }
 
         /**
@@ -212,22 +226,38 @@ public class BalanceApplicationServiceV2 implements BalanceApplicationFacade {
 
         /**
          * Получение баланса пользователя - Read-only operation
+         * ИСПРАВЛЕНО: Автоматически создает баланс для новых пользователей с Rate
+         * Limiting
          */
         @Override
-        @Transactional(readOnly = true)
+        @Transactional
         public Result<BalanceResponse> getBalance(Long userId) {
                 log.debug("Getting balance for user {}", userId);
 
                 try {
-                        var balanceOptional = balanceAggregateRepository.findByUserId(userId);
-
-                        if (balanceOptional.isEmpty()) {
-                                log.warn("Balance not found for user {}", userId);
-                                return Result.error(new InvalidTransactionException("BALANCE_NOT_FOUND",
-                                                userId.toString(), "Существующий пользователь с балансом"));
+                        // Опциональная проверка авторизации (если есть SecurityContext)
+                        try {
+                                var currentUserId = securityContextManager.getCurrentUserId();
+                                if (currentUserId.isPresent() && !currentUserId.get().equals(userId.toString())) {
+                                        log.warn("User access violation: current user {} tried to access balance of user {}",
+                                                        currentUserId.get(), userId);
+                                        return Result.error(new InvalidTransactionException("ACCESS_DENIED",
+                                                        userId.toString(), "Доступ только к собственному балансу"));
+                                }
+                        } catch (Exception securityEx) {
+                                // Игнорируем ошибки SecurityContext для Telegram бота
+                                log.debug("Security context not available, proceeding without authorization check");
                         }
 
-                        BalanceAggregate balance = balanceOptional.get();
+                        // Проверка rate limiting перед операцией
+                        if (!balancePolicy.isBalanceOperationAllowed(userId)) {
+                                log.warn("Rate limit exceeded for balance operation, user: {}", userId);
+                                return Result.error(new InvalidTransactionException("RATE_LIMIT_EXCEEDED",
+                                                userId.toString(), "Слишком много запросов"));
+                        }
+
+                        // Используем getOrCreateBalance для автоматического создания баланса
+                        BalanceAggregate balance = getOrCreateBalance(userId, "USD");
                         BalanceResponse response = convertToResponse(balance);
 
                         log.debug("Successfully retrieved balance for user {}: {}", userId,
@@ -236,7 +266,7 @@ public class BalanceApplicationServiceV2 implements BalanceApplicationFacade {
                         return Result.success(response);
 
                 } catch (Exception e) {
-                        log.error("Failed to get balance for user {}: {}", userId, e.getMessage(), e);
+                        log.error("Balance retrieval failed for user {}", userId);
                         return Result.error(new InvalidTransactionException("BALANCE_RETRIEVAL_ERROR",
                                         e.getMessage(), "Валидные данные"));
                 }

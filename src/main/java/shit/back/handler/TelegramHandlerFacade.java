@@ -247,14 +247,37 @@ public class TelegramHandlerFacade {
                 log.info("📊 Обработка show_history для пользователя: {}", userId);
                 return telegramService.execute(new ShowPurchaseHistoryQuery(userId));
 
+            case "purchase_history":
+                log.info("📊 Обработка purchase_history для пользователя: {}", userId);
+                return telegramService.execute(new ShowPurchaseHistoryQuery(userId));
+
+            // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Обработчики фильтрации истории покупок
+            // ВРЕМЕННО: Используем страницу 0 до добавления поддержки сохранения текущей
+            // страницы в сессии
+            case "history_filter_ALL":
+                log.info("🔍 Обработка history_filter_ALL для пользователя: {}", userId);
+                return telegramService.execute(new ShowPurchaseHistoryQuery(userId, 0, 10, "ALL"));
+
+            case "history_filter_SUCCESSFUL":
+                log.info("✅ Обработка history_filter_SUCCESSFUL для пользователя: {}", userId);
+                return telegramService.execute(new ShowPurchaseHistoryQuery(userId, 0, 10, "SUCCESSFUL"));
+
+            case "history_filter_FAILED":
+                log.info("❌ Обработка history_filter_FAILED для пользователя: {}", userId);
+                return telegramService.execute(new ShowPurchaseHistoryQuery(userId, 0, 10, "FAILED"));
+
+            // ИСПРАВЛЕНИЕ: Обновление истории
+            case "refresh_history":
+                log.info("🔄 Обработка refresh_history для пользователя: {}", userId);
+                return telegramService.execute(new ShowPurchaseHistoryQuery(userId));
+
             case "buy_stars":
                 log.info("⭐ Обработка buy_stars для пользователя: {}", userId);
                 return telegramService.execute(new InitiateStarPurchaseCommand(userId));
 
-            // Обработка конкретных пакетов звезд: buy_stars_500_4.50
-            case "transfer_funds":
-                log.info("💸 Обработка transfer_funds для пользователя: {}", userId);
-                return TelegramResponse.error("Функция перевода средств временно недоступна");
+            case "back_to_balance":
+                log.info("🔙 Обработка back_to_balance для пользователя: {}", userId);
+                return telegramService.execute(new ShowBalanceQuery(userId, true));
 
             default:
                 // Обработка конкретных пакетов звезд: buy_stars_500_4.50
@@ -282,6 +305,46 @@ public class TelegramHandlerFacade {
                     String amount = callbackData.substring("payment_completed_".length());
                     log.info("✅ Обработка payment_completed для суммы: {}", amount);
                     return handlePaymentCompleted(userId, amount);
+                }
+
+                // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Обработка динамических callback'ов topup_amount_*
+                if (callbackData.startsWith("topup_amount_")) {
+                    String amount = callbackData.substring("topup_amount_".length());
+                    log.info("🔍 ДИАГНОСТИКА ПРОБЛЕМЫ: Найден динамический topup_amount для суммы: '{}'", amount);
+                    return handleDynamicTopupAmount(userId, amount);
+                }
+
+                // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Обработка навигации по страницам истории с
+                // валидацией
+                if (callbackData.startsWith("history_page_")) {
+                    String pageStr = callbackData.substring("history_page_".length());
+                    try {
+                        int page = Integer.parseInt(pageStr);
+
+                        // ИСПРАВЛЕНИЕ: Fail-Fast валидация отрицательных номеров страниц
+                        if (page < 0) {
+                            log.warn("❌ Отрицательный номер страницы {} для пользователя: {}", page, userId);
+                            return TelegramResponse
+                                    .error("❌ Некорректный номер страницы. Страница должна быть неотрицательной.");
+                        }
+
+                        // ИСПРАВЛЕНИЕ: Дополнительная валидация максимального номера страницы
+                        if (page > 999) { // Разумное ограничение
+                            log.warn("❌ Слишком большой номер страницы {} для пользователя: {}", page, userId);
+                            return TelegramResponse.error("❌ Номер страницы слишком большой. Максимум: 999.");
+                        }
+
+                        log.info("📄 Обработка навигации по истории, страница {} для пользователя: {}", page, userId);
+
+                        // ИСПРАВЛЕНИЕ: Сохраняем текущую страницу при навигации (добавляем фильтр по
+                        // умолчанию)
+                        return telegramService.execute(new ShowPurchaseHistoryQuery(userId, page, 10, "ALL"));
+
+                    } catch (NumberFormatException e) {
+                        log.error("❌ Ошибка парсинга номера страницы из callback '{}': {}", callbackData,
+                                e.getMessage());
+                        return TelegramResponse.error("❌ Некорректный формат номера страницы. Ожидается число.");
+                    }
                 }
 
                 // Обработка подтверждения покупки звезд: proceed_purchase_1000
@@ -415,8 +478,8 @@ public class TelegramHandlerFacade {
                                 .build();
                     }
                 }
-            }
 
+            }
             // Если не в специальном состоянии - стандартное сообщение
             return SendMessage.builder()
                     .chatId(chatId.toString())
@@ -483,7 +546,6 @@ public class TelegramHandlerFacade {
                 log.debug("ℹ️ Клавиатура пустая или null, не добавляем replyMarkup");
             }
         }
-
         return builder.build();
     }
 
@@ -932,6 +994,64 @@ public class TelegramHandlerFacade {
         } catch (Exception e) {
             log.error("❌ Ошибка при подтверждении покупки звезд для пользователя {}: {}", userId, e.getMessage());
             return TelegramResponse.error("❌ Ошибка при подтверждении покупки: " + e.getMessage());
+        }
+    }
+
+    /**
+     * КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Обработка динамических callback'ов topup_amount_*
+     * Этот метод обрабатывает callback'ы с произвольными суммами пополнения
+     */
+    private TelegramResponse handleDynamicTopupAmount(Long userId, String amount) {
+        log.info("🔍 ДИАГНОСТИКА: НАЧАЛО обработки динамической суммы пополнения '{}' для пользователя {}",
+                amount, userId);
+        try {
+            // ДИАГНОСТИЧЕСКИЙ ЛОГ #1: Проверяем входные данные
+            log.info("🔍 ДИАГНОСТИКА: Входная сумма: '{}', тип: {}", amount, amount.getClass().getSimpleName());
+
+            // Нормализуем сумму - заменяем запятые на точки для парсинга
+            String normalizedAmount = amount.replace(",", ".");
+            log.info("🔍 ДИАГНОСТИКА: Нормализованная сумма: '{}'", normalizedAmount);
+
+            // Валидируем что это число
+            try {
+                BigDecimal amountDecimal = new BigDecimal(normalizedAmount);
+                log.info("🔍 ДИАГНОСТИКА: BigDecimal успешно создан: {}", amountDecimal);
+
+                if (amountDecimal.compareTo(BigDecimal.ZERO) <= 0) {
+                    log.warn("❌ ДИАГНОСТИКА: Некорректная сумма для пополнения: {}", amount);
+                    return TelegramResponse.error("Некорректная сумма для пополнения");
+                }
+            } catch (NumberFormatException e) {
+                log.error("❌ ДИАГНОСТИКА: Ошибка NumberFormatException при парсинге суммы '{}': {}", amount,
+                        e.getMessage());
+                return TelegramResponse.error("Ошибка при обработке суммы");
+            }
+
+            // ДИАГНОСТИЧЕСКИЙ ЛОГ #2: Получаем способ оплаты
+            String paymentMethod = getPaymentMethodFromSession(userId);
+            log.info("🔍 ДИАГНОСТИКА: Способ оплаты из сессии: '{}'", paymentMethod);
+
+            // ДИАГНОСТИЧЕСКИЙ ЛОГ #3: Создаем команду
+            log.info(
+                    "🔍 ДИАГНОСТИКА: СОЗДАНИЕ TopupBalanceCommand с параметрами: userId={}, amount='{}', paymentMethod='{}'",
+                    userId, normalizedAmount, paymentMethod);
+
+            TopupBalanceCommand command = new TopupBalanceCommand(userId, normalizedAmount, paymentMethod);
+            log.info("🔍 ДИАГНОСТИКА: TopupBalanceCommand успешно создана: {}", command);
+
+            // ДИАГНОСТИЧЕСКИЙ ЛОГ #4: Вызываем telegramService.execute()
+            log.info("🔍 ДИАГНОСТИКА: ВЫЗОВ telegramService.execute() с командой: {}", command);
+            TelegramResponse response = telegramService.execute(command);
+            log.info("🔍 ДИАГНОСТИКА: telegramService.execute() завершен успешно, response: successful={}",
+                    response.isSuccessful());
+
+            return response;
+
+        } catch (Exception e) {
+            log.error("❌ ДИАГНОСТИКА: ИСКЛЮЧЕНИЕ в handleDynamicTopupAmount для суммы '{}', пользователя {}: {}",
+                    amount, userId, e.getMessage(), e);
+            log.error("❌ ДИАГНОСТИКА: Полный стек исключения:", e);
+            return TelegramResponse.error("Ошибка при обработке суммы пополнения: " + e.getMessage());
         }
     }
 

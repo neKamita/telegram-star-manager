@@ -21,12 +21,13 @@ public interface TelegramQuery {
 
     /**
      * Валидация запроса перед выполнением
-     * 
+     * ИСПРАВЛЕНО: Усилена валидация userId для предотвращения атак
+     *
      * @throws IllegalArgumentException если запрос невалиден
      */
     default void validate() {
-        if (getUserId() == null || getUserId() <= 0) {
-            throw new IllegalArgumentException("User ID обязателен и должен быть положительным");
+        if (getUserId() == null || getUserId() <= 0 || getUserId() > 999999999999L) {
+            throw new IllegalArgumentException("Invalid user ID range");
         }
     }
 

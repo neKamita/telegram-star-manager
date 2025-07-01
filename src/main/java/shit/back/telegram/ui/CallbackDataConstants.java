@@ -296,6 +296,7 @@ public final class CallbackDataConstants {
 
     /**
      * Проверка простых команд без параметров
+     * ИСПРАВЛЕНО: Добавлена валидация для callback'ов истории покупок
      */
     private static boolean isSimpleCommand(String command) {
         return switch (command) {
@@ -317,7 +318,10 @@ public final class CallbackDataConstants {
                     TRANSFER_TO_MAIN, TRANSFER_CONFIRM,
                     HISTORY_PURCHASES, HISTORY_TOPUPS, HISTORY_TRANSFERS,
                     CONFIRM_YES, CONFIRM_NO, CANCEL_OPERATION,
-                    HELP_BALANCE, HELP_STARS, HELP_PAYMENT, HELP_SUPPORT ->
+                    HELP_BALANCE, HELP_STARS, HELP_PAYMENT, HELP_SUPPORT,
+                    // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Добавлены отсутствующие callback'ы истории
+                    "history_filter_ALL", "history_filter_SUCCESSFUL", "history_filter_FAILED",
+                    "refresh_history", "show_history", "purchase_history" ->
                 true;
             default -> false;
         };

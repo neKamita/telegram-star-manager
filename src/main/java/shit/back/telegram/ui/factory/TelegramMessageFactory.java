@@ -4,7 +4,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import shit.back.telegram.ui.strategy.TelegramMessageStrategy;
 import shit.back.telegram.ui.strategy.BalanceDisplayStrategy;
-import shit.back.telegram.ui.strategy.StarPurchaseFlowStrategy;
 import shit.back.telegram.ui.strategy.WelcomeCardStrategy;
 import shit.back.telegram.ui.strategy.PurchaseHistoryStrategy;
 
@@ -27,9 +26,6 @@ public class TelegramMessageFactory {
     private BalanceDisplayStrategy balanceDisplayStrategy;
 
     @Autowired
-    private StarPurchaseFlowStrategy starPurchaseFlowStrategy;
-
-    @Autowired
     private WelcomeCardStrategy welcomeCardStrategy;
 
     @Autowired
@@ -42,7 +38,6 @@ public class TelegramMessageFactory {
     public void initializeStrategies() {
         // Регистрируем все доступные стратегии
         registerStrategy(balanceDisplayStrategy);
-        registerStrategy(starPurchaseFlowStrategy);
         registerStrategy(welcomeCardStrategy);
         registerStrategy(purchaseHistoryStrategy);
     }

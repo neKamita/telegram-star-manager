@@ -42,29 +42,38 @@ public class TopupBalanceCommandHandler implements TelegramCommandHandler<TopupB
     @Override
     @Transactional
     public TelegramResponse handle(TopupBalanceCommand command) throws Exception {
-        log.info("💳 Обработка пополнения баланса: userId={}, amount={}, method={}",
+        log.info("🔍 ДИАГНОСТИКА: НАЧАЛО TopupBalanceCommandHandler.handle() для userId={}, amount={}, method={}",
                 command.getUserId(), command.getAmount(), command.getPaymentMethod());
 
         try {
+            // ДИАГНОСТИЧЕСКИЙ ЛОГ #1: Проверяем команду
+            log.info("🔍 ДИАГНОСТИКА: Команда получена: {}", command);
+            log.info("🔍 ДИАГНОСТИКА: hasAmount() = {}", command.hasAmount());
+
             // Валидация команды
+            log.info("🔍 ДИАГНОСТИКА: ВЫЗОВ command.validate()");
             command.validate();
+            log.info("🔍 ДИАГНОСТИКА: command.validate() успешно завершена");
 
             if (!command.hasAmount()) {
                 // Команда "начать пополнение" - переводим в состояние ввода суммы
+                log.info("🔍 ДИАГНОСТИКА: Команда БЕЗ суммы - вызываем handleTopupStart()");
                 return handleTopupStart(command);
             } else {
                 // Команда с суммой - обрабатываем пополнение
+                log.info("🔍 ДИАГНОСТИКА: Команда С суммой - вызываем handleTopupWithAmount()");
                 return handleTopupWithAmount(command);
             }
 
         } catch (IllegalArgumentException e) {
-            log.warn("❌ Некорректные данные для пополнения от пользователя {}: {}",
-                    command.getUserId(), e.getMessage());
+            log.error("❌ ДИАГНОСТИКА: IllegalArgumentException в TopupBalanceCommandHandler от пользователя {}: {}",
+                    command.getUserId(), e.getMessage(), e);
             return TelegramResponse.error("❌ " + e.getMessage());
 
         } catch (Exception e) {
-            log.error("❌ Ошибка при обработке пополнения баланса для пользователя {}: {}",
+            log.error("❌ ДИАГНОСТИКА: ИСКЛЮЧЕНИЕ в TopupBalanceCommandHandler для пользователя {}: {}",
                     command.getUserId(), e.getMessage(), e);
+            log.error("❌ ДИАГНОСТИКА: Полный стек исключения в TopupBalanceCommandHandler:", e);
             return TelegramResponse.error("Не удалось обработать запрос на пополнение: " + e.getMessage());
         }
     }

@@ -4,10 +4,10 @@ import org.springframework.stereotype.Component;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.InlineKeyboardMarkup;
 import org.telegram.telegrambots.meta.api.objects.replykeyboard.buttons.InlineKeyboardButton;
 import shit.back.application.balance.dto.response.SimpleBalanceResponse;
+import shit.back.config.StarPriceConstants;
 import shit.back.domain.balance.valueobjects.Money;
 import shit.back.telegram.ui.TelegramUIResponse;
 
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -49,21 +49,19 @@ public class SimplifiedStarPurchaseStrategy {
     }
 
     /**
-     * Получение доступных пакетов звезд для покупки
-     * 
-     * @param userBalance баланс пользователя
-     * @return список доступных пакетов
+     * Получение всех пакетов звезд для отображения
+     *
+     * @param userBalance баланс пользователя (не используется для фильтрации)
+     * @return список всех пакетов звезд
      */
     public List<StarPackageOption> getAvailablePackages(Money userBalance) {
         List<StarPackageOption> packages = new ArrayList<>();
 
-        // Базовые пакеты звезд
-        addPackageIfAffordable(packages, userBalance, 100, Money.of("1.00"));
-        addPackageIfAffordable(packages, userBalance, 500, Money.of("4.50"));
-        addPackageIfAffordable(packages, userBalance, 1000, Money.of("8.00"));
-        addPackageIfAffordable(packages, userBalance, 2500, Money.of("18.00"));
-        addPackageIfAffordable(packages, userBalance, 5000, Money.of("35.00"));
-        addPackageIfAffordable(packages, userBalance, 10000, Money.of("65.00"));
+        // Показываем ВСЕ пакеты независимо от баланса
+        for (int starCount : StarPriceConstants.getAllSupportedStarCounts()) {
+            Money price = StarPriceConstants.getPriceForStars(starCount);
+            packages.add(new StarPackageOption(starCount, price));
+        }
 
         return packages;
     }
@@ -79,18 +77,21 @@ public class SimplifiedStarPurchaseStrategy {
         message.append(MONEY_EMOJI).append(" <b>Ваш баланс:</b> ")
                 .append(balance.getFormattedBalance()).append("\n\n");
 
-        if (availablePackages.isEmpty()) {
-            message.append(WARNING_EMOJI).append(" <i>Недостаточно средств для покупки звезд</i>\n");
-            message.append("Минимальная стоимость пакета: 1.00 $");
-        } else {
-            message.append("Выберите пакет звезд для покупки:\n\n");
+        message.append("Выберите пакет звезд для покупки:\n\n");
 
-            for (StarPackageOption pkg : availablePackages) {
-                message.append(String.format("⭐ <b>%d звезд</b> - %s\n",
-                        pkg.getStarCount(), pkg.getPrice().getFormattedAmount() + " $"));
-            }
+        for (StarPackageOption pkg : availablePackages) {
+            message.append(String.format("⭐ <b>%d звезд</b> - %s\n",
+                    pkg.getStarCount(), pkg.getPrice().getFormattedAmount() + " $"));
+        }
 
-            message.append("\n💡 <i>Звезды списываются мгновенно с баланса</i>");
+        message.append("\n💡 <i>Звезды списываются мгновенно с баланса</i>");
+
+        // Предупреждение о недостаточности средств если баланс меньше минимального
+        // пакета
+        Money minPrice = StarPriceConstants.getPriceForStars(100);
+        if (balance.getCurrentBalance().isLessThan(minPrice)) {
+            message.append("\n").append(WARNING_EMOJI)
+                    .append(" <i>Для покупки некоторых пакетов может потребоваться пополнение баланса</i>");
         }
 
         InlineKeyboardMarkup keyboard = createPurchaseKeyboard(availablePackages, balance);
@@ -156,16 +157,6 @@ public class SimplifiedStarPurchaseStrategy {
         button.setText(text);
         button.setCallbackData(callbackData);
         return button;
-    }
-
-    /**
-     * Добавление пакета в список, если пользователь может его купить
-     */
-    private void addPackageIfAffordable(List<StarPackageOption> packages, Money userBalance,
-            Integer starCount, Money price) {
-        if (userBalance.isGreaterThanOrEqual(price)) {
-            packages.add(new StarPackageOption(starCount, price));
-        }
     }
 
     /**

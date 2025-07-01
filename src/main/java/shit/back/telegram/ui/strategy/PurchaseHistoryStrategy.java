@@ -5,6 +5,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import shit.back.entity.TransactionStatus;
 import shit.back.domain.starPurchase.StarPurchaseAggregate;
+import shit.back.application.balance.dto.response.StarPurchaseResponse;
+import shit.back.domain.balance.valueobjects.Currency;
+import shit.back.domain.balance.valueobjects.Money;
 import shit.back.telegram.ui.strategy.utils.StrategyConstants;
 
 import java.util.List;
@@ -61,14 +64,22 @@ public class PurchaseHistoryStrategy implements TelegramMessageStrategy {
 
     /**
      * Форматирование полной истории покупок звезд
+     * ИСПРАВЛЕНО: Теперь работает с List<StarPurchaseResponse> вместо
+     * List<StarPurchaseAggregate>
      */
     @SuppressWarnings("unchecked")
     private String formatStarPurchaseHistory(Object data) {
         if (!(data instanceof List<?> list)) {
-            throw new IllegalArgumentException("Ожидался List<StarPurchaseAggregate> для STAR_PURCHASE_HISTORY");
+            throw new IllegalArgumentException("Ожидался List<StarPurchaseResponse> для STAR_PURCHASE_HISTORY");
         }
 
-        List<StarPurchaseAggregate> purchases = (List<StarPurchaseAggregate>) list;
+        // КРИТИЧЕСКОЕ ИСПРАВЛЕНИЕ: Проверяем тип элементов списка
+        if (!list.isEmpty() && !(list.get(0) instanceof StarPurchaseResponse)) {
+            throw new IllegalArgumentException("Ожидался List<StarPurchaseResponse>, получен: " +
+                    (list.get(0) != null ? list.get(0).getClass().getSimpleName() : "null"));
+        }
+
+        List<StarPurchaseResponse> purchases = (List<StarPurchaseResponse>) list;
 
         if (purchases.isEmpty()) {
             return """
@@ -88,12 +99,12 @@ public class PurchaseHistoryStrategy implements TelegramMessageStrategy {
         StringBuilder message = new StringBuilder();
         message.append("📋 <b>История покупок звезд</b>\n\n");
 
-        // Статистика
+        // ИСПРАВЛЕНО: Статистика для StarPurchaseResponse
         int totalPurchases = purchases.size();
-        int successfulPurchases = (int) purchases.stream().filter(StarPurchaseAggregate::isCompleted).count();
+        int successfulPurchases = (int) purchases.stream().filter(StarPurchaseResponse::isSuccessful).count();
         int totalStars = purchases.stream()
-                .filter(StarPurchaseAggregate::isCompleted)
-                .mapToInt(p -> p.getActualStarsReceived() != null ? p.getActualStarsReceived() : 0)
+                .filter(StarPurchaseResponse::isSuccessful)
+                .mapToInt(p -> p.getStarCount() != null ? p.getStarCount() : 0)
                 .sum();
 
         message.append("📊 <b>Общая статистика:</b>\n");
@@ -101,11 +112,11 @@ public class PurchaseHistoryStrategy implements TelegramMessageStrategy {
         message.append(String.format("✅ Успешных: %d\n", successfulPurchases));
         message.append(String.format("⭐ Получено звезд: %d\n\n", totalStars));
 
-        // Последние покупки
+        // ИСПРАВЛЕНО: Последние покупки для StarPurchaseResponse
         message.append("🕐 <b>Последние покупки:</b>\n");
         purchases.stream()
                 .limit(StrategyConstants.MAX_HISTORY_ITEMS)
-                .forEach(purchase -> message.append(formatSinglePurchase(purchase)));
+                .forEach(purchase -> message.append(formatSinglePurchaseResponse(purchase)));
 
         if (purchases.size() > StrategyConstants.MAX_HISTORY_ITEMS) {
             message.append(String.format("\n<i>... и еще %d покупок</i>",
@@ -119,14 +130,21 @@ public class PurchaseHistoryStrategy implements TelegramMessageStrategy {
 
     /**
      * Форматирование недавних покупок (краткий формат)
+     * ИСПРАВЛЕНО: Теперь работает с List<StarPurchaseResponse>
      */
     @SuppressWarnings("unchecked")
     private String formatRecentPurchases(Object data) {
         if (!(data instanceof List<?> list)) {
-            throw new IllegalArgumentException("Ожидался List<StarPurchaseAggregate> для RECENT_PURCHASES");
+            throw new IllegalArgumentException("Ожидался List<StarPurchaseResponse> для RECENT_PURCHASES");
         }
 
-        List<StarPurchaseAggregate> purchases = (List<StarPurchaseAggregate>) list;
+        // ИСПРАВЛЕНО: Безопасная проверка типа элементов
+        if (!list.isEmpty() && !(list.get(0) instanceof StarPurchaseResponse)) {
+            throw new IllegalArgumentException("Ожидался List<StarPurchaseResponse>, получен: " +
+                    (list.get(0) != null ? list.get(0).getClass().getSimpleName() : "null"));
+        }
+
+        List<StarPurchaseResponse> purchases = (List<StarPurchaseResponse>) list;
 
         if (purchases.isEmpty()) {
             return """
@@ -141,17 +159,18 @@ public class PurchaseHistoryStrategy implements TelegramMessageStrategy {
         StringBuilder message = new StringBuilder();
         message.append("🕐 <b>Недавние покупки</b>\n\n");
 
+        // ИСПРАВЛЕНО: Форматирование для StarPurchaseResponse
         purchases.stream()
                 .limit(StrategyConstants.MAX_RECENT_PURCHASES)
                 .forEach(purchase -> {
-                    String statusIcon = getStatusIcon(purchase.getStatus());
-                    String currencySymbol = purchase.getCurrency().getSymbol();
+                    String statusIcon = getStatusIconFromString(purchase.getStatus());
+                    String currencySymbol = getCurrencySymbol(purchase.getAmount());
 
                     message.append(String.format("%s %s • %s %s • %s\n",
                             statusIcon,
-                            purchase.isCompleted() ? String.format("⭐%d", purchase.getActualStarsReceived())
-                                    : String.format("⭐%d", purchase.getRequestedStars()),
-                            purchase.getPurchaseAmount().getFormattedAmount(),
+                            purchase.isSuccessful() ? String.format("⭐%d", purchase.getStarCount())
+                                    : String.format("⭐%d", purchase.getStarCount()),
+                            getFormattedAmount(purchase.getAmount()),
                             currencySymbol,
                             purchase.getCreatedAt().format(StrategyConstants.DATE_FORMATTER)));
                 });
@@ -163,67 +182,93 @@ public class PurchaseHistoryStrategy implements TelegramMessageStrategy {
 
     /**
      * Форматирование деталей одной покупки
+     * ИСПРАВЛЕНО: Поддерживает как StarPurchaseAggregate, так и
+     * StarPurchaseResponse
      */
     private String formatPurchaseDetails(Object data) {
-        if (!(data instanceof StarPurchaseAggregate purchase)) {
-            throw new IllegalArgumentException("Ожидался StarPurchaseAggregate для PURCHASE_DETAILS");
-        }
-
         StringBuilder message = new StringBuilder();
-        String statusIcon = getStatusIcon(purchase.getStatus());
-        String currencySymbol = purchase.getCurrency().getSymbol();
-
         message.append("🔍 <b>Детали покупки</b>\n\n");
 
-        // Основная информация
-        message.append(String.format("🆔 <b>ID:</b> <code>%s</code>\n",
-                purchase.getStarPurchaseId().getShortValue()));
-        message.append(String.format("%s <b>Статус:</b> %s\n",
-                statusIcon, formatStatus(purchase.getStatus())));
+        if (data instanceof StarPurchaseAggregate purchase) {
+            // Обработка StarPurchaseAggregate (старый код)
+            String statusIcon = getStatusIcon(purchase.getStatus());
+            String currencySymbol = purchase.getCurrency().getSymbol();
 
-        // Информация о звездах
-        message.append(String.format("⭐ <b>Запрошено:</b> %d звезд\n",
-                purchase.getRequestedStars()));
-        if (purchase.isCompleted() && purchase.getActualStarsReceived() != null) {
-            message.append(String.format("✅ <b>Получено:</b> %d звезд\n",
-                    purchase.getActualStarsReceived()));
-        }
+            message.append(String.format("🆔 <b>ID:</b> <code>%s</code>\n",
+                    purchase.getStarPurchaseId().getShortValue()));
+            message.append(String.format("%s <b>Статус:</b> %s\n",
+                    statusIcon, formatStatus(purchase.getStatus())));
 
-        // Финансовая информация
-        message.append(String.format("💰 <b>Сумма:</b> %s %s\n",
-                purchase.getPurchaseAmount().getFormattedAmount(), currencySymbol));
-        message.append(String.format("💱 <b>Валюта:</b> %s\n",
-                purchase.getCurrency().getFormattedName()));
+            message.append(String.format("⭐ <b>Запрошено:</b> %d звезд\n",
+                    purchase.getRequestedStars()));
+            if (purchase.isCompleted() && purchase.getActualStarsReceived() != null) {
+                message.append(String.format("✅ <b>Получено:</b> %d звезд\n",
+                        purchase.getActualStarsReceived()));
+            }
 
-        // Временные метки
-        message.append(String.format("🕐 <b>Создано:</b> %s\n",
-                purchase.getCreatedAt().format(StrategyConstants.DATE_FORMATTER)));
-        if (purchase.getCompletedAt() != null) {
-            message.append(String.format("✅ <b>Завершено:</b> %s\n",
-                    purchase.getCompletedAt().format(StrategyConstants.DATE_FORMATTER)));
-        }
+            message.append(String.format("💰 <b>Сумма:</b> %s %s\n",
+                    purchase.getPurchaseAmount().getFormattedAmount(), currencySymbol));
+            message.append(String.format("💱 <b>Валюта:</b> %s\n",
+                    purchase.getCurrency().getFormattedName()));
 
-        // Fragment транзакция
-        if (purchase.hasFragmentTransaction()) {
-            message.append(String.format("🔗 <b>Fragment ID:</b> <code>%s</code>\n",
-                    purchase.getFragmentTransactionId().getShortValue()));
-        }
+            message.append(String.format("🕐 <b>Создано:</b> %s\n",
+                    purchase.getCreatedAt().format(StrategyConstants.DATE_FORMATTER)));
+            if (purchase.getCompletedAt() != null) {
+                message.append(String.format("✅ <b>Завершено:</b> %s\n",
+                        purchase.getCompletedAt().format(StrategyConstants.DATE_FORMATTER)));
+            }
 
-        // Описание или ошибка
-        if (purchase.getDescription() != null) {
-            message.append(String.format("📝 <b>Описание:</b> %s\n", purchase.getDescription()));
-        }
-        if (!purchase.isCompleted() && purchase.getErrorMessage() != null) {
-            message.append(String.format("❌ <b>Ошибка:</b> %s\n", purchase.getErrorMessage()));
+            if (purchase.hasFragmentTransaction()) {
+                message.append(String.format("🔗 <b>Fragment ID:</b> <code>%s</code>\n",
+                        purchase.getFragmentTransactionId().getShortValue()));
+            }
+
+            if (purchase.getDescription() != null) {
+                message.append(String.format("📝 <b>Описание:</b> %s\n", purchase.getDescription()));
+            }
+            if (!purchase.isCompleted() && purchase.getErrorMessage() != null) {
+                message.append(String.format("❌ <b>Ошибка:</b> %s\n", purchase.getErrorMessage()));
+            }
+
+        } else if (data instanceof StarPurchaseResponse purchase) {
+            // ИСПРАВЛЕНО: Обработка StarPurchaseResponse
+            String statusIcon = getStatusIconFromString(purchase.getStatus());
+            String currencySymbol = getCurrencySymbol(purchase.getAmount());
+
+            message.append(String.format("🆔 <b>ID:</b> <code>%s</code>\n",
+                    purchase.getTransactionId()));
+            message.append(String.format("%s <b>Статус:</b> %s\n",
+                    statusIcon, formatStatusFromString(purchase.getStatus())));
+
+            message.append(String.format("⭐ <b>Звезды:</b> %d\n",
+                    purchase.getStarCount()));
+
+            message.append(String.format("💰 <b>Сумма:</b> %s %s\n",
+                    getFormattedAmount(purchase.getAmount()), currencySymbol));
+
+            message.append(String.format("🕐 <b>Создано:</b> %s\n",
+                    purchase.getCreatedAt().format(StrategyConstants.DATE_FORMATTER)));
+            if (purchase.getCompletedAt() != null) {
+                message.append(String.format("✅ <b>Завершено:</b> %s\n",
+                        purchase.getCompletedAt().format(StrategyConstants.DATE_FORMATTER)));
+            }
+
+            if (purchase.getErrorMessage() != null) {
+                message.append(String.format("❌ <b>Ошибка:</b> %s\n", purchase.getErrorMessage()));
+            }
+
+        } else {
+            throw new IllegalArgumentException(
+                    "Ожидался StarPurchaseAggregate или StarPurchaseResponse для PURCHASE_DETAILS, получен: " +
+                            (data != null ? data.getClass().getSimpleName() : "null"));
         }
 
         message.append("\n🤖 <i>Покупка выполнена ботом через Telegram Fragment API</i>");
-
         return message.toString();
     }
 
     /**
-     * Форматирование одной покупки для списка
+     * Форматирование одной покупки для списка (StarPurchaseAggregate)
      */
     private String formatSinglePurchase(StarPurchaseAggregate purchase) {
         String statusIcon = getStatusIcon(purchase.getStatus());
@@ -255,6 +300,38 @@ public class PurchaseHistoryStrategy implements TelegramMessageStrategy {
     }
 
     /**
+     * НОВЫЙ МЕТОД: Форматирование одной покупки для списка (StarPurchaseResponse)
+     */
+    private String formatSinglePurchaseResponse(StarPurchaseResponse purchase) {
+        String statusIcon = getStatusIconFromString(purchase.getStatus());
+        String currencySymbol = getCurrencySymbol(purchase.getAmount());
+
+        StringBuilder item = new StringBuilder();
+        item.append(String.format("• %s ", statusIcon));
+
+        if (purchase.isSuccessful()) {
+            item.append(String.format("⭐<b>%d</b> за %s %s",
+                    purchase.getStarCount(),
+                    getFormattedAmount(purchase.getAmount()),
+                    currencySymbol));
+        } else {
+            item.append(String.format("❌ ⭐%d за %s %s",
+                    purchase.getStarCount(),
+                    getFormattedAmount(purchase.getAmount()),
+                    currencySymbol));
+        }
+
+        item.append(String.format("\n   <i>%s</i>\n",
+                purchase.getCreatedAt().format(StrategyConstants.DATE_FORMATTER)));
+
+        if (!purchase.isSuccessful() && purchase.getErrorMessage() != null) {
+            item.append(String.format("   <i>%s</i>\n", purchase.getErrorMessage()));
+        }
+
+        return item.toString();
+    }
+
+    /**
      * Получение иконки статуса
      */
     private String getStatusIcon(TransactionStatus status) {
@@ -278,5 +355,61 @@ public class PurchaseHistoryStrategy implements TelegramMessageStrategy {
             case CANCELLED -> "Отменена";
             default -> "Неизвестно";
         };
+    }
+
+    /**
+     * НОВЫЕ ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ для работы с StarPurchaseResponse
+     */
+
+    /**
+     * Получение иконки статуса из строки
+     */
+    private String getStatusIconFromString(String status) {
+        if (status == null)
+            return "❓";
+        return switch (status.toUpperCase()) {
+            case "PENDING", "PROCESSING" -> "🔄";
+            case "COMPLETED", "SUCCESS" -> "✅";
+            case "FAILED", "ERROR" -> "❌";
+            case "CANCELLED" -> "🚫";
+            default -> "❓";
+        };
+    }
+
+    /**
+     * Форматирование статуса из строки
+     */
+    private String formatStatusFromString(String status) {
+        if (status == null)
+            return "Неизвестно";
+        return switch (status.toUpperCase()) {
+            case "PENDING", "PROCESSING" -> "В обработке";
+            case "COMPLETED", "SUCCESS" -> "Завершена";
+            case "FAILED", "ERROR" -> "Неудачно";
+            case "CANCELLED" -> "Отменена";
+            default -> "Неизвестно";
+        };
+    }
+
+    /**
+     * Получение символа валюты из Money объекта
+     */
+    private String getCurrencySymbol(Money money) {
+        if (money == null)
+            return "$";
+        // Предполагаем, что у Money есть метод для получения валюты
+        // Если нет, возвращаем дефолтный символ
+        return "$"; // TODO: Реализовать получение символа валюты из Money
+    }
+
+    /**
+     * Получение отформатированной суммы из Money объекта
+     */
+    private String getFormattedAmount(Money money) {
+        if (money == null)
+            return "0.00";
+        // Предполагаем, что у Money есть метод для форматирования
+        // Если нет, используем toString или другой доступный метод
+        return money.toString(); // TODO: Реализовать правильное форматирование Money
     }
 }

@@ -46,9 +46,17 @@ public class ShowBalanceQueryHandler implements TelegramQueryHandler<ShowBalance
             var balanceResult = balanceApplicationFacade.getBalance(query.getUserId());
 
             if (!balanceResult.isSuccess()) {
-                String error = "Не удалось получить информацию о балансе";
-                log.error("❌ {} для пользователя {}", error, query.getUserId());
-                return TelegramResponse.error(error);
+                String errorCode = balanceResult.getError() != null
+                        ? balanceResult.getError().getClass().getSimpleName()
+                        : "UNKNOWN_ERROR";
+                String errorMessage = balanceResult.getError() != null ? balanceResult.getError().getMessage()
+                        : "Неизвестная ошибка";
+
+                log.error("Balance retrieval failed for user {}", query.getUserId());
+
+                // Возвращаем детализированную ошибку
+                String userFriendlyMessage = determineUserFriendlyErrorMessage(errorCode, errorMessage);
+                return TelegramResponse.error(userFriendlyMessage);
             }
 
             // ФАЗА 2: Проверяем, можно ли использовать упрощенную архитектуру
@@ -64,9 +72,8 @@ public class ShowBalanceQueryHandler implements TelegramQueryHandler<ShowBalance
             }
 
         } catch (Exception e) {
-            log.error("❌ Ошибка при получении баланса для пользователя {}: {}",
-                    query.getUserId(), e.getMessage(), e);
-            return TelegramResponse.error("Не удалось получить информацию о балансе: " + e.getMessage());
+            log.error("Balance retrieval failed for user {}", query.getUserId());
+            return TelegramResponse.error("Не удалось получить информацию о балансе");
         }
     }
 
@@ -152,7 +159,7 @@ public class ShowBalanceQueryHandler implements TelegramQueryHandler<ShowBalance
             return BalanceResponseMapper.createEmptyBalance(userId);
 
         } catch (Exception e) {
-            log.error("❌ Ошибка извлечения данных баланса: {}", e.getMessage(), e);
+            log.error("Balance data extraction failed for user {}", userId);
             // В случае ошибки возвращаем пустой баланс
             return BalanceResponseMapper.createEmptyBalance(userId);
         }
@@ -190,8 +197,8 @@ public class ShowBalanceQueryHandler implements TelegramQueryHandler<ShowBalance
                     .build();
 
         } catch (Exception e) {
-            log.error("❌ ФАЗА2: Ошибка упрощенной обработки баланса: {}", e.getMessage(), e);
-            return TelegramResponse.error("Ошибка при получении упрощенного баланса: " + e.getMessage());
+            log.error("Simplified balance processing failed for user {}", query.getUserId());
+            return TelegramResponse.error("Ошибка при получении упрощенного баланса");
         }
     }
 
@@ -215,7 +222,6 @@ public class ShowBalanceQueryHandler implements TelegramQueryHandler<ShowBalance
             // Создаем клавиатуру действий
             var keyboard = new TelegramKeyboardBuilder()
                     .addButton("⭐ Купить звезды", "buy_stars")
-                    .addButton("💸 Перевести средства", "transfer_funds")
                     .newRow()
                     .addButton("📋 История", "show_history")
                     .addButton("💳 Пополнить", "topup_balance")
@@ -234,9 +240,34 @@ public class ShowBalanceQueryHandler implements TelegramQueryHandler<ShowBalance
                     .build();
 
         } catch (Exception e) {
-            log.error("❌ LEGACY: Ошибка обработки баланса: {}", e.getMessage(), e);
-            return TelegramResponse.error("Ошибка при получении legacy баланса: " + e.getMessage());
+            log.error("Legacy balance processing failed for user {}", query.getUserId());
+            return TelegramResponse.error("Ошибка при получении баланса");
         }
+    }
+
+    /**
+     * Определение пользовательского сообщения об ошибке на основе технических
+     * деталей
+     */
+    private String determineUserFriendlyErrorMessage(String errorCode, String errorMessage) {
+        switch (errorCode) {
+            case "InvalidTransactionException":
+                if (errorMessage.contains("BALANCE_NOT_FOUND")) {
+                    return "🚫 Баланс не найден. Создаем новый баланс...";
+                } else if (errorMessage.contains("BALANCE_RETRIEVAL_ERROR")) {
+                    return "⚠️ Временная ошибка получения баланса. Попробуйте позже";
+                }
+                break;
+            case "BalanceDomainException":
+                return "🔧 Ошибка системы баланса. Обратитесь в поддержку";
+            case "InsufficientFundsException":
+                return "💸 Недостаточно средств на балансе";
+            default:
+                break;
+        }
+
+        // Общее сообщение для неизвестных ошибок
+        return "❌ Не удалось получить информацию о балансе. Попробуйте позже";
     }
 
     /**
@@ -261,7 +292,7 @@ public class ShowBalanceQueryHandler implements TelegramQueryHandler<ShowBalance
             return BalanceResponseMapper.createEmptyBalance(userId);
 
         } catch (Exception e) {
-            log.error("❌ ФАЗА2: Ошибка конвертации в SimpleBalance: {}", e.getMessage(), e);
+            log.error("SimpleBalance conversion failed for user {}", userId);
             return BalanceResponseMapper.createEmptyBalance(userId);
         }
     }

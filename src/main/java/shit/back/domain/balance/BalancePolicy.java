@@ -11,6 +11,8 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.Set;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Политики и бизнес-правила для операций с балансом
@@ -21,8 +23,10 @@ import java.util.Set;
 @Component
 public class BalancePolicy {
 
-    // Выполнение операций
+    // Rate limiting tracking
+    private final Map<Long, UserRateLimitInfo> userRateLimits = new ConcurrentHashMap<>();
 
+    // Выполнение операций
 
     // Минимальные суммы операций
     @Value("${balance.policy.min-deposit-amount:1.00}")
@@ -313,5 +317,58 @@ public class BalancePolicy {
      */
     public int getMaxTransactionsPerMinute() {
         return maxTransactionsPerMinute;
+    }
+
+    /**
+     * Проверка разрешения операции с балансом (Rate Limiting)
+     * ДОБАВЛЕНО: Для защиты от DoS атак
+     */
+    public boolean isBalanceOperationAllowed(Long userId) {
+        UserRateLimitInfo info = userRateLimits.computeIfAbsent(userId, k -> new UserRateLimitInfo());
+        LocalDateTime now = LocalDateTime.now();
+
+        // Очистка старых записей
+        info.cleanOldOperations(now);
+
+        // Проверка лимита операций в минуту
+        if (info.getOperationsInLastMinute(now) >= maxTransactionsPerMinute) {
+            return false;
+        }
+
+        // Проверка минимального интервала между операциями
+        if (info.lastOperationTime != null) {
+            long secondsSinceLastOperation = ChronoUnit.SECONDS.between(info.lastOperationTime, now);
+            if (secondsSinceLastOperation < minIntervalBetweenTransactionsSeconds) {
+                return false;
+            }
+        }
+
+        // Регистрируем операцию
+        info.registerOperation(now);
+        return true;
+    }
+
+    /**
+     * Внутренний класс для отслеживания Rate Limiting по пользователям
+     */
+    private static class UserRateLimitInfo {
+        private LocalDateTime lastOperationTime;
+        private final Map<LocalDateTime, Integer> operationsByMinute = new ConcurrentHashMap<>();
+
+        void registerOperation(LocalDateTime time) {
+            lastOperationTime = time;
+            LocalDateTime minuteKey = time.withSecond(0).withNano(0);
+            operationsByMinute.merge(minuteKey, 1, Integer::sum);
+        }
+
+        int getOperationsInLastMinute(LocalDateTime now) {
+            LocalDateTime currentMinute = now.withSecond(0).withNano(0);
+            return operationsByMinute.getOrDefault(currentMinute, 0);
+        }
+
+        void cleanOldOperations(LocalDateTime now) {
+            LocalDateTime cutoff = now.minusMinutes(2);
+            operationsByMinute.entrySet().removeIf(entry -> entry.getKey().isBefore(cutoff));
+        }
     }
 }

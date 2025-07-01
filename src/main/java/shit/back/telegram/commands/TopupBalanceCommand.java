@@ -29,11 +29,36 @@ public class TopupBalanceCommand implements TelegramCommand {
 
     // Совместимость с CallbackQueryAdapter
     public TopupBalanceCommand(Long userId, String amountStr, String paymentMethod) {
+        System.err.println(String.format(
+                "🔍 ДИАГНОСТИКА: СОЗДАНИЕ TopupBalanceCommand с параметрами: userId=%d, amountStr='%s', paymentMethod='%s'",
+                userId, amountStr, paymentMethod));
+
         this.userId = userId;
-        this.amount = parseAmount(amountStr);
+
+        try {
+            System.err.println("🔍 ДИАГНОСТИКА: ВЫЗОВ parseAmount() с параметром: '" + amountStr + "'");
+            this.amount = parseAmount(amountStr);
+            System.err.println("🔍 ДИАГНОСТИКА: parseAmount() успешно завершен, результат: " + this.amount);
+        } catch (Exception e) {
+            System.err.println("❌ ДИАГНОСТИКА: ИСКЛЮЧЕНИЕ в parseAmount(): " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
+
         this.paymentMethod = paymentMethod != null ? paymentMethod : "DEFAULT";
         this.context = "TOPUP";
-        validate();
+
+        try {
+            System.err.println("🔍 ДИАГНОСТИКА: ВЫЗОВ validate()");
+            validate();
+            System.err.println("🔍 ДИАГНОСТИКА: validate() успешно завершен");
+        } catch (Exception e) {
+            System.err.println("❌ ДИАГНОСТИКА: ИСКЛЮЧЕНИЕ в validate(): " + e.getMessage());
+            e.printStackTrace();
+            throw e;
+        }
+
+        System.err.println("🔍 ДИАГНОСТИКА: TopupBalanceCommand успешно создан: " + this.toString());
     }
 
     @Override
